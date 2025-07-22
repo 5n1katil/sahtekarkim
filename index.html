@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5N1Katil - Oyun Başlat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(to right, #1f1c2c, #928dab);
+      margin: 0;
+      padding: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 500px;
+      background: #2c2c54;
+      padding: 30px;
+      margin-top: 50px;
+      border-radius: 16px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+      color: #f1f1f1;
+    }
+
+    label, textarea, input, select, button {
+      width: 100%;
+      margin-top: 10px;
+      font-size: 16px;
+    }
+
+    textarea, input, select {
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      margin-bottom: 15px;
+    }
+
+    button {
+      padding: 12px;
+      background-color: #6c5ce7;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background-color: #4a47a3;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .vote-list label {
+      display: block;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container" id="setup">
+    <h2>5N1Katil - Oda Kur</h2>
+    <label>Oyuncu isimlerini girin (her satıra bir isim):</label>
+    <textarea id="playersInput" rows="6"></textarea>
+    <button onclick="startGame()">Oyunu Başlat</button>
+  </div>
+
+  <div class="container hidden" id="roleReveal">
+    <h3 id="currentPlayer"></h3>
+    <p id="roleInfo"></p>
+    <button onclick="nextPlayer()">Sonraki Oyuncu</button>
+  </div>
+
+  <div class="container hidden" id="votingPhase">
+    <h2>Oylama Turu</h2>
+    <div id="voteList" class="vote-list"></div>
+    <button onclick="endVoting()">Oylamayı Bitir</button>
+  </div>
+
+  <div class="container hidden" id="spyGuess">
+    <h2>Sahtekarın Son Şansı</h2>
+    <p>Sadece 1 tahmin hakkın var. Konumu tahmin et:</p>
+    <select id="locationGuess"></select>
+    <button onclick="checkSpyGuess()">Tahmin Et</button>
+  </div>
+
+  <div class="container hidden" id="result">
+    <h2>Oyun Sonucu</h2>
+    <p id="resultText"></p>
+  </div>
+
+<script>
+  const locations = ["Kütüphane", "Uzay Üssü", "Restoran", "Sinema", "Lunapark", "Hastane"];
+  let players = [];
+  let roles = [];
+  let spyIndex = -1;
+  let currentPlayerIndex = 0;
+  let gameLocation = "";
+
+  function startGame() {
+    players = document.getElementById("playersInput").value.trim().split("\n").filter(Boolean);
+    spyIndex = Math.floor(Math.random() * players.length);
+    gameLocation = locations[Math.floor(Math.random() * locations.length)];
+
+    roles = players.map((_, i) => i === spyIndex ? "Sahtekar" : `Konum: ${gameLocation}`);
+    shuffle(roles);
+    document.getElementById("setup").classList.add("hidden");
+    showPlayer();
+  }
+
+  function showPlayer() {
+    document.getElementById("currentPlayer").innerText = `Oyuncu: ${players[currentPlayerIndex]}`;
+    document.getElementById("roleInfo").innerText = roles[currentPlayerIndex];
+    document.getElementById("roleReveal").classList.remove("hidden");
+  }
+
+  function nextPlayer() {
+    currentPlayerIndex++;
+    if (currentPlayerIndex < players.length) {
+      showPlayer();
+    } else {
+      document.getElementById("roleReveal").classList.add("hidden");
+      startVoting();
+    }
+  }
+
+  function startVoting() {
+    const voteListDiv = document.getElementById("voteList");
+    voteListDiv.innerHTML = "<h3>Herkes bir kişiye oy versin:</h3>";
+    players.forEach(p => {
+      voteListDiv.innerHTML += `<label><input type='radio' name='vote' value='${p}'> ${p}</label>`;
+    });
+    document.getElementById("votingPhase").classList.remove("hidden");
+  }
+
+  function endVoting() {
+    const selected = document.querySelector("input[name='vote']:checked");
+    if (!selected) return alert("Lütfen birine oy verin.");
+
+    const votedName = selected.value;
+    const eliminatedIndex = players.indexOf(votedName);
+
+    if (roles[eliminatedIndex] === "Sahtekar") {
+      showResult("🎉 Masumlar kazandı! Sahtekar yakalandı.");
+    } else {
+      document.getElementById("votingPhase").classList.add("hidden");
+      prepareSpyGuess();
+    }
+  }
+
+  function prepareSpyGuess() {
+    const locSelect = document.getElementById("locationGuess");
+    locSelect.innerHTML = "";
+    locations.forEach(loc => {
+      locSelect.innerHTML += `<option value='${loc}'>${loc}</option>`;
+    });
+    document.getElementById("spyGuess").classList.remove("hidden");
+  }
+
+  function checkSpyGuess() {
+    const guess = document.getElementById("locationGuess").value;
+    if (guess === gameLocation) {
+      showResult("🕵️‍♂️ Sahtekar kazandı! Konumu doğru tahmin etti.");
+    } else {
+      showResult("✅ Masumlar kazandı! Sahtekar yanlış tahmin yaptı.");
+    }
+  }
+
+  function showResult(text) {
+    document.getElementById("spyGuess").classList.add("hidden");
+    document.getElementById("resultText").innerText = text;
+    document.getElementById("result").classList.remove("hidden");
+  }
+
+  function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+</script>
+
+</body>
+</html>
