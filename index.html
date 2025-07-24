@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5N1Katil - Oyun Başlat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(to right, #1f1c2c, #928dab);
+      margin: 0;
+      padding: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      width: 100%;
+      max-width: 500px;
+      background: #2c2c54;
+      padding: 30px;
+      margin-top: 50px;
+      border-radius: 16px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    }
+    h1, h2, h3 {
+      margin-top: 0;
+      color: #f1f1f1;
+    }
+    label, textarea, input, select, button {
+      width: 100%;
+      margin-top: 10px;
+      font-size: 16px;
+    }
+    textarea, input, select {
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      margin-bottom: 15px;
+    }
+    button {
+      padding: 12px;
+      background-color: #6c5ce7;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background-color: #4a47a3;
+    }
+    .hidden { display: none; }
+    .player-list {
+      margin-top: 20px;
+      background-color: #1e1e3f;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    .player-list h4 { margin: 0 0 10px 0; }
+    .player-list ul { padding-left: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container" id="setup">
+    <h2>5N1Katil - Oyun Ayarları</h2>
+    <label>İsminizi girin (Kurucu):</label>
+    <input type="text" id="creatorName">
+    <label>Kaç kişi oynayacak? (min 4 - max 16)</label>
+    <input type="number" id="playerCount" min="4" max="16" value="4">
+    <label>Kaç sahtekar olacak?</label>
+    <input type="number" id="spyCount" min="1" max="5" value="1">
+    <label>Karakterler dahil edilsin mi?</label>
+    <select id="useRoles">
+      <option value="yes">Evet</option>
+      <option value="no" selected>Hayır</option>
+    </select>
+    <label>Her turda kaç soru sorulsun?</label>
+    <input type="number" id="questionsPerRound" min="1" max="10" value="1">
+    <label>Sahtekarın kaç konum tahmin hakkı olacak?</label>
+    <input type="number" id="spyGuessCount" min="1" max="5" value="1">
+    <label>Sahtekar her tur sonunda birini eleyebilsin mi?</label>
+    <select id="spyCanEliminate">
+      <option value="yes">Evet</option>
+      <option value="no" selected>Hayır</option>
+    </select>
+    <button id="createRoomBtn">Odayı Oluştur</button>
+  </div>
+
+  <div class="container hidden" id="roomInfo">
+    <h3 id="roomTitle"></h3>
+    <p>Oda kodunuz: <strong id="roomCode"></strong></p>
+    <p id="roomInstructions"></p>
+    <div class="player-list">
+      <h4>Katılan Oyuncular</h4>
+      <ul id="playerList"></ul>
+    </div>
+    <button id="startGameBtn" class="hidden">Oyunu Başlat</button>
+    <button id="leaveRoomBtn">Odadan Çık</button>
+  </div>
+
+  <div class="container" id="playerJoin">
+    <h2>Oyuna Katıl</h2>
+    <label>İsminizi girin:</label>
+    <input type="text" id="playerName">
+    <label>Oda kodunu girin:</label>
+    <input type="text" id="joinCode">
+    <button id="joinGameBtn">Oyuna Katıl</button>
+  </div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
+    authDomain: "detektif-c17bb.firebaseapp.com",
+    databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com/",
+    projectId: "detektif-c17bb",
+    storageBucket: "detektif-c17bb.appspot.com",
+    messagingSenderId: "422256375848",
+    appId: "1:422256375848:web:873b0a6372c992accf9d1d"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  document.getElementById("createRoomBtn").addEventListener("click", createRoom);
+  document.getElementById("joinGameBtn").addEventListener("click", joinGame);
+  document.getElementById("leaveRoomBtn").addEventListener("click", leaveRoom);
+
+  function createRoom() {
+    const creatorName = document.getElementById("creatorName").value.trim();
+    if (!creatorName) return alert("İsim gerekli.");
+    const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+    const roomData = {
+      code: roomCode,
+      createdAt: Date.now(),
+      players: [creatorName],
+      settings: {
+        playerCount: document.getElementById("playerCount").value,
+        spyCount: document.getElementById("spyCount").value,
+        useRoles: document.getElementById("useRoles").value,
+        questionsPerRound: document.getElementById("questionsPerRound").value,
+        spyGuessCount: document.getElementById("spyGuessCount").value,
+        spyCanEliminate: document.getElementById("spyCanEliminate").value
+      }
+    };
+    db.ref("rooms/" + roomCode).set(roomData).then(() => {
+      localStorage.setItem("roomCode", roomCode);
+      localStorage.setItem("playerName", creatorName);
+      localStorage.setItem("isCreator", "true");
+      showRoom(roomCode);
+    });
+  }
+
+  function joinGame() {
+    const playerName = document.getElementById("playerName").value.trim();
+    const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
+    if (!playerName || !joinCode) return alert("İsim ve kod gerekli.");
+
+    db.ref("rooms/" + joinCode).get().then(snapshot => {
+      if (!snapshot.exists()) return alert("Oda bulunamadı.");
+      const room = snapshot.val();
+      const updatedPlayers = [...(room.players || []), playerName];
+      db.ref("rooms/" + joinCode + "/players").set(updatedPlayers).then(() => {
+        localStorage.setItem("roomCode", joinCode);
+        localStorage.setItem("playerName", playerName);
+        localStorage.setItem("isCreator", "false");
+        showRoom(joinCode);
+      });
+    });
+  }
+
+  function showRoom(code) {
+    document.getElementById("setup").classList.add("hidden");
+    document.getElementById("playerJoin").classList.add("hidden");
+    document.getElementById("roomInfo").classList.remove("hidden");
+    document.getElementById("roomCode").textContent = code;
+
+    const isCreator = localStorage.getItem("isCreator") === "true";
+    const roomTitle = document.getElementById("roomTitle");
+    const roomInstructions = document.getElementById("roomInstructions");
+    if (isCreator) {
+      roomTitle.textContent = "Oda başarıyla oluşturuldu!";
+      roomInstructions.textContent = "Diğer oyuncular bu kodla giriş yapabilir.";
+      document.getElementById("startGameBtn").classList.remove("hidden");
+    } else {
+      roomTitle.textContent = "Oyun odasına hoş geldiniz!";
+      roomInstructions.textContent = "Oyuncuların katılması ve kurucunun oyunu başlatması bekleniyor.";
+      document.getElementById("startGameBtn").classList.add("hidden");
+    }
+
+    db.ref("rooms/" + code + "/players").on("value", snapshot => {
+      const list = document.getElementById("playerList");
+      list.innerHTML = "";
+      (snapshot.val() || []).forEach(player => {
+        const li = document.createElement("li");
+        li.textContent = player;
+        list.appendChild(li);
+      });
+    });
+  }
+
+  function leaveRoom() {
+    const roomCode = localStorage.getItem("roomCode");
+    const playerName = localStorage.getItem("playerName");
+    const isCreator = localStorage.getItem("isCreator") === "true";
+
+    if (!roomCode || !playerName) return;
+
+    if (isCreator) {
+      db.ref("rooms/" + roomCode).remove().then(() => {
+        localStorage.clear();
+        window.location.reload();
+      });
+    } else {
+      db.ref("rooms/" + roomCode + "/players").get().then(snapshot => {
+        const players = snapshot.val() || [];
+        const updated = players.filter(name => name !== playerName);
+        db.ref("rooms/" + roomCode + "/players").set(updated).then(() => {
+          localStorage.clear();
+          window.location.reload();
+        });
+      });
+    }
+  }
+</script>
+</body>
+</html>
