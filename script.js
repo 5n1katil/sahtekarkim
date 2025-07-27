@@ -36,6 +36,7 @@ const startGameBtn = document.getElementById("startGameBtn");
 let currentRoomCode = null;
 let currentPlayerName = null;
 let isCreator = false;
+let roomRef = null;
 
 // Başlangıçta hem kurucu hem katılımcı bölümlerini göster
 window.addEventListener("DOMContentLoaded", () => {
@@ -104,7 +105,9 @@ joinRoomBtn.addEventListener("click", () => {
 
 // Odayı dinle ve oyuncuları güncelle
 function listenRoom(code) {
-  db.ref("rooms/" + code + "/players").on("value", snapshot => {
+  roomRef = db.ref("rooms/" + code);
+
+  roomRef.child("players").on("value", snapshot => {
     const list = snapshot.val();
     const playerList = document.getElementById("playerList");
     playerList.innerHTML = "";
@@ -115,7 +118,7 @@ function listenRoom(code) {
     });
   });
 
-  db.ref("rooms/" + code).on("value", snapshot => {
+  roomRef.on("value", snapshot => {
     if (!snapshot.exists()) {
       alert("Oda kapatıldı.");
       location.reload();
