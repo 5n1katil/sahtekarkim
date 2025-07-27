@@ -48,6 +48,14 @@ window.addEventListener("DOMContentLoaded", () => {
     setupDiv.classList.remove("hidden");
     playerJoinDiv.classList.remove("hidden");
   }
+
+  const exitGameBtn = document.getElementById("exitGameBtn");
+  if (exitGameBtn) {
+    exitGameBtn.addEventListener("click", () => {
+      localStorage.clear();
+      location.reload();
+    });
+  }
 });
 
 createRoomBtn.addEventListener("click", () => {
@@ -140,11 +148,9 @@ function listenRoom(code) {
       const roleMessage = document.getElementById("roleMessage");
       roleMessage.innerHTML = "";
 
-      if (role === "spy") {
-        roleMessage.innerHTML = `<div style="font-size: 1.8rem">Rolünüz: Sahtekar</div>`;
-      } else {
-        roleMessage.innerHTML = `<div style="font-size: 1.8rem">Konum: ${location}</div>` +
-                                (character ? `<div style="font-size: 1.8rem">Rolünüz: ${character}</div>` : "");
+      roleMessage.innerHTML += `<div style="font-size: 1.8rem">${role === "spy" ? "Rolünüz: Sahtekar" : `Konum: ${location}`}</div>`;
+      if (role !== "spy" && character) {
+        roleMessage.innerHTML += `<div style="font-size: 1.8rem">Rolünüz: ${character}</div>`;
       }
     }
   });
@@ -169,7 +175,8 @@ function showRoomUI() {
 
   startGameBtn.classList.toggle("hidden", !isCreator);
   leaveRoomBtn.classList.remove("hidden");
-  exitGameBtn?.classList.remove("hidden");
+  const exitBtn = document.getElementById("exitGameBtn");
+  if (exitBtn) exitBtn.classList.remove("hidden");
 }
 
 leaveRoomBtn.addEventListener("click", () => {
@@ -213,10 +220,3 @@ startGameBtn.addEventListener("click", () => {
     db.ref("rooms/" + currentRoomCode + "/assignments").set(assignments);
   });
 });
-
-if (exitGameBtn) {
-  exitGameBtn.addEventListener("click", () => {
-    localStorage.clear();
-    location.reload();
-  });
-}
