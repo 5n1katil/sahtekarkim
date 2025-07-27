@@ -149,10 +149,16 @@ function listenRoom(code) {
         }
       }
 
-      // Oyundan çık butonu
       const exitBtn = document.createElement("button");
       exitBtn.textContent = isCreator ? "Oyunu Bitir" : "Oyundan Çık";
       exitBtn.style.marginTop = "20px";
+      exitBtn.style.padding = "10px 20px";
+      exitBtn.style.fontSize = "1rem";
+      exitBtn.style.backgroundColor = "#6c63ff";
+      exitBtn.style.color = "#fff";
+      exitBtn.style.border = "none";
+      exitBtn.style.borderRadius = "10px";
+      exitBtn.style.cursor = "pointer";
       exitBtn.onclick = () => {
         if (isCreator) {
           db.ref("rooms/" + currentRoomCode).remove();
