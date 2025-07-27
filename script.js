@@ -38,6 +38,10 @@ let currentPlayerName = null;
 let isCreator = false;
 let roomRef = null;
 
+// Konum ve karakter örnekleri
+const locations = ["Havalimanı", "Restoran", "Kütüphane", "Müze"];
+const roles = ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"];
+
 // Başlangıçta hem kurucu hem katılımcı bölümlerini göster
 window.addEventListener("DOMContentLoaded", () => {
   setupDiv.classList.remove("hidden");
@@ -118,6 +122,20 @@ function listenRoom(code) {
     });
   });
 
+  roomRef.child("assignments").on("value", snapshot => {
+    const assignments = snapshot.val();
+    if (assignments && currentPlayerName in assignments) {
+      const { role, location, character } = assignments[currentPlayerName];
+      roleInfoDiv.classList.remove("hidden");
+      roomInfoDiv.classList.add("hidden");
+      if (role === "spy") {
+        document.getElementById("roleMessage").textContent = "Rolünüz: Sahtekar. Konumu tahmin etmeye çalışın!";
+      } else {
+        document.getElementById("roleMessage").textContent = `Konum: ${location}${character ? ", Rolünüz: " + character : ""}`;
+      }
+    }
+  });
+
   roomRef.on("value", snapshot => {
     if (!snapshot.exists()) {
       alert("Oda kapatıldı.");
@@ -152,7 +170,27 @@ leaveRoomBtn.addEventListener("click", () => {
 });
 
 startGameBtn.addEventListener("click", () => {
-  roomInfoDiv.classList.add("hidden");
-  roleInfoDiv.classList.remove("hidden");
-  document.getElementById("roleMessage").textContent = "(örnek) Rolünüz: Sahtekar.";
+  db.ref("rooms/" + currentRoomCode).once("value").then(snapshot => {
+    const room = snapshot.val();
+    if (!room) return;
+
+    const players = room.players || [];
+    const settings = room.settings;
+    const shuffled = [...players].sort(() => 0.5 - Math.random());
+
+    const assignments = {};
+    const spies = shuffled.slice(0, settings.spyCount);
+    const location = locations[Math.floor(Math.random() * locations.length)];
+
+    players.forEach(name => {
+      const isSpy = spies.includes(name);
+      assignments[name] = {
+        role: isSpy ? "spy" : "normal",
+        location: isSpy ? null : location,
+        character: !isSpy && settings.useRoles ? roles[Math.floor(Math.random() * roles.length)] : null
+      };
+    });
+
+    db.ref("rooms/" + currentRoomCode + "/assignments").set(assignments);
+  });
 });
