@@ -191,6 +191,8 @@ startGameBtn.addEventListener("click", () => {
       };
     });
 
-    db.ref("rooms/" + currentRoomCode + "/assignments").set(assignments);
+    db.ref("rooms/" + currentRoomCode + "/assignments").set(assignments).then(() => {
+      console.log("Rol atamaları başarıyla tamamlandı ve tüm oyunculara dağıtıldı.");
+    });
   });
 });
