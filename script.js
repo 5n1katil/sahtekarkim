@@ -32,6 +32,7 @@ const createRoomBtn = document.getElementById("createRoomBtn");
 const joinRoomBtn = document.getElementById("joinRoomBtn");
 const leaveRoomBtn = document.getElementById("leaveRoomBtn");
 const startGameBtn = document.getElementById("startGameBtn");
+const exitGameBtn = document.getElementById("exitGameBtn");
 
 let currentRoomCode = null;
 let currentPlayerName = null;
@@ -128,10 +129,15 @@ function listenRoom(code) {
       const { role, location, character } = assignments[currentPlayerName];
       roleInfoDiv.classList.remove("hidden");
       roomInfoDiv.classList.add("hidden");
+
+      const roleMessage = document.getElementById("roleMessage");
+      roleMessage.innerHTML = "";
+
       if (role === "spy") {
-        document.getElementById("roleMessage").textContent = "Rolünüz: Sahtekar. Konumu tahmin etmeye çalışın!";
+        roleMessage.innerHTML = `<div style="font-size: 1.5rem">Rolünüz: Sahtekar</div>`;
       } else {
-        document.getElementById("roleMessage").textContent = `Konum: ${location}${character ? ", Rolünüz: " + character : ""}`;
+        roleMessage.innerHTML = `<div style="font-size: 1.5rem">Konum: ${location}</div>` +
+                                (character ? `<div style="font-size: 1.5rem">Rolünüz: ${character}</div>` : "");
       }
     }
   });
@@ -154,6 +160,8 @@ function showRoomUI() {
   document.getElementById("roomInstructions").textContent = isCreator ? "Diğer oyuncular bu kodla giriş yapabilir." : "Oda kurucusunun oyunu başlatmasını bekleyin.";
 
   startGameBtn.classList.toggle("hidden", !isCreator);
+  leaveRoomBtn.classList.remove("hidden");
+  exitGameBtn?.classList.remove("hidden");
 }
 
 leaveRoomBtn.addEventListener("click", () => {
@@ -176,6 +184,8 @@ startGameBtn.addEventListener("click", () => {
 
     const players = room.players || [];
     const settings = room.settings;
+    if (players.length < 2) return alert("En az 2 oyuncu gerekli.");
+
     const shuffled = [...players].sort(() => 0.5 - Math.random());
 
     const assignments = {};
@@ -196,3 +206,9 @@ startGameBtn.addEventListener("click", () => {
     });
   });
 });
+
+if (exitGameBtn) {
+  exitGameBtn.addEventListener("click", () => {
+    location.reload();
+  });
+}
