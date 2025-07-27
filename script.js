@@ -36,7 +36,12 @@ const startGameBtn = document.getElementById("startGameBtn");
 let currentRoomCode = null;
 let currentPlayerName = null;
 let isCreator = false;
-let playerRef = null;
+
+// Başlangıçta hem kurucu hem katılımcı bölümlerini göster
+window.addEventListener("DOMContentLoaded", () => {
+  setupDiv.classList.remove("hidden");
+  playerJoinDiv.classList.remove("hidden");
+});
 
 // Odayı oluştur
 createRoomBtn.addEventListener("click", () => {
@@ -110,7 +115,6 @@ function listenRoom(code) {
     });
   });
 
-  // Oda silinirse katılımcıları yönlendir
   db.ref("rooms/" + code).on("value", snapshot => {
     if (!snapshot.exists()) {
       alert("Oda kapatıldı.");
@@ -119,41 +123,33 @@ function listenRoom(code) {
   });
 }
 
-// UI geçişleri
 function showRoomUI() {
-  document.getElementById("setup").classList.add("hidden");
-  document.getElementById("playerJoin").classList.add("hidden");
-  document.getElementById("roomInfo").classList.remove("hidden");
+  setupDiv.classList.add("hidden");
+  playerJoinDiv.classList.add("hidden");
+  roomInfoDiv.classList.remove("hidden");
 
   document.getElementById("roomCode").textContent = currentRoomCode;
   document.getElementById("roomTitle").textContent = isCreator ? "Oda başarıyla oluşturuldu!" : "Oyun odasına hoş geldiniz!";
-  document.getElementById("roomInstructions").textContent = isCreator
-    ? "Diğer oyuncular bu kodla giriş yapabilir."
-    : "Oda kurucusunun oyunu başlatmasını bekleyin.";
+  document.getElementById("roomInstructions").textContent = isCreator ? "Diğer oyuncular bu kodla giriş yapabilir." : "Oda kurucusunun oyunu başlatmasını bekleyin.";
 
   startGameBtn.classList.toggle("hidden", !isCreator);
 }
 
-// Odadan çıkış
-leaveRoomBtn.addEventListener("click", () => leaveRoom());
-
-function leaveRoom() {
+leaveRoomBtn.addEventListener("click", () => {
   if (!currentRoomCode || !currentPlayerName) return;
 
   db.ref("rooms/" + currentRoomCode + "/players").once("value").then(snapshot => {
     const updatedPlayers = (snapshot.val() || []).filter(name => name !== currentPlayerName);
     db.ref("rooms/" + currentRoomCode + "/players").set(updatedPlayers);
 
-    // Eğer kurucuysa odayı kapat
     if (isCreator) db.ref("rooms/" + currentRoomCode).remove();
 
     location.reload();
   });
-}
+});
 
-// Oyunu başlat
 startGameBtn.addEventListener("click", () => {
-  document.getElementById("roomInfo").classList.add("hidden");
-  document.getElementById("playerRoleInfo").classList.remove("hidden");
+  roomInfoDiv.classList.add("hidden");
+  roleInfoDiv.classList.remove("hidden");
   document.getElementById("roleMessage").textContent = "(örnek) Rolünüz: Sahtekar.";
 });
