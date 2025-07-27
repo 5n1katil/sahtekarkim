@@ -1,0 +1,70 @@
+// script.js
+
+// Firebase Ayarları
+const firebaseConfig = {
+  apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
+  authDomain: "detektif-c17bb.firebaseapp.com",
+  databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com",
+  projectId: "detektif-c17bb",
+  storageBucket: "detektif-c17bb.appspot.com",
+  messagingSenderId: "422256375848",
+  appId: "1:422256375848:web:873b0a6372c992accf9d1d"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+function generateRoomCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 5; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+function updatePlayerList(roomId) {
+  const list = document.getElementById("playerList");
+  list.innerHTML = "";
+  db.ref(`rooms/${roomId}/players`).on("value", (snapshot) => {
+    list.innerHTML = "";
+    snapshot.forEach((child) => {
+      const li = document.createElement("li");
+      li.textContent = child.val();
+      list.appendChild(li);
+    });
+  });
+}
+
+document.getElementById("createRoomBtn").addEventListener("click", () => {
+  const creator = document.getElementById("creatorName").value.trim();
+  if (!creator) return alert("Lütfen isminizi girin.");
+
+  const roomCode = generateRoomCode();
+  const settings = {
+    creator,
+    playerCount: parseInt(document.getElementById("playerCount").value),
+    spyCount: parseInt(document.getElementById("spyCount").value),
+    useRoles: document.getElementById("useRoles").value,
+    questionCount: parseInt(document.getElementById("questionCount").value),
+    guessCount: parseInt(document.getElementById("guessCount").value),
+    canEliminate: document.getElementById("canEliminate").value
+  };
+
+  db.ref("rooms/" + roomCode).set({
+    code: roomCode,
+    createdAt: Date.now(),
+    players: [creator],
+    settings
+  }).then(() => {
+    localStorage.setItem("playerName", creator);
+    localStorage.setItem("roomCode", roomCode);
+    document.getElementById("setup").classList.add("hidden");
+    document.getElementById("roomInfo").classList.remove("hidden");
+    document.getElementById("roomTitle").textContent = "Oda başarıyla oluşturuldu!";
+    document.getElementById("roomCode").textContent = roomCode;
+    document.getElementById("roomInstructions").textContent = "Diğer oyuncular bu kodla giriş yapabilir.";
+    document.getElementById("startGameBtn").classList.remove("hidden");
+    updatePlayerList(roomCode);
+  });
+});
