@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5N1Katil - Oyun Başlat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(to right, #1f1c2c, #928dab);
+      margin: 0;
+      padding: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      width: 100%;
+      max-width: 500px;
+      background: #2c2c54;
+      padding: 30px;
+      margin-top: 50px;
+      border-radius: 16px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    }
+    h1, h2, h3 {
+      margin-top: 0;
+      color: #f1f1f1;
+    }
+    label, textarea, input, select, button {
+      width: 100%;
+      margin-top: 10px;
+      font-size: 16px;
+    }
+    textarea, input, select {
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      margin-bottom: 15px;
+    }
+    button {
+      padding: 12px;
+      background-color: #6c5ce7;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background-color: #4a47a3;
+    }
+    .hidden { display: none; }
+    .player-list {
+      margin-top: 20px;
+      background-color: #1e1e3f;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    .player-list h4 { margin: 0 0 10px 0; }
+    .player-list ul { padding-left: 20px; }
+    #playerRoleInfo {
+      margin-top: 30px;
+      font-size: 18px;
+      background-color: #1e1e3f;
+      padding: 20px;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="setup">
+    <h2>Oyun Ayarları</h2>
+    <label>İsminizi girin (Kurucu): <input type="text" id="creatorName"></label>
+    <label>Kaç kişi oynayacak? (min 4 - max 16): <input type="number" id="playerCount" min="4" max="16" value="4"></label>
+    <label>Kaç sahtekar olacak? <input type="number" id="spyCount" min="1" value="1"></label>
+    <label>Karakterler dahil edilsin mi? 
+      <select id="useRoles">
+        <option value="yes">Evet</option>
+        <option value="no" selected>Hayır</option>
+      </select>
+    </label>
+    <label>Her turda kaç soru sorulsun? <input type="number" id="questionCount" min="1" value="1"></label>
+    <label>Sahtekarın kaç konum tahmin hakkı olacak? <input type="number" id="guessCount" min="1" value="1"></label>
+    <label>Sahtekar her tur sonunda birini eleyebilsin mi? 
+      <select id="canEliminate">
+        <option value="yes">Evet</option>
+        <option value="no" selected>Hayır</option>
+      </select>
+    </label>
+    <button id="createRoomBtn">Odayı Oluştur</button>
+  </div>
+
+  <div class="container hidden" id="roomInfo">
+    <h3 id="roomTitle"></h3>
+    <p>Oda kodunuz: <strong id="roomCode"></strong></p>
+    <p id="roomInstructions"></p>
+    <div class="player-list">
+      <h4>Katılan Oyuncular</h4>
+      <ul id="playerList"></ul>
+    </div>
+    <button id="startGameBtn" class="hidden">Oyunu Başlat</button>
+    <button id="leaveRoomBtn">Odadan Çık</button>
+  </div>
+
+  <div class="container" id="playerJoin">
+    <h2>Oyuna Katıl</h2>
+    <label>İsminizi girin: <input type="text" id="joinName"></label>
+    <label>Oda kodunu girin: <input type="text" id="joinCode"></label>
+    <button id="joinRoomBtn">Oyuna Katıl</button>
+  </div>
+
+  <div class="container hidden" id="playerRoleInfo">
+    <h2>Oyun Başladı</h2>
+    <p id="roleMessage"></p>
+    <button onclick="leaveRoom()">Oyundan Çık</button>
+  </div>
+
+  <script src="/script.js"></script>
+</body>
+</html>
