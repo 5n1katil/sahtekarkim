@@ -2,120 +2,133 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>5N1Katil - Oyun Başlat</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <style>
     body {
       font-family: 'Inter', sans-serif;
       background: linear-gradient(to right, #1f1c2c, #928dab);
-      margin: 0;
-      padding: 0;
       color: #fff;
       display: flex;
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
+      margin: 0;
+      padding: 0;
     }
-
     .container {
-      margin-top: 40px;
-      background-color: rgba(0, 0, 50, 0.6);
-      padding: 20px 30px;
+      background: #2c2a4a;
+      padding: 1.5rem;
+      margin: 1rem;
       border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
       width: 90%;
-      max-width: 400px;
+      max-width: 500px;
     }
-
+    h2 {
+      text-align: center;
+    }
+    label {
+      margin-top: 1rem;
+      display: block;
+      font-weight: 600;
+    }
     input, select, button {
       width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-      margin-bottom: 15px;
+      padding: 0.6rem;
+      margin-top: 0.3rem;
+      border-radius: 6px;
       border: none;
-      border-radius: 8px;
       font-size: 1rem;
     }
-
     button {
-      background-color: #6c63ff;
+      background-color: #7b5cff;
       color: white;
+      margin-top: 1.2rem;
       font-weight: bold;
       cursor: pointer;
     }
-
     button:hover {
-      background-color: #5848e5;
+      opacity: 0.9;
     }
-
+    ul {
+      list-style-type: disc;
+      padding-left: 1.2rem;
+    }
     .hidden {
       display: none;
-    }
-
-    ul {
-      padding-left: 20px;
     }
   </style>
 </head>
 <body>
-  <!-- Kurucu için -->
+  <!-- Oyun Ayarları -->
   <div class="container" id="setup">
     <h2>5N1Katil - Oyun Ayarları</h2>
     <label>İsminizi girin (Kurucu):</label>
-    <input type="text" id="creatorName" />
-    <label>Kaç kişi oynayacak? (min 4 - max 16):</label>
-    <input type="number" id="playerCount" value="4" min="4" max="16" />
+    <input id="creatorName" placeholder="Adınız" />
+    
+    <label>Kaç kişi oynayacak? (min 4 - max 16)</label>
+    <input id="playerCount" type="number" min="4" max="16" value="4" />
+
     <label>Kaç sahtekar olacak?</label>
-    <input type="number" id="spyCount" value="1" min="1" />
+    <input id="spyCount" type="number" min="1" value="1" />
+
     <label>Karakterler dahil edilsin mi?</label>
     <select id="useRoles">
       <option value="no">Hayır</option>
       <option value="yes">Evet</option>
     </select>
+
     <label>Her turda kaç soru sorulsun?</label>
-    <input type="number" id="questionCount" value="1" min="1" />
+    <input id="questionCount" type="number" min="1" value="1" />
+
     <label>Sahtekarın kaç konum tahmin hakkı olacak?</label>
-    <input type="number" id="guessCount" value="1" min="1" />
+    <input id="guessCount" type="number" min="1" value="1" />
+
     <label>Sahtekar her tur sonunda birini eleyebilsin mi?</label>
     <select id="canEliminate">
       <option value="no">Hayır</option>
       <option value="yes">Evet</option>
     </select>
+
     <button id="createRoomBtn">Odayı Oluştur</button>
   </div>
 
-  <!-- Katılımcı için -->
+  <!-- Oyuna Katıl -->
   <div class="container" id="playerJoin">
     <h2>Oyuna Katıl</h2>
     <label>İsminizi girin:</label>
-    <input type="text" id="joinName" />
+    <input id="joinName" placeholder="Adınız" />
+    
     <label>Oda kodunu girin:</label>
-    <input type="text" id="joinCode" />
+    <input id="joinCode" placeholder="ABCDE" maxlength="5" />
+    
     <button id="joinRoomBtn">Oyuna Katıl</button>
   </div>
 
-  <!-- Oda bilgileri -->
+  <!-- Oda Bilgisi -->
   <div class="container hidden" id="roomInfo">
     <h2 id="roomTitle">Oda başarıyla oluşturuldu!</h2>
-    <p>Oda kodunuz: <strong id="roomCode"></strong></p>
+    <p><strong>Oda kodunuz:</strong> <span id="roomCode"></span></p>
     <p id="roomInstructions">Diğer oyuncular bu kodla giriş yapabilir.</p>
+
     <h3>Katılan Oyuncular</h3>
     <ul id="playerList"></ul>
+
     <button id="startGameBtn" class="hidden">Oyunu Başlat</button>
     <button id="leaveRoomBtn">Odadan Çık</button>
   </div>
 
-  <!-- Rol ekranı -->
+  <!-- Rol Bilgisi (örnek) -->
   <div class="container hidden" id="playerRoleInfo">
     <h2>Rol Bilgisi</h2>
     <p id="roleMessage">(örnek) Rolünüz: Sahtekar.</p>
-    <button onclick="location.reload()">Ana Sayfaya Dön</button>
   </div>
 
-  <!-- ✅ Script bağlantısı burada -->
+  <!-- Firebase SDK ve script.js -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
