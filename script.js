@@ -12,7 +12,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// Yardımcı fonksiyon: Kod üret
 function generateRoomCode(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -22,7 +21,6 @@ function generateRoomCode(length = 5) {
   return result;
 }
 
-// HTML elemanları
 const setupDiv = document.getElementById("setup");
 const roomInfoDiv = document.getElementById("roomInfo");
 const playerJoinDiv = document.getElementById("playerJoin");
@@ -34,22 +32,24 @@ const leaveRoomBtn = document.getElementById("leaveRoomBtn");
 const startGameBtn = document.getElementById("startGameBtn");
 const exitGameBtn = document.getElementById("exitGameBtn");
 
-let currentRoomCode = null;
-let currentPlayerName = null;
-let isCreator = false;
+let currentRoomCode = localStorage.getItem("roomCode") || null;
+let currentPlayerName = localStorage.getItem("playerName") || null;
+let isCreator = localStorage.getItem("isCreator") === "true";
 let roomRef = null;
 
-// Konum ve karakter örnekleri
 const locations = ["Havalimanı", "Restoran", "Kütüphane", "Müze"];
 const roles = ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"];
 
-// Başlangıçta hem kurucu hem katılımcı bölümlerini göster
 window.addEventListener("DOMContentLoaded", () => {
-  setupDiv.classList.remove("hidden");
-  playerJoinDiv.classList.remove("hidden");
+  if (currentRoomCode && currentPlayerName) {
+    listenRoom(currentRoomCode);
+    showRoomUI();
+  } else {
+    setupDiv.classList.remove("hidden");
+    playerJoinDiv.classList.remove("hidden");
+  }
 });
 
-// Odayı oluştur
 createRoomBtn.addEventListener("click", () => {
   const creatorName = document.getElementById("creatorName").value.trim();
   const playerCount = parseInt(document.getElementById("playerCount").value);
@@ -65,6 +65,10 @@ createRoomBtn.addEventListener("click", () => {
   currentRoomCode = roomCode;
   currentPlayerName = creatorName;
   isCreator = true;
+
+  localStorage.setItem("roomCode", roomCode);
+  localStorage.setItem("playerName", creatorName);
+  localStorage.setItem("isCreator", "true");
 
   db.ref("rooms/" + roomCode).set({
     code: roomCode,
@@ -84,7 +88,6 @@ createRoomBtn.addEventListener("click", () => {
   showRoomUI();
 });
 
-// Oyuna katıl
 joinRoomBtn.addEventListener("click", () => {
   const joinName = document.getElementById("joinName").value.trim();
   const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
@@ -103,12 +106,16 @@ joinRoomBtn.addEventListener("click", () => {
     currentRoomCode = joinCode;
     currentPlayerName = joinName;
     isCreator = false;
+
+    localStorage.setItem("roomCode", joinCode);
+    localStorage.setItem("playerName", joinName);
+    localStorage.setItem("isCreator", "false");
+
     listenRoom(joinCode);
     showRoomUI();
   });
 });
 
-// Odayı dinle ve oyuncuları güncelle
 function listenRoom(code) {
   roomRef = db.ref("rooms/" + code);
 
@@ -134,10 +141,10 @@ function listenRoom(code) {
       roleMessage.innerHTML = "";
 
       if (role === "spy") {
-        roleMessage.innerHTML = `<div style="font-size: 1.5rem">Rolünüz: Sahtekar</div>`;
+        roleMessage.innerHTML = `<div style="font-size: 1.8rem">Rolünüz: Sahtekar</div>`;
       } else {
-        roleMessage.innerHTML = `<div style="font-size: 1.5rem">Konum: ${location}</div>` +
-                                (character ? `<div style="font-size: 1.5rem">Rolünüz: ${character}</div>` : "");
+        roleMessage.innerHTML = `<div style="font-size: 1.8rem">Konum: ${location}</div>` +
+                                (character ? `<div style="font-size: 1.8rem">Rolünüz: ${character}</div>` : "");
       }
     }
   });
@@ -145,6 +152,7 @@ function listenRoom(code) {
   roomRef.on("value", snapshot => {
     if (!snapshot.exists()) {
       alert("Oda kapatıldı.");
+      localStorage.clear();
       location.reload();
     }
   });
@@ -173,6 +181,7 @@ leaveRoomBtn.addEventListener("click", () => {
 
     if (isCreator) db.ref("rooms/" + currentRoomCode).remove();
 
+    localStorage.clear();
     location.reload();
   });
 });
@@ -201,14 +210,13 @@ startGameBtn.addEventListener("click", () => {
       };
     });
 
-    db.ref("rooms/" + currentRoomCode + "/assignments").set(assignments).then(() => {
-      console.log("Rol atamaları başarıyla tamamlandı ve tüm oyunculara dağıtıldı.");
-    });
+    db.ref("rooms/" + currentRoomCode + "/assignments").set(assignments);
   });
 });
 
 if (exitGameBtn) {
   exitGameBtn.addEventListener("click", () => {
+    localStorage.clear();
     location.reload();
   });
 }
