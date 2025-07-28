@@ -1,18 +1,33 @@
 // main.js
 
+// Sayfa yüklendiğinde çalışacak ana mantık
 window.addEventListener("DOMContentLoaded", () => {
+  // Odadan ve oyuncudan bilgiler localStorage'dan alınır (tarayıcıya kaydedilir)
   let currentRoomCode = localStorage.getItem("roomCode") || null;
   let currentPlayerName = localStorage.getItem("playerName") || null;
   let isCreator = localStorage.getItem("isCreator") === "true";
 
-  // Eğer localStorage'da oda kodu varsa tekrar odaya bağlan
+  // Eğer bir oda ve oyuncu kaydı varsa otomatik olarak odada kal
   if (currentRoomCode && currentPlayerName) {
     showRoomUI(currentRoomCode, currentPlayerName, isCreator);
 
+    // Canlı olarak oyuncuları dinle
     window.gameLogic.listenPlayers(currentRoomCode, function(players) {
+      // Oda silinmişse veya oyuncu listesi boşsa, ana ekrana at
+      if (!players || players.length === 0) {
+        localStorage.clear();
+        location.reload();
+        return;
+      }
       document.getElementById("playerList").innerHTML =
         players.map(name => `<li>${name}</li>`).join("");
     });
+  } else {
+    // Eğer kayıt yoksa ana ekranlar açık
+    document.getElementById("setup").classList.remove("hidden");
+    document.getElementById("playerJoin").classList.remove("hidden");
+    document.getElementById("roomInfo").classList.add("hidden");
+    document.getElementById("playerRoleInfo").classList.add("hidden");
   }
 
   // ODA OLUŞTUR BUTONU
@@ -37,7 +52,7 @@ window.addEventListener("DOMContentLoaded", () => {
     currentPlayerName = creatorName;
     isCreator = true;
 
-    // LocalStorage kaydet!
+    // LocalStorage kaydet
     localStorage.setItem("roomCode", currentRoomCode);
     localStorage.setItem("playerName", currentPlayerName);
     localStorage.setItem("isCreator", "true");
@@ -45,6 +60,11 @@ window.addEventListener("DOMContentLoaded", () => {
     showRoomUI(roomCode, creatorName, true);
 
     window.gameLogic.listenPlayers(roomCode, function(players) {
+      if (!players || players.length === 0) {
+        localStorage.clear();
+        location.reload();
+        return;
+      }
       document.getElementById("playerList").innerHTML =
         players.map(name => `<li>${name}</li>`).join("");
     });
@@ -67,7 +87,7 @@ window.addEventListener("DOMContentLoaded", () => {
       currentPlayerName = joinName;
       isCreator = false;
 
-      // LocalStorage kaydet!
+      // LocalStorage kaydet
       localStorage.setItem("roomCode", currentRoomCode);
       localStorage.setItem("playerName", currentPlayerName);
       localStorage.setItem("isCreator", "false");
@@ -75,6 +95,11 @@ window.addEventListener("DOMContentLoaded", () => {
       showRoomUI(joinCode, joinName, false);
 
       window.gameLogic.listenPlayers(joinCode, function(players) {
+        if (!players || players.length === 0) {
+          localStorage.clear();
+          location.reload();
+          return;
+        }
         document.getElementById("playerList").innerHTML =
           players.map(name => `<li>${name}</li>`).join("");
       });
@@ -88,10 +113,11 @@ window.addEventListener("DOMContentLoaded", () => {
     localStorage.removeItem("playerName");
     localStorage.removeItem("isCreator");
 
+    // Ekranları sıfırla
     document.getElementById("roomInfo").classList.add("hidden");
     document.getElementById("setup").classList.remove("hidden");
     document.getElementById("playerJoin").classList.remove("hidden");
-    // Ekstra temizlik gerekirse buraya ekle
+    // Gerekirse başka temizleme kodları eklenebilir
   });
 
   // OYUN BAŞLAT BUTONU
@@ -122,7 +148,7 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("roleMessage").textContent = "Rol atanıyor...";
   });
 
-  // Ortak fonksiyon: Oda ekranını göster
+  // Oda ekranını gösteren yardımcı fonksiyon
   function showRoomUI(roomCode, playerName, isCreator) {
     document.getElementById("setup").classList.add("hidden");
     document.getElementById("playerJoin").classList.add("hidden");
