@@ -4,7 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>5N1Katil - Oyun Başlat</title>
+  
+  <!-- Yazı tipi (Google Fonts) -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  
+  <!-- Sayfa stili -->
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -62,7 +66,8 @@
   </style>
 </head>
 <body>
-  <!-- Oyun Ayarları -->
+
+  <!-- Oyun kurucusu için oyun ayarları ekranı -->
   <div class="container" id="setup">
     <h2>5N1Katil - Oyun Ayarları</h2>
     <label>İsminizi girin (Kurucu):</label>
@@ -95,7 +100,7 @@
     <button id="createRoomBtn">Odayı Oluştur</button>
   </div>
 
-  <!-- Oyuna Katıl -->
+  <!-- Oyuncuların odaya katılması için ekran -->
   <div class="container" id="playerJoin">
     <h2>Oyuna Katıl</h2>
     <label>İsminizi girin:</label>
@@ -107,7 +112,7 @@
     <button id="joinRoomBtn">Oyuna Katıl</button>
   </div>
 
-  <!-- Oda Bilgisi -->
+  <!-- Oda bilgileri ekranı (kurucu ve katılımcılar için) -->
   <div class="container hidden" id="roomInfo">
     <h2 id="roomTitle">Oda başarıyla oluşturuldu!</h2>
     <p><strong>Oda kodunuz:</strong> <span id="roomCode"></span></p>
@@ -120,15 +125,21 @@
     <button id="leaveRoomBtn">Odadan Çık</button>
   </div>
 
-  <!-- Rol Bilgisi (örnek) -->
+  <!-- Rol bilgisi ekranı (oyun başladıktan sonra) -->
   <div class="container hidden" id="playerRoleInfo">
     <h2>Rol Bilgisi</h2>
     <p id="roleMessage">(örnek) Rolünüz: Sahtekar.</p>
   </div>
 
-  <!-- Firebase SDK ve script.js -->
+  <!-- Firebase SDK bağlantıları -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-  <script src="script.js"></script>
+
+  <!-- Projeye ait modüler JS dosyaları -->
+  <script src="firebase.js"></script>      <!-- Firebase yapılandırması -->
+  <script src="gameLogic.js"></script>     <!-- Oyun kuralları ve işlemleri -->
+  <script src="ui.js"></script>            <!-- Arayüz işlemleri -->
+  <script src="main.js"></script>          <!-- Sayfa yüklenince tetiklenen birleşik kontrol -->
+
 </body>
 </html>
