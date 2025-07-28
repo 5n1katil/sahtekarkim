@@ -3,11 +3,9 @@ window.addEventListener("DOMContentLoaded", () => {
   let currentPlayerName = localStorage.getItem("playerName") || null;
   let isCreator = localStorage.getItem("isCreator") === "true";
 
-  // Oda veya oyuncu kaydı varsa otomatik olarak odada kal
   if (currentRoomCode && currentPlayerName) {
     showRoomUI(currentRoomCode, currentPlayerName, isCreator);
 
-    // Oyuncu listesini dinle
     listenPlayersAndRoom(currentRoomCode);
 
   } else {
@@ -17,7 +15,6 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("playerRoleInfo").classList.add("hidden");
   }
 
-  // ODA OLUŞTUR
   document.getElementById("createRoomBtn").addEventListener("click", () => {
     const creatorName = document.getElementById("creatorName").value.trim();
     const playerCount = parseInt(document.getElementById("playerCount").value);
@@ -45,11 +42,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
     showRoomUI(roomCode, creatorName, true);
 
-    // YENİ: Canlı oda ve oyuncu kontrolü başlat
     listenPlayersAndRoom(roomCode);
   });
 
-  // OYUNA KATIL
   document.getElementById("joinRoomBtn").addEventListener("click", () => {
     const joinName = document.getElementById("joinName").value.trim();
     const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
@@ -72,27 +67,25 @@ window.addEventListener("DOMContentLoaded", () => {
 
       showRoomUI(joinCode, joinName, false);
 
-      // YENİ: Canlı oda ve oyuncu kontrolü başlat
       listenPlayersAndRoom(joinCode);
     });
   });
 
-  // ODADAN ÇIKIŞ BUTONU
+  // YENİ: Katılımcı çıkınca ismini Firebase’den de siler!
   document.getElementById("leaveRoomBtn").addEventListener("click", () => {
     if (isCreator) {
-      // Kurucu çıkarsa oda silinsin, herkes ana ekrana döner!
       window.gameLogic.deleteRoom(currentRoomCode).then(() => {
         localStorage.clear();
         location.reload();
       });
     } else {
-      // Katılımcı çıkarsa sadece kendisi çıkar
-      localStorage.clear();
-      location.reload();
+      window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName).then(() => {
+        localStorage.clear();
+        location.reload();
+      });
     }
   });
 
-  // OYUN BAŞLAT
   document.getElementById("startGameBtn").addEventListener("click", () => {
     const roomCode = currentRoomCode;
     const playerCount = parseInt(document.getElementById("playerCount").value);
@@ -120,9 +113,7 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("roleMessage").textContent = "Rol atanıyor...";
   });
 
-  // Ortak: Oda ve oyuncu listesini, oda silinirse kontrol et
   function listenPlayersAndRoom(roomCode) {
-    // Oyuncu dinleyici
     window.gameLogic.listenPlayers(roomCode, function(players) {
       if (!players || players.length === 0) {
         localStorage.clear();
@@ -133,7 +124,6 @@ window.addEventListener("DOMContentLoaded", () => {
         players.map(name => `<li>${name}</li>`).join("");
     });
 
-    // ODA var mı, canlı dinle!
     window.db.ref("rooms/" + roomCode).on("value", function(snapshot) {
       if (!snapshot.exists()) {
         localStorage.clear();
@@ -142,7 +132,6 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Oda ekranı yardımcı fonksiyon
   function showRoomUI(roomCode, playerName, isCreator) {
     document.getElementById("setup").classList.add("hidden");
     document.getElementById("playerJoin").classList.add("hidden");
