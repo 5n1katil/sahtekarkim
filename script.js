@@ -12,15 +12,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-function generateRoomCode(length = 5) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
 const setupDiv = document.getElementById("setup");
 const roomInfoDiv = document.getElementById("roomInfo");
 const playerJoinDiv = document.getElementById("playerJoin");
@@ -142,6 +133,8 @@ function listenRoom(code) {
 
       if (role === "spy") {
         roleMessage.innerHTML += `<div style="font-size: 1.8rem">Rolünüz: Sahtekar</div>`;
+        roleMessage.innerHTML += `<div style="margin-top: 10px; font-size: 1.2rem">Tüm olası konumlar:</div>`;
+        roleMessage.innerHTML += `<ul style="columns: 2; font-size: 1rem; padding-left: 20px">${locations.map(loc => `<li>${loc}</li>`).join('')}</ul>`;
       } else {
         roleMessage.innerHTML += `<div style="font-size: 1.8rem">Konum: ${location}</div>`;
         if (character) {
@@ -152,13 +145,6 @@ function listenRoom(code) {
       const exitBtn = document.createElement("button");
       exitBtn.textContent = isCreator ? "Oyunu Bitir" : "Oyundan Çık";
       exitBtn.style.marginTop = "20px";
-      exitBtn.style.padding = "10px 20px";
-      exitBtn.style.fontSize = "1rem";
-      exitBtn.style.backgroundColor = "#6c63ff";
-      exitBtn.style.color = "#fff";
-      exitBtn.style.border = "none";
-      exitBtn.style.borderRadius = "10px";
-      exitBtn.style.cursor = "pointer";
       exitBtn.onclick = () => {
         if (isCreator) {
           db.ref("rooms/" + currentRoomCode).remove();
@@ -167,6 +153,8 @@ function listenRoom(code) {
         }
       };
       roleMessage.appendChild(exitBtn);
+      roleMessage.appendChild(voteStartBtn);
+      roleMessage.appendChild(voteDiv);
     }
   });
 
@@ -235,5 +223,74 @@ startGameBtn.addEventListener("click", () => {
     });
 
     db.ref("rooms/" + currentRoomCode + "/assignments").set(assignments);
+  });
+});
+
+// OYLAMA SİSTEMİ
+const voteStartBtn = document.createElement("button");
+voteStartBtn.textContent = "Oylamayı Başlat";
+voteStartBtn.className = "button";
+voteStartBtn.onclick = () => {
+  db.ref(`rooms/${currentRoomCode}/voteReady/${currentPlayerName}`).set(true);
+};
+
+const voteDiv = document.createElement("div");
+voteDiv.id = "voteDiv";
+voteDiv.style.marginTop = "20px";
+voteDiv.style.display = "none";
+
+const voteSelect = document.createElement("select");
+voteSelect.id = "voteSelect";
+voteSelect.className = "dropdown";
+voteDiv.appendChild(voteSelect);
+
+const voteBtn = document.createElement("button");
+voteBtn.textContent = "Oy Ver";
+voteBtn.className = "button";
+voteBtn.onclick = () => {
+  const selected = voteSelect.value;
+  if (!selected) return alert("Lütfen bir oyuncu seçin.");
+  db.ref(`rooms/${currentRoomCode}/votes/${currentPlayerName}`).set(selected);
+  voteDiv.innerHTML = `<p>Oyunuzu ${selected} kişisine verdiniz.</p>`;
+};
+voteDiv.appendChild(voteBtn);
+
+db.ref(`rooms/${currentRoomCode}/voteReady`).on("value", snap => {
+  const ready = snap.val();
+  if (ready && Object.keys(ready).length > 1) {
+    voteDiv.style.display = "block";
+    db.ref(`rooms/${currentRoomCode}/players`).once("value").then(psnap => {
+      const players = psnap.val();
+      voteSelect.innerHTML = "<option value='' disabled selected>Bir oyuncu seçin</option>";
+      players.forEach(name => {
+        if (name !== currentPlayerName) {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          voteSelect.appendChild(opt);
+        }
+      });
+    });
+  }
+});
+
+db.ref(`rooms/${currentRoomCode}/votes`).on("value", snap => {
+  const votes = snap.val();
+  if (!votes) return;
+  db.ref(`rooms/${currentRoomCode}/players`).once("value").then(psnap => {
+    const players = psnap.val();
+    if (Object.keys(votes).length === players.length) {
+      const counts = {};
+      Object.values(votes).forEach(v => {
+        counts[v] = (counts[v] || 0) + 1;
+      });
+      const max = Math.max(...Object.values(counts));
+      const eliminated = Object.keys(counts).find(k => counts[k] === max);
+      db.ref(`rooms/${currentRoomCode}/assignments/${eliminated}`).once("value").then(roleSnap => {
+        const role = roleSnap.val().role;
+        alert(`${eliminated} elendi. Rolü: ${role === "spy" ? "Sahtekar" : "Masum"}`);
+        db.ref(`rooms/${currentRoomCode}/eliminated/${eliminated}`).set(role);
+      });
+    }
   });
 });
