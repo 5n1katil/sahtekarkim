@@ -1,95 +1,69 @@
-// gameLogic.js
+// main.js
 
-// Oda kodu üretici fonksiyon
-function generateRoomCode(length = 5) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
+window.addEventListener("DOMContentLoaded", () => {
+  const createRoomBtn = document.getElementById("createRoomBtn");
+  const joinRoomBtn = document.getElementById("joinRoomBtn");
 
-// Oda oluşturma fonksiyonu
-function createRoom(creatorName, playerCount, spyCount, useRoles, questionCount, guessCount, canEliminate) {
-  const roomCode = generateRoomCode();
-  const now = Date.now();
+  // Kurucu oda oluşturur
+  createRoomBtn.addEventListener("click", () => {
+    const creatorName = document.getElementById("creatorName").value.trim();
+    const playerCount = parseInt(document.getElementById("playerCount").value);
+    const spyCount = parseInt(document.getElementById("spyCount").value);
+    const useRoles = document.getElementById("useRoles").value === "yes";
+    const questionCount = parseInt(document.getElementById("questionCount").value);
+    const guessCount = parseInt(document.getElementById("guessCount").value);
+    const canEliminate = document.getElementById("canEliminate").value === "yes";
 
-  const roomData = {
-    code: roomCode,
-    createdAt: now,
-    players: [creatorName],
-    settings: {
+    if (!creatorName || isNaN(playerCount) || isNaN(spyCount)) {
+      alert("Lütfen tüm alanları doldurun.");
+      return;
+    }
+
+    const roomCode = gameLogic.createRoom(
+      creatorName,
       playerCount,
       spyCount,
       useRoles,
       questionCount,
       guessCount,
       canEliminate
+    );
+
+    localStorage.setItem("roomCode", roomCode);
+    localStorage.setItem("playerName", creatorName);
+    localStorage.setItem("isCreator", "true");
+
+    // Oda bilgilerini göster
+    document.getElementById("setup").classList.add("hidden");
+    document.getElementById("roomInfo").classList.remove("hidden");
+    document.getElementById("roomCode").textContent = roomCode;
+    document.getElementById("roomTitle").textContent = "Oda başarıyla oluşturuldu!";
+    document.getElementById("roomInstructions").textContent = "Diğer oyuncular bu kodla giriş yapabilir.";
+  });
+
+  // Katılımcı odaya katılır
+  joinRoomBtn.addEventListener("click", () => {
+    const joinName = document.getElementById("joinName").value.trim();
+    const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
+
+    if (!joinName || !joinCode) {
+      alert("Lütfen adınızı ve oda kodunu girin.");
+      return;
     }
-  };
 
-  window.db.ref("rooms/" + roomCode).set(roomData);
-  return roomCode;
-}
+    gameLogic.joinRoom(joinName, joinCode, (error, players) => {
+      if (error) return alert(error);
 
-// Odaya katılma fonksiyonu
-function joinRoom(joinName, roomCode, callback) {
-  const ref = window.db.ref("rooms/" + roomCode);
-  ref.once("value").then(snapshot => {
-    if (!snapshot.exists()) return callback("Oda bulunamadı.");
+      localStorage.setItem("roomCode", joinCode);
+      localStorage.setItem("playerName", joinName);
+      localStorage.setItem("isCreator", "false");
 
-    const players = snapshot.val().players || [];
-    if (players.includes(joinName)) return callback("Bu isim zaten kullanılıyor.");
-
-    players.push(joinName);
-    ref.child("players").set(players).then(() => {
-      callback(null, players);
+      // Oda bilgilerini göster
+      document.getElementById("playerJoin").classList.add("hidden");
+      document.getElementById("roomInfo").classList.remove("hidden");
+      document.getElementById("roomCode").textContent = joinCode;
+      document.getElementById("roomTitle").textContent = "Oyun odasına hoş geldiniz!";
+      document.getElementById("roomInstructions").textContent = "Oda kurucusunun oyunu başlatmasını bekleyin.";
     });
   });
-}
-
-// Odadan çıkış fonksiyonu
-function leaveRoom(roomCode, playerName) {
-  const ref = window.db.ref("rooms/" + roomCode + "/players");
-  ref.once("value").then(snapshot => {
-    const updatedPlayers = (snapshot.val() || []).filter(name => name !== playerName);
-    ref.set(updatedPlayers);
-  });
-}
-
-// Oyun başlatma fonksiyonu (rollerin dağıtılması)
-function startGame(roomCode, settings) {
-  window.db.ref("rooms/" + roomCode).once("value").then(snapshot => {
-    const room = snapshot.val();
-    if (!room) return;
-
-    const players = room.players || [];
-    if (players.length < 2) return alert("En az 2 oyuncu gerekli.");
-
-    const shuffled = [...players].sort(() => 0.5 - Math.random());
-    const spies = shuffled.slice(0, settings.spyCount);
-    const location = settings.locations[Math.floor(Math.random() * settings.locations.length)];
-
-    const assignments = {};
-    players.forEach(name => {
-      const isSpy = spies.includes(name);
-      assignments[name] = {
-        role: isSpy ? "spy" : "normal",
-        location: isSpy ? null : location,
-        character: !isSpy && settings.useRoles ? settings.roles[Math.floor(Math.random() * settings.roles.length)] : null
-      };
-    });
-
-    window.db.ref("rooms/" + roomCode + "/assignments").set(assignments);
-  });
-}
-
-// Dışa aktarım
-window.gameLogic = {
-  generateRoomCode,
-  createRoom,
-  joinRoom,
-  leaveRoom,
-  startGame
-};
+});
