@@ -1,5 +1,5 @@
 window.addEventListener("DOMContentLoaded", () => {
-  // --- Oda oluşturma butonu ---
+  // Oda oluşturma
   document.getElementById("createRoomBtn").addEventListener("click", () => {
     const creatorName = document.getElementById("creatorName").value.trim();
     const playerCount = parseInt(document.getElementById("playerCount").value);
@@ -14,11 +14,12 @@ window.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // Oda oluştur ve kodu al
     const roomCode = window.gameLogic.createRoom(
       creatorName, playerCount, spyCount, useRoles, questionCount, guessCount, canEliminate
     );
 
-    // Arayüzü güncelle
+    // UI güncelle
     document.getElementById("setup").classList.add("hidden");
     document.getElementById("playerJoin").classList.add("hidden");
     document.getElementById("roomInfo").classList.remove("hidden");
@@ -30,7 +31,7 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("playerList").innerHTML = `<li>${creatorName}</li>`;
   });
 
-  // --- Oyuna katılma butonu ---
+  // Oyuna katılma
   document.getElementById("joinRoomBtn").addEventListener("click", () => {
     const joinName = document.getElementById("joinName").value.trim();
     const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
@@ -43,7 +44,7 @@ window.addEventListener("DOMContentLoaded", () => {
         alert(err);
         return;
       }
-      // Arayüzü güncelle
+      // UI güncelle
       document.getElementById("setup").classList.add("hidden");
       document.getElementById("playerJoin").classList.add("hidden");
       document.getElementById("roomInfo").classList.remove("hidden");
@@ -52,35 +53,28 @@ window.addEventListener("DOMContentLoaded", () => {
       document.getElementById("roomInstructions").textContent = "Oda kurucusunun oyunu başlatmasını bekleyin.";
       document.getElementById("startGameBtn").classList.add("hidden");
       document.getElementById("leaveRoomBtn").classList.remove("hidden");
-      // Katılan oyuncuları listele
       document.getElementById("playerList").innerHTML = players.map(name => `<li>${name}</li>`).join("");
     });
   });
 
-  // --- Odadan çıkış butonu ---
+  // Odadan çıkış
   document.getElementById("leaveRoomBtn").addEventListener("click", () => {
-    // Ekranları sıfırla
+    // UI reset
     document.getElementById("roomInfo").classList.add("hidden");
     document.getElementById("setup").classList.remove("hidden");
     document.getElementById("playerJoin").classList.remove("hidden");
-    // Oda bilgisini temizle (yerel tarayıcı depolama yoksa)
-    // Oda kodunu ve isimleri temizlemek için burada yerel değişkenleri sıfırlayabilirsin
+    // Eğer localStorage veya değişken varsa burada sıfırla
   });
 
-  // --- Oyun başlatma butonu ---
+  // Oyun başlatma
   document.getElementById("startGameBtn").addEventListener("click", () => {
-    // Gerekli ayarlar ve kullanıcıları çek
     const roomCode = document.getElementById("roomCode").textContent;
-    // (Kurucu olduğu için, settings’i buradan tekrar çekebiliriz, örnek olması açısından basit tutuyorum)
-    // Oda bilgisi tekrar alınabilir
     const playerCount = parseInt(document.getElementById("playerCount").value);
     const spyCount = parseInt(document.getElementById("spyCount").value);
     const useRoles = document.getElementById("useRoles").value === "yes";
     const questionCount = parseInt(document.getElementById("questionCount").value);
     const guessCount = parseInt(document.getElementById("guessCount").value);
     const canEliminate = document.getElementById("canEliminate").value === "yes";
-
-    // ÖRNEK Lokasyon/rol verisi (geliştirince dizini .js dosyasına taşırsın)
     const settings = {
       playerCount,
       spyCount,
@@ -94,7 +88,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     window.gameLogic.startGame(roomCode, settings);
 
-    // Arayüzde roller atanıyor mesajı göster
+    // UI rol atanıyor
     document.getElementById("roomInfo").classList.add("hidden");
     document.getElementById("playerRoleInfo").classList.remove("hidden");
     document.getElementById("roleMessage").textContent = "Rol atanıyor...";
