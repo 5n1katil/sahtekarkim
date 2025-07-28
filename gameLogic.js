@@ -1,5 +1,3 @@
-// gameLogic.js
-
 function generateRoomCode(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -9,7 +7,6 @@ function generateRoomCode(length = 5) {
   return result;
 }
 
-// Oda oluşturma fonksiyonu
 function createRoom(creatorName, playerCount, spyCount, useRoles, questionCount, guessCount, canEliminate) {
   const roomCode = generateRoomCode();
   const now = Date.now();
@@ -32,7 +29,6 @@ function createRoom(creatorName, playerCount, spyCount, useRoles, questionCount,
   return roomCode;
 }
 
-// Odaya katılma fonksiyonu
 function joinRoom(joinName, roomCode, callback) {
   const ref = window.db.ref("rooms/" + roomCode);
   ref.once("value").then(snapshot => {
@@ -48,7 +44,6 @@ function joinRoom(joinName, roomCode, callback) {
   });
 }
 
-// Gerçek zamanlı oyuncu dinleyici FONKSİYONU
 function listenPlayers(roomCode, callback) {
   window.db.ref("rooms/" + roomCode + "/players").on("value", snapshot => {
     const players = snapshot.val() || [];
@@ -56,7 +51,6 @@ function listenPlayers(roomCode, callback) {
   });
 }
 
-// Oyun başlatma fonksiyonu (rollerin dağıtılması)
 function startGame(roomCode, settings) {
   window.db.ref("rooms/" + roomCode).once("value").then(snapshot => {
     const room = snapshot.val();
@@ -83,11 +77,16 @@ function startGame(roomCode, settings) {
   });
 }
 
-// Dışa aktarım
+// YENİ: Kurucu odayı tamamen silsin (herkes atılır)
+function deleteRoom(roomCode) {
+  return window.db.ref("rooms/" + roomCode).remove();
+}
+
 window.gameLogic = {
   generateRoomCode,
   createRoom,
   joinRoom,
   startGame,
-  listenPlayers
+  listenPlayers,
+  deleteRoom
 };
