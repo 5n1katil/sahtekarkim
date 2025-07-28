@@ -9,11 +9,13 @@ const firebaseConfig = {
   databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com/"
 };
 
-// Firebase başlat
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// Genişletilmiş utils fonksiyonları (window ile global erişim)
+// 1) Eski API için window.db (gameLogic.js ile uyumlu)
+window.db = db;
+
+// 2) Gelişmiş yardımcı fonksiyonlar
 window.firebaseUtils = {
   createRoom: function (roomCode, hostName) {
     const roomRef = db.ref(`rooms/${roomCode}`);
@@ -26,7 +28,6 @@ window.firebaseUtils = {
     const playersRef = db.ref(`rooms/${roomCode}/players`);
     return playersRef.once("value").then(snapshot => {
       const players = snapshot.val() || [];
-      // Aynı isimle tekrar ekleme
       if (players.some(p => p.name === playerName)) {
         return Promise.reject("Bu isim zaten ekli.");
       }
