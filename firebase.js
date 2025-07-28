@@ -20,3 +20,15 @@ const db = firebase.database();
 
 // Diğer dosyalarda kullanmak üzere dışa aktar
 window.db = db;
+
+// Odaya katılanları canlı dinle
+function listenToRoomChanges(roomCode, callback) {
+  const roomRef = doc(db, "rooms", roomCode);
+  onSnapshot(roomRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      callback(data.players || []);
+    }
+  });
+}
+export { listenToRoomChanges };
