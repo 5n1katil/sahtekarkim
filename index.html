@@ -131,15 +131,16 @@
     <p id="roleMessage">(örnek) Rolünüz: Sahtekar.</p>
   </div>
 
-  <!-- Firebase SDK bağlantıları -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-
-  <!-- Projeye ait modüler JS dosyaları -->
-  <script src="firebase.js"></script>      <!-- Firebase yapılandırması -->
-  <script src="gameLogic.js"></script>     <!-- Oyun kuralları ve işlemleri -->
-  <script src="ui.js"></script>            <!-- Arayüz işlemleri -->
-  <script src="main.js"></script>          <!-- Sayfa yüklenince tetiklenen birleşik kontrol -->
+<!-- Firebase SDK'lar -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<!-- Önce firebase.js -->
+<script src="firebase.js"></script>
+<!-- Sonra gameLogic.js -->
+<script src="gameLogic.js"></script>
+<!-- (Varsa ui.js, main.js son sırada) -->
+<script src="ui.js"></script>
+<script src="main.js"></script>
 
 </body>
 </html>
