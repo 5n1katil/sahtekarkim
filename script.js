@@ -31,81 +31,34 @@ let roomRef = null;
 const locations = ["Havalimanı", "Restoran", "Kütüphane", "Müze"];
 const roles = ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"];
 
-window.addEventListener("DOMContentLoaded", () => {
-  if (currentRoomCode && currentPlayerName) {
-    listenRoom(currentRoomCode);
-    showRoomUI();
-  } else {
-    setupDiv.classList.remove("hidden");
-    playerJoinDiv.classList.remove("hidden");
-  }
-});
+// OYLAMA SİSTEMİ BİLEŞENLERİ
+const voteStartBtn = document.createElement("button");
+voteStartBtn.textContent = "Oylamayı Başlat";
+voteStartBtn.className = "button";
+voteStartBtn.onclick = () => {
+  db.ref(`rooms/${currentRoomCode}/voteReady/${currentPlayerName}`).set(true);
+};
 
-createRoomBtn.addEventListener("click", () => {
-  const creatorName = document.getElementById("creatorName").value.trim();
-  const playerCount = parseInt(document.getElementById("playerCount").value);
-  const spyCount = parseInt(document.getElementById("spyCount").value);
-  const useRoles = document.getElementById("useRoles").value === "yes";
-  const questionCount = parseInt(document.getElementById("questionCount").value);
-  const guessCount = parseInt(document.getElementById("guessCount").value);
-  const canEliminate = document.getElementById("canEliminate").value === "yes";
+const voteDiv = document.createElement("div");
+voteDiv.id = "voteDiv";
+voteDiv.style.marginTop = "20px";
+voteDiv.style.display = "none";
 
-  if (!creatorName || isNaN(playerCount) || isNaN(spyCount)) return alert("Lütfen tüm alanları doldurun.");
+const voteSelect = document.createElement("select");
+voteSelect.id = "voteSelect";
+voteSelect.className = "dropdown";
+voteDiv.appendChild(voteSelect);
 
-  const roomCode = generateRoomCode();
-  currentRoomCode = roomCode;
-  currentPlayerName = creatorName;
-  isCreator = true;
-
-  localStorage.setItem("roomCode", roomCode);
-  localStorage.setItem("playerName", creatorName);
-  localStorage.setItem("isCreator", "true");
-
-  db.ref("rooms/" + roomCode).set({
-    code: roomCode,
-    createdAt: Date.now(),
-    players: [creatorName],
-    settings: {
-      playerCount,
-      spyCount,
-      useRoles,
-      questionCount,
-      guessCount,
-      canEliminate
-    }
-  });
-
-  listenRoom(roomCode);
-  showRoomUI();
-});
-
-joinRoomBtn.addEventListener("click", () => {
-  const joinName = document.getElementById("joinName").value.trim();
-  const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
-
-  if (!joinName || !joinCode) return alert("Lütfen adınızı ve oda kodunu girin.");
-
-  db.ref("rooms/" + joinCode).once("value").then(snapshot => {
-    if (!snapshot.exists()) return alert("Oda bulunamadı.");
-
-    const players = snapshot.val().players || [];
-    if (players.includes(joinName)) return alert("Bu isim zaten kullanılıyor.");
-
-    players.push(joinName);
-    db.ref("rooms/" + joinCode + "/players").set(players);
-
-    currentRoomCode = joinCode;
-    currentPlayerName = joinName;
-    isCreator = false;
-
-    localStorage.setItem("roomCode", joinCode);
-    localStorage.setItem("playerName", joinName);
-    localStorage.setItem("isCreator", "false");
-
-    listenRoom(joinCode);
-    showRoomUI();
-  });
-});
+const voteBtn = document.createElement("button");
+voteBtn.textContent = "Oy Ver";
+voteBtn.className = "button";
+voteBtn.onclick = () => {
+  const selected = voteSelect.value;
+  if (!selected) return alert("Lütfen bir oyuncu seçin.");
+  db.ref(`rooms/${currentRoomCode}/votes/${currentPlayerName}`).set(selected);
+  voteDiv.innerHTML = `<p>Oyunuzu ${selected} kişisine verdiniz.</p>`;
+};
+voteDiv.appendChild(voteBtn);
 
 function listenRoom(code) {
   roomRef = db.ref("rooms/" + code);
@@ -165,132 +118,46 @@ function listenRoom(code) {
       location.reload();
     }
   });
-}
 
-function leaveRoom() {
-  if (!currentRoomCode || !currentPlayerName) return;
-  db.ref("rooms/" + currentRoomCode + "/players").once("value").then(snapshot => {
-    const updatedPlayers = (snapshot.val() || []).filter(name => name !== currentPlayerName);
-    db.ref("rooms/" + currentRoomCode + "/players").set(updatedPlayers);
-    localStorage.clear();
-    location.reload();
-  });
-}
-
-function showRoomUI() {
-  setupDiv.classList.add("hidden");
-  playerJoinDiv.classList.add("hidden");
-  roomInfoDiv.classList.remove("hidden");
-
-  document.getElementById("roomCode").textContent = currentRoomCode;
-  document.getElementById("roomTitle").textContent = isCreator ? "Oda başarıyla oluşturuldu!" : "Oyun odasına hoş geldiniz!";
-  document.getElementById("roomInstructions").textContent = isCreator ? "Diğer oyuncular bu kodla giriş yapabilir." : "Oda kurucusunun oyunu başlatmasını bekleyin.";
-
-  startGameBtn.classList.toggle("hidden", !isCreator);
-  leaveRoomBtn.classList.remove("hidden");
-}
-
-leaveRoomBtn.addEventListener("click", () => {
-  if (isCreator && currentRoomCode) {
-    db.ref("rooms/" + currentRoomCode).remove();
-  } else {
-    leaveRoom();
-  }
-});
-
-startGameBtn.addEventListener("click", () => {
-  db.ref("rooms/" + currentRoomCode).once("value").then(snapshot => {
-    const room = snapshot.val();
-    if (!room) return;
-
-    const players = room.players || [];
-    const settings = room.settings;
-    if (players.length < 2) return alert("En az 2 oyuncu gerekli.");
-
-    const shuffled = [...players].sort(() => 0.5 - Math.random());
-
-    const assignments = {};
-    const spies = shuffled.slice(0, settings.spyCount);
-    const location = locations[Math.floor(Math.random() * locations.length)];
-
-    players.forEach(name => {
-      const isSpy = spies.includes(name);
-      assignments[name] = {
-        role: isSpy ? "spy" : "normal",
-        location: isSpy ? null : location,
-        character: !isSpy && settings.useRoles ? roles[Math.floor(Math.random() * roles.length)] : null
-      };
-    });
-
-    db.ref("rooms/" + currentRoomCode + "/assignments").set(assignments);
-  });
-});
-
-// OYLAMA SİSTEMİ
-const voteStartBtn = document.createElement("button");
-voteStartBtn.textContent = "Oylamayı Başlat";
-voteStartBtn.className = "button";
-voteStartBtn.onclick = () => {
-  db.ref(`rooms/${currentRoomCode}/voteReady/${currentPlayerName}`).set(true);
-};
-
-const voteDiv = document.createElement("div");
-voteDiv.id = "voteDiv";
-voteDiv.style.marginTop = "20px";
-voteDiv.style.display = "none";
-
-const voteSelect = document.createElement("select");
-voteSelect.id = "voteSelect";
-voteSelect.className = "dropdown";
-voteDiv.appendChild(voteSelect);
-
-const voteBtn = document.createElement("button");
-voteBtn.textContent = "Oy Ver";
-voteBtn.className = "button";
-voteBtn.onclick = () => {
-  const selected = voteSelect.value;
-  if (!selected) return alert("Lütfen bir oyuncu seçin.");
-  db.ref(`rooms/${currentRoomCode}/votes/${currentPlayerName}`).set(selected);
-  voteDiv.innerHTML = `<p>Oyunuzu ${selected} kişisine verdiniz.</p>`;
-};
-voteDiv.appendChild(voteBtn);
-
-db.ref(`rooms/${currentRoomCode}/voteReady`).on("value", snap => {
-  const ready = snap.val();
-  if (ready && Object.keys(ready).length > 1) {
-    voteDiv.style.display = "block";
-    db.ref(`rooms/${currentRoomCode}/players`).once("value").then(psnap => {
-      const players = psnap.val();
-      voteSelect.innerHTML = "<option value='' disabled selected>Bir oyuncu seçin</option>";
-      players.forEach(name => {
-        if (name !== currentPlayerName) {
-          const opt = document.createElement("option");
-          opt.value = name;
-          opt.textContent = name;
-          voteSelect.appendChild(opt);
-        }
-      });
-    });
-  }
-});
-
-db.ref(`rooms/${currentRoomCode}/votes`).on("value", snap => {
-  const votes = snap.val();
-  if (!votes) return;
-  db.ref(`rooms/${currentRoomCode}/players`).once("value").then(psnap => {
-    const players = psnap.val();
-    if (Object.keys(votes).length === players.length) {
-      const counts = {};
-      Object.values(votes).forEach(v => {
-        counts[v] = (counts[v] || 0) + 1;
-      });
-      const max = Math.max(...Object.values(counts));
-      const eliminated = Object.keys(counts).find(k => counts[k] === max);
-      db.ref(`rooms/${currentRoomCode}/assignments/${eliminated}`).once("value").then(roleSnap => {
-        const role = roleSnap.val().role;
-        alert(`${eliminated} elendi. Rolü: ${role === "spy" ? "Sahtekar" : "Masum"}`);
-        db.ref(`rooms/${currentRoomCode}/eliminated/${eliminated}`).set(role);
+  db.ref(`rooms/${currentRoomCode}/voteReady`).on("value", snap => {
+    const ready = snap.val();
+    if (ready && Object.keys(ready).length > 1) {
+      voteDiv.style.display = "block";
+      db.ref(`rooms/${currentRoomCode}/players`).once("value").then(psnap => {
+        const players = psnap.val();
+        voteSelect.innerHTML = "<option value='' disabled selected>Bir oyuncu seçin</option>";
+        players.forEach(name => {
+          if (name !== currentPlayerName) {
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name;
+            voteSelect.appendChild(opt);
+          }
+        });
       });
     }
   });
-});
+
+  db.ref(`rooms/${currentRoomCode}/votes`).on("value", snap => {
+    const votes = snap.val();
+    if (!votes) return;
+    db.ref(`rooms/${currentRoomCode}/players`).once("value").then(psnap => {
+      const players = psnap.val();
+      if (Object.keys(votes).length === players.length) {
+        const counts = {};
+        Object.values(votes).forEach(v => {
+          counts[v] = (counts[v] || 0) + 1;
+        });
+        const max = Math.max(...Object.values(counts));
+        const eliminated = Object.keys(counts).find(k => counts[k] === max);
+        db.ref(`rooms/${currentRoomCode}/assignments/${eliminated}`).once("value").then(roleSnap => {
+          const role = roleSnap.val().role;
+          alert(`${eliminated} elendi. Rolü: ${role === "spy" ? "Sahtekar" : "Masum"}`);
+          db.ref(`rooms/${currentRoomCode}/eliminated/${eliminated}`).set(role);
+        });
+      }
+    });
+  });
+}
+
+// Sahtekarın konumları görebilmesi için listenRoom içine liste eklendi.
