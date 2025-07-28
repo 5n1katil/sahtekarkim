@@ -9,15 +9,13 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Her oyuncuda canlı oda/oyuncu dinle
     window.gameLogic.listenPlayers(currentRoomCode, function(players) {
-      // Oda silindiyse veya boşsa, ana ekrana at
-      if (!players || players.length === 0) {
-        localStorage.clear();
-        location.reload();
-        return;
-      }
-      document.getElementById("playerList").innerHTML =
-        players.map(name => `<li>${name}</li>`).join("");
-    });
+// Oda silinirse veya hiç yoksa, herkes anında atılır!
+window.db.ref("rooms/" + currentRoomCode).on("value", function(snapshot) {
+  if (!snapshot.exists()) {
+    localStorage.clear();
+    location.reload();
+  }
+});
   } else {
     document.getElementById("setup").classList.remove("hidden");
     document.getElementById("playerJoin").classList.remove("hidden");
