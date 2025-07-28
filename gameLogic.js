@@ -76,3 +76,11 @@ function startGame(roomCode, settings) {
     window.db.ref("rooms/" + roomCode + "/assignments").set(assignments);
   });
 }
+
+window.gameLogic = {
+  generateRoomCode,
+  createRoom,
+  joinRoom,
+  leaveRoom,
+  startGame
+};
