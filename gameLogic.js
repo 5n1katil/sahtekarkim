@@ -77,7 +77,16 @@ function startGame(roomCode, settings) {
   });
 }
 
-// YENİ: Kurucu odayı tamamen silsin (herkes atılır)
+// Katılımcı çıkınca oyuncular listesinden sil (YENİ)
+function leaveRoom(roomCode, playerName) {
+  const ref = window.db.ref("rooms/" + roomCode + "/players");
+  return ref.once("value").then(snapshot => {
+    let updatedPlayers = (snapshot.val() || []).filter(name => name !== playerName);
+    return ref.set(updatedPlayers);
+  });
+}
+
+// Kurucu odayı tamamen siler
 function deleteRoom(roomCode) {
   return window.db.ref("rooms/" + roomCode).remove();
 }
@@ -88,5 +97,6 @@ window.gameLogic = {
   joinRoom,
   startGame,
   listenPlayers,
-  deleteRoom
+  deleteRoom,
+  leaveRoom // <-- Mutlaka ekle!
 };
