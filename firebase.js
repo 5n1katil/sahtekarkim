@@ -1,7 +1,6 @@
 // firebase.js
 
-// Firebase ayarlarını içerir ve dışa aktarır
-
+// Firebase yapılandırması
 const firebaseConfig = {
   apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
   authDomain: "detektif-c17bb.firebaseapp.com",
@@ -15,20 +14,48 @@ const firebaseConfig = {
 // Firebase'i başlat
 firebase.initializeApp(firebaseConfig);
 
-// Veritabanı referansını dışa aktar
+// Veritabanı referansı
 const db = firebase.database();
 
-// Diğer dosyalarda kullanmak üzere dışa aktar
-window.db = db;
-
-// Odaya katılanları canlı dinle
-function listenToRoomChanges(roomCode, callback) {
-  const roomRef = doc(db, "rooms", roomCode);
-  onSnapshot(roomRef, (docSnap) => {
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      callback(data.players || []);
-    }
+// 🔸 Oda oluşturma
+function createRoom(roomCode, hostName) {
+  const roomRef = db.ref(`rooms/${roomCode}`);
+  return roomRef.set({
+    players: [{ name: hostName }],
+    createdAt: Date.now()
   });
 }
-export { listenToRoomChanges };
+
+// 🔸 Oyuncu ekleme
+function addPlayerToRoom(roomCode, playerName) {
+  const playersRef = db.ref(`rooms/${roomCode}/players`);
+  return playersRef.once("value").then(snapshot => {
+    const players = snapshot.val() || [];
+    players.push({ name: playerName });
+    return playersRef.set(players);
+  });
+}
+
+// 🔸 Odayı canlı dinle
+function listenToRoomChanges(roomCode, callback) {
+  const playersRef = db.ref(`rooms/${roomCode}/players`);
+  playersRef.on("value", (snapshot) => {
+    const players = snapshot.val() || [];
+    callback(players);
+  });
+}
+
+// 🔸 Dinlemeyi durdur (örnek: oyun bittiğinde)
+function stopListeningToRoom(roomCode) {
+  const playersRef = db.ref(`rooms/${roomCode}/players`);
+  playersRef.off("value");
+}
+
+// Modül olarak dışa aktar
+window.firebaseUtils = {
+  db,
+  createRoom,
+  addPlayerToRoom,
+  listenToRoomChanges,
+  stopListeningToRoom
+};
