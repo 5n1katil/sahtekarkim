@@ -8,8 +8,17 @@ window.addEventListener("DOMContentLoaded", () => {
     showRoomUI(currentRoomCode, currentPlayerName, isCreator);
 
     // Her oyuncuda canlı oda/oyuncu dinle
-    window.gameLogic.listenPlayers(currentRoomCode, function(players) {
-// Oda silinirse veya hiç yoksa, herkes anında atılır!
+window.gameLogic.listenPlayers(currentRoomCode, function(players) {
+  if (!players || players.length === 0) {
+    localStorage.clear();
+    location.reload();
+    return;
+  }
+  document.getElementById("playerList").innerHTML =
+    players.map(name => `<li>${name}</li>`).join("");
+});
+
+// --- Oda silinirse anında herkes atılır ---
 window.db.ref("rooms/" + currentRoomCode).on("value", function(snapshot) {
   if (!snapshot.exists()) {
     localStorage.clear();
