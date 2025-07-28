@@ -1,8 +1,19 @@
 // main.js
 
 window.addEventListener("DOMContentLoaded", () => {
-  let currentRoomCode = null;
-  let currentPlayerName = null;
+  let currentRoomCode = localStorage.getItem("roomCode") || null;
+  let currentPlayerName = localStorage.getItem("playerName") || null;
+  let isCreator = localStorage.getItem("isCreator") === "true";
+
+  // Eğer localStorage'da oda kodu varsa tekrar odaya bağlan
+  if (currentRoomCode && currentPlayerName) {
+    showRoomUI(currentRoomCode, currentPlayerName, isCreator);
+
+    window.gameLogic.listenPlayers(currentRoomCode, function(players) {
+      document.getElementById("playerList").innerHTML =
+        players.map(name => `<li>${name}</li>`).join("");
+    });
+  }
 
   // ODA OLUŞTUR BUTONU
   document.getElementById("createRoomBtn").addEventListener("click", () => {
@@ -24,10 +35,15 @@ window.addEventListener("DOMContentLoaded", () => {
     );
     currentRoomCode = roomCode;
     currentPlayerName = creatorName;
+    isCreator = true;
+
+    // LocalStorage kaydet!
+    localStorage.setItem("roomCode", currentRoomCode);
+    localStorage.setItem("playerName", currentPlayerName);
+    localStorage.setItem("isCreator", "true");
 
     showRoomUI(roomCode, creatorName, true);
 
-    // **CANLI OYUNCU DİNLİYİCİ** kurucu için
     window.gameLogic.listenPlayers(roomCode, function(players) {
       document.getElementById("playerList").innerHTML =
         players.map(name => `<li>${name}</li>`).join("");
@@ -49,9 +65,15 @@ window.addEventListener("DOMContentLoaded", () => {
       }
       currentRoomCode = joinCode;
       currentPlayerName = joinName;
+      isCreator = false;
+
+      // LocalStorage kaydet!
+      localStorage.setItem("roomCode", currentRoomCode);
+      localStorage.setItem("playerName", currentPlayerName);
+      localStorage.setItem("isCreator", "false");
+
       showRoomUI(joinCode, joinName, false);
 
-      // **CANLI OYUNCU DİNLİYİCİ** katılımcı için
       window.gameLogic.listenPlayers(joinCode, function(players) {
         document.getElementById("playerList").innerHTML =
           players.map(name => `<li>${name}</li>`).join("");
@@ -61,6 +83,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // ODADAN ÇIKIŞ BUTONU
   document.getElementById("leaveRoomBtn").addEventListener("click", () => {
+    // LocalStorage temizle
+    localStorage.removeItem("roomCode");
+    localStorage.removeItem("playerName");
+    localStorage.removeItem("isCreator");
+
     document.getElementById("roomInfo").classList.add("hidden");
     document.getElementById("setup").classList.remove("hidden");
     document.getElementById("playerJoin").classList.remove("hidden");
