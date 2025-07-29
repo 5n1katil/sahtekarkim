@@ -1,4 +1,6 @@
 // firebase.js
+
+// Firebase yapılandırma
 const firebaseConfig = {
   apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
   authDomain: "detektif-c17bb.firebaseapp.com",
@@ -9,7 +11,11 @@ const firebaseConfig = {
   databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com/"
 };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// Firebase başlat
+if (!firebase.apps || !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
 
+// Realtime Database referansı
+const db = firebase.database();
 window.db = db; // global erişim
