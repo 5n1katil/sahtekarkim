@@ -3,6 +3,13 @@ window.addEventListener("DOMContentLoaded", () => {
   let currentPlayerName = localStorage.getItem("playerName") || null;
   let isCreator = localStorage.getItem("isCreator") === "true";
 
+  // Tarayıcı kapanırsa odadan çık
+  window.addEventListener("beforeunload", () => {
+    if (currentRoomCode && currentPlayerName && !isCreator) {
+      window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName);
+    }
+  });
+
   // Sayfa yenilenirse kullanıcıyı odada tut
   if (currentRoomCode && currentPlayerName) {
     showRoomUI(currentRoomCode, currentPlayerName, isCreator);
@@ -97,7 +104,6 @@ window.addEventListener("DOMContentLoaded", () => {
         location.reload();
       });
     } else {
-      // Oyuncu çıkarsa sadece players altından silinir
       window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName).then(() => {
         localStorage.clear();
         location.reload();
@@ -109,53 +115,43 @@ window.addEventListener("DOMContentLoaded", () => {
    *  OYUNU BAŞLAT
    * ------------------------ */
   document.getElementById("startGameBtn").addEventListener("click", () => {
-    const roomCode = currentRoomCode;
-    const playerCount = parseInt(document.getElementById("playerCount").value);
-    const spyCount = parseInt(document.getElementById("spyCount").value);
-    const useRoles = document.getElementById("useRoles").value === "yes";
-    const questionCount = parseInt(document.getElementById("questionCount").value);
-    const guessCount = parseInt(document.getElementById("guessCount").value);
-    const canEliminate = document.getElementById("canEliminate").value === "yes";
-
     const settings = {
-      playerCount,
-      spyCount,
-      useRoles,
-      questionCount,
-      guessCount,
-      canEliminate,
+      playerCount: parseInt(document.getElementById("playerCount").value),
+      spyCount: parseInt(document.getElementById("spyCount").value),
+      useRoles: document.getElementById("useRoles").value === "yes",
+      questionCount: parseInt(document.getElementById("questionCount").value),
+      guessCount: parseInt(document.getElementById("guessCount").value),
+      canEliminate: document.getElementById("canEliminate").value === "yes",
       locations: ["Havalimanı", "Restoran", "Kütüphane", "Müze"],
-      roles: ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"],
+      roles: ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"]
     };
 
-    window.gameLogic.startGame(roomCode, settings);
+    window.gameLogic.startGame(currentRoomCode, settings);
   });
 
   /** ------------------------
    *  ODA & OYUNCULARI DİNLE
    * ------------------------ */
   function listenPlayersAndRoom(roomCode) {
-    // 🔹 Oyuncu listesi canlı dinleme
-    window.db.ref(`rooms/${roomCode}/players`).on("value", (snapshot) => {
-      const playersObj = snapshot.val();
-      const players = playersObj ? Object.keys(playersObj) : [];
+    // Oyuncu listesi
+    window.gameLogic.listenPlayers(roomCode, (players) => {
       const listEl = document.getElementById("playerList");
       listEl.innerHTML =
-        players.length > 0
+        players && players.length > 0
           ? players.map((name) => `<li>${name}</li>`).join("")
           : "<li>Oyuncu bekleniyor...</li>";
     });
 
-    // 🔹 Oda silinirse herkesi at
-    window.db.ref(`rooms/${roomCode}`).on("value", (snapshot) => {
+    // Oda silinirse herkesi at
+    window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
       if (!snapshot.exists()) {
         localStorage.clear();
         location.reload();
       }
     });
 
-    // 🔹 Oyun başlama durumunu dinle
-    window.db.ref(`rooms/${roomCode}/gameState`).on("value", (snapshot) => {
+    // Oyun başlama durumunu dinle
+    window.db.ref("rooms/" + roomCode + "/gameState").on("value", (snapshot) => {
       const gameState = snapshot.val();
       if (gameState && gameState.started && gameState.players && gameState.players[currentPlayerName]) {
         const myData = gameState.players[currentPlayerName];
