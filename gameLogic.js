@@ -22,8 +22,7 @@ window.gameLogic = {
     // Odayı kaydet
     roomRef.set(roomData);
 
-    // Kurucu disconnect olursa oda tamamen silinir
-    roomRef.onDisconnect().remove();
+    // ✅ onDisconnect kaldırıldı
 
     // LocalStorage kaydı
     localStorage.setItem("roomCode", roomCode);
@@ -54,8 +53,7 @@ window.gameLogic = {
       const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
       playerRef.set({ name: playerName });
 
-      // Oyuncu çıkınca otomatik sil
-      playerRef.onDisconnect().remove();
+      // ✅ onDisconnect kaldırıldı
 
       // LocalStorage
       localStorage.setItem("roomCode", roomCode);
@@ -123,7 +121,7 @@ window.gameLogic = {
           playerRoles[player] = { role: "Spy", location: null };
         } else {
           const roleName =
-            settings.useRoles === "yes" && roles.length >= players.length
+            settings.useRoles && roles.length >= players.length
               ? roles[idx % roles.length]
               : "Sıradan Oyuncu";
           playerRoles[player] = { role: roleName, location: chosenLocation };
