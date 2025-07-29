@@ -69,9 +69,7 @@
       list-style-type: disc;
       padding-left: 1.2rem;
     }
-    .hidden {
-      display: none;
-    }
+    .hidden { display: none; }
     .small-btn {
       background-color: #444;
       margin-top: 0.5rem;
@@ -132,7 +130,7 @@
     <p><strong>Oda kodunuz:</strong> <span id="roomCode"></span></p>
     <p id="roomInstructions">Diğer oyuncular bu kodla giriş yapabilir.</p>
 
-    <h3>Katılan Oyuncular</h3>
+    <h3>Katılan Oyuncular (<span id="playerCountDisplay">0</span>)</h3>
     <ul id="playerList"></ul>
 
     <button id="startGameBtn" class="hidden">Oyunu Başlat</button>
@@ -166,6 +164,16 @@
     localStorage.clear();
     location.reload();
   });
+
+  // Canlı oyuncu listesi güncellemesi (listenPlayers ile uyumlu)
+  function updatePlayerList(players) {
+    const listEl = document.getElementById("playerList");
+    const countEl = document.getElementById("playerCountDisplay");
+    if (!listEl || !countEl) return;
+    listEl.innerHTML = players.map(p => `<li>${p}</li>`).join("");
+    countEl.textContent = players.length;
+  }
+  window.updatePlayerList = updatePlayerList; // main.js içinde kullanabilsin
 </script>
 
 </body>
