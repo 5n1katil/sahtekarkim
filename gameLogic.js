@@ -14,7 +14,7 @@ window.gameLogic = {
 
     const roomData = {
       creator: creatorName,
-      players: { [creatorName]: { name: creatorName, isCreator: true } }, // kurucu da katılımcı
+      players: { [creatorName]: { name: creatorName, isCreator: true } },
       settings: {
         playerCount: Number(playerCount),
         spyCount: Number(spyCount),
@@ -116,7 +116,7 @@ window.gameLogic = {
       const roomData = snapshot.val();
       if (!roomData) return;
 
-      // Oyuncu listesi güncelle
+      // Oyuncu listesi ve sayısı
       const players = Object.keys(roomData.players || {});
       const playerListEl = document.getElementById("playerList");
       if (playerListEl) {
@@ -126,6 +126,12 @@ window.gameLogic = {
             return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
           })
           .join("");
+      }
+
+      // Oyuncu sayısını güncelle
+      const playerCountEl = document.getElementById("playerCount");
+      if (playerCountEl) {
+        playerCountEl.textContent = players.length;
       }
 
       // Oyun başladıysa rol göster
