@@ -1,31 +1,42 @@
 window.gameLogic = {
   // Oda oluştur
-  createRoom: function(creatorName, playerCount, spyCount, useRoles, questionCount, guessCount, canEliminate) {
-    const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+  createRoom: function (creatorName, playerCount, spyCount, useRoles, questionCount, guessCount, canEliminate) {
+    const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = window.db.ref("rooms/" + roomCode);
 
     const roomData = {
       creator: creatorName,
-      players: { [creatorName]: true },
+      players: { [creatorName]: { name: creatorName } },
       settings: {
-        playerCount,
-        spyCount,
+        playerCount: Number(playerCount),
+        spyCount: Number(spyCount),
         useRoles,
-        questionCount,
-        guessCount,
-        canEliminate
+        questionCount: Number(questionCount),
+        guessCount: Number(guessCount),
+        canEliminate,
       },
-      createdAt: Date.now()
+      status: "waiting",
+      createdAt: Date.now(),
     };
 
+    // Odayı kaydet
     roomRef.set(roomData);
+
+    // Kurucu disconnect olursa oda tamamen silinir
+    roomRef.onDisconnect().remove();
+
+    // LocalStorage kaydı
+    localStorage.setItem("roomCode", roomCode);
+    localStorage.setItem("playerName", creatorName);
+    localStorage.setItem("isCreator", "true");
+
     return roomCode;
   },
 
   // Odaya katıl
-  joinRoom: function(playerName, roomCode, callback) {
+  joinRoom: function (playerName, roomCode, callback) {
     const roomRef = window.db.ref("rooms/" + roomCode);
-    roomRef.get().then(snapshot => {
+    roomRef.get().then((snapshot) => {
       if (!snapshot.exists()) {
         callback("Oda bulunamadı!", null);
         return;
@@ -40,37 +51,48 @@ window.gameLogic = {
       }
 
       // Oyuncuyu ekle
-      window.db.ref(`rooms/${roomCode}/players/${playerName}`).set(true);
+      const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
+      playerRef.set({ name: playerName });
+
+      // Oyuncu çıkınca otomatik sil
+      playerRef.onDisconnect().remove();
+
+      // LocalStorage
+      localStorage.setItem("roomCode", roomCode);
+      localStorage.setItem("playerName", playerName);
+      localStorage.setItem("isCreator", "false");
 
       callback(null, Object.keys(players).concat(playerName));
     });
   },
 
   // Odayı sil
-  deleteRoom: function(roomCode) {
+  deleteRoom: function (roomCode) {
     return window.db.ref("rooms/" + roomCode).remove();
   },
 
   // Odadan çık
-  leaveRoom: function(roomCode, playerName) {
+  leaveRoom: function (roomCode, playerName) {
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
+    localStorage.clear();
     return playerRef.remove();
   },
 
   // Oyuncuları canlı dinle
-  listenPlayers: function(roomCode, callback) {
+  listenPlayers: function (roomCode, callback) {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
-    playersRef.on("value", snapshot => {
-      const players = snapshot.exists() ? Object.keys(snapshot.val()) : [];
+    playersRef.on("value", (snapshot) => {
+      const playersObj = snapshot.val() || {};
+      const players = Object.keys(playersObj);
       callback(players);
     });
   },
 
   // Oyunu başlat ve roller ata
-  startGame: function(roomCode, settings) {
+  startGame: function (roomCode, settings) {
     const roomRef = window.db.ref("rooms/" + roomCode);
 
-    roomRef.get().then(snapshot => {
+    roomRef.get().then((snapshot) => {
       if (!snapshot.exists()) return;
       const roomData = snapshot.val();
       const players = Object.keys(roomData.players || {});
@@ -87,13 +109,12 @@ window.gameLogic = {
 
       // Kaç casus olacak
       let spyCount = Math.min(settings.spyCount, players.length - 1);
-      let spies = [];
 
       // Oyuncuları karıştır
       const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
 
       // Casusları seç
-      spies = shuffledPlayers.slice(0, spyCount);
+      const spies = shuffledPlayers.slice(0, spyCount);
 
       // Her oyuncuya rol belirle
       const playerRoles = {};
@@ -101,9 +122,10 @@ window.gameLogic = {
         if (spies.includes(player)) {
           playerRoles[player] = { role: "Spy", location: null };
         } else {
-          const roleName = settings.useRoles && roles.length >= players.length
-            ? roles[idx % roles.length]
-            : "Sıradan Oyuncu";
+          const roleName =
+            settings.useRoles === "yes" && roles.length >= players.length
+              ? roles[idx % roles.length]
+              : "Sıradan Oyuncu";
           playerRoles[player] = { role: roleName, location: chosenLocation };
         }
       });
@@ -112,16 +134,16 @@ window.gameLogic = {
       roomRef.update({
         status: "started",
         location: chosenLocation,
-        playerRoles
+        playerRoles,
       });
 
       // UI güncelle
-      if (localStorage.getItem("playerName")) {
-        const myName = localStorage.getItem("playerName");
-        const myRole = playerRoles[myName];
+      const myName = localStorage.getItem("playerName");
+      if (myName && playerRoles[myName]) {
         document.getElementById("roomInfo").classList.add("hidden");
         document.getElementById("playerRoleInfo").classList.remove("hidden");
 
+        const myRole = playerRoles[myName];
         if (myRole.role === "Spy") {
           document.getElementById("roleMessage").textContent =
             `Sen BİR CASUSSUN! Konumu bilmiyorsun, dikkatli sorular sor.`;
@@ -131,5 +153,5 @@ window.gameLogic = {
         }
       }
     });
-  }
+  },
 };
