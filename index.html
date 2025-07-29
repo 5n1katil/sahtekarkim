@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>5N1Katil - Oyun Başlat</title>
   
-  <!-- Yazı tipi (Google Fonts) -->
+  <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
   
-  <!-- Sayfa stili -->
+  <!-- Sayfa Stili -->
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -29,9 +29,15 @@
       box-shadow: 0 0 20px rgba(0,0,0,0.3);
       width: 90%;
       max-width: 500px;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from {opacity: 0; transform: translateY(10px);}
+      to {opacity: 1; transform: translateY(0);}
     }
     h2 {
       text-align: center;
+      margin-bottom: 1rem;
     }
     label {
       margin-top: 1rem;
@@ -45,6 +51,7 @@
       border-radius: 6px;
       border: none;
       font-size: 1rem;
+      box-sizing: border-box;
     }
     button {
       background-color: #7b5cff;
@@ -52,9 +59,11 @@
       margin-top: 1.2rem;
       font-weight: bold;
       cursor: pointer;
+      transition: 0.2s;
     }
     button:hover {
       opacity: 0.9;
+      transform: scale(1.02);
     }
     ul {
       list-style-type: disc;
@@ -63,11 +72,16 @@
     .hidden {
       display: none;
     }
+    .small-btn {
+      background-color: #444;
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Oyun kurucusu için oyun ayarları ekranı -->
+  <!-- Kurucu için oyun ayarları ekranı -->
   <div class="container" id="setup">
     <h2>5N1Katil - Oyun Ayarları</h2>
     <label>İsminizi girin (Kurucu):</label>
@@ -112,7 +126,7 @@
     <button id="joinRoomBtn">Oyuna Katıl</button>
   </div>
 
-  <!-- Oda bilgileri ekranı (kurucu ve katılımcılar için) -->
+  <!-- Oda bilgileri ekranı -->
   <div class="container hidden" id="roomInfo">
     <h2 id="roomTitle">Oda başarıyla oluşturuldu!</h2>
     <p><strong>Oda kodunuz:</strong> <span id="roomCode"></span></p>
@@ -125,18 +139,34 @@
     <button id="leaveRoomBtn">Odadan Çık</button>
   </div>
 
-  <!-- Rol bilgisi ekranı (oyun başladıktan sonra) -->
+  <!-- Rol bilgisi ekranı -->
   <div class="container hidden" id="playerRoleInfo">
     <h2>Rol Bilgisi</h2>
     <p id="roleMessage">(örnek) Rolünüz: Sahtekar.</p>
+    <button id="copyRoleBtn" class="small-btn">Rol Bilgisini Kopyala</button>
+    <button id="backToHomeBtn" class="small-btn">Oyundan Çık</button>
   </div>
 
-<!-- ...body sonuna ekle... -->
+<!-- Firebase ve JS dosyaları -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="firebase.js"></script>
 <script src="gameLogic.js"></script>
 <script src="main.js"></script>
+
+<script>
+  // Rol bilgisini kopyalama
+  document.getElementById("copyRoleBtn").addEventListener("click", () => {
+    const text = document.getElementById("roleMessage").innerText;
+    navigator.clipboard.writeText(text).then(() => alert("Rolünüz kopyalandı!"));
+  });
+
+  // Oyundan çık (ana ekrana dön)
+  document.getElementById("backToHomeBtn").addEventListener("click", () => {
+    localStorage.clear();
+    location.reload();
+  });
+</script>
 
 </body>
 </html>
