@@ -3,7 +3,7 @@ window.addEventListener("DOMContentLoaded", () => {
   let currentPlayerName = localStorage.getItem("playerName") || null;
   let isCreator = localStorage.getItem("isCreator") === "true";
 
-  // Sayfa yenilendiğinde oyuncu odada kalsın
+  // Sayfa yenilendiğinde oyunda kal
   if (currentRoomCode && currentPlayerName) {
     showRoomUI(currentRoomCode, currentPlayerName, isCreator);
     listenPlayersAndRoom(currentRoomCode);
@@ -121,12 +121,11 @@ window.addEventListener("DOMContentLoaded", () => {
       if (players && players.length > 0) {
         listEl.innerHTML = players.map(name => `<li>${name}</li>`).join("");
       } else {
-        // Boşsa UI göster ama oyundan atma
         listEl.innerHTML = "<li>Oyuncu bekleniyor...</li>";
       }
     });
 
-    // Oda tamamen silinirse herkesi at
+    // Oda silinirse herkesi at
     window.db.ref("rooms/" + roomCode).on("value", function(snapshot) {
       if (!snapshot.exists()) {
         localStorage.clear();
