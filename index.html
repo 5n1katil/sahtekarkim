@@ -130,7 +130,7 @@
     <p><strong>Oda kodunuz:</strong> <span id="roomCode"></span></p>
     <p id="roomInstructions">Diğer oyuncular bu kodla giriş yapabilir.</p>
 
-    <h3>Katılan Oyuncular (<span id="playerCountDisplay">0</span>)</h3>
+    <h3>Oyuncu Sayısı (<span id="playerCountDisplay">0</span>)</h3>
     <ul id="playerList"></ul>
 
     <button id="startGameBtn" class="hidden">Oyunu Başlat</button>
@@ -165,15 +165,20 @@
     location.reload();
   });
 
-  // Canlı oyuncu listesi güncellemesi (listenPlayers ile uyumlu)
+  // Canlı oyuncu listesi güncellemesi
   function updatePlayerList(players) {
     const listEl = document.getElementById("playerList");
     const countEl = document.getElementById("playerCountDisplay");
     if (!listEl || !countEl) return;
-    listEl.innerHTML = players.map(p => `<li>${p}</li>`).join("");
-    countEl.textContent = players.length;
+
+    // Geçerli isimleri filtrele
+    const validPlayers = (players || []).filter(p => p && p.trim() !== "");
+
+    // Listeyi güncelle
+    listEl.innerHTML = validPlayers.map(p => `<li>${p}</li>`).join("");
+    countEl.textContent = validPlayers.length;
   }
-  window.updatePlayerList = updatePlayerList; // main.js içinde kullanabilsin
+  window.updatePlayerList = updatePlayerList; // main.js veya gameLogic.js içinden çağırabilsin
 </script>
 
 </body>
