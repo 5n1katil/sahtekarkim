@@ -91,6 +91,17 @@ window.gameLogic = {
         localStorage.clear();
         location.reload();
       }
+
+      // Kurucu yoksa odayı kapat
+      const roomRef = window.db.ref(`rooms/${roomCode}`);
+      roomRef.get().then((snap) => {
+        const data = snap.val();
+        if (!data || !data.creator || !players.includes(data.creator)) {
+          roomRef.remove();
+          localStorage.clear();
+          location.reload();
+        }
+      });
     });
   },
 
@@ -214,3 +225,14 @@ window.gameLogic = {
     });
   },
 };
+
+// ------------------------
+// Sekme kapanınca odadan çık
+// ------------------------
+window.addEventListener("beforeunload", () => {
+  const roomCode = localStorage.getItem("roomCode");
+  const playerName = localStorage.getItem("playerName");
+  if (roomCode && playerName) {
+    window.gameLogic.leaveRoom(roomCode, playerName);
+  }
+});
