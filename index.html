@@ -3,92 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>5N1Katil - Oyun Ayarları</title>
+  <title>5N1Katil - Oda Kur</title>
   <link rel="stylesheet" href="style.css">
-
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
 </head>
 <body>
-  <div class="card">
-    <h2>5N1Katil - Oyun Ayarları</h2>
-    <input id="nameInput" type="text" placeholder="Adınız">
-    <input id="playerCountInput" type="number" placeholder="Kaç kişi oynayacak?">
-    <input id="spyCountInput" type="number" placeholder="Kaç sahtekar olacak?">
-    <select id="roleSelect">
-      <option value="false">Karakterler kullanılmasın</option>
-      <option value="true">Karakterler kullanılsın</option>
-    </select>
-    <input id="questionCountInput" type="number" placeholder="Her turda kaç soru?">
-    <input id="guessCountInput" type="number" placeholder="Sahtekarın tahmin hakkı?">
-    <select id="eliminateSelect">
-      <option value="false">Eleme yok</option>
-      <option value="true">Eleme var</option>
-    </select>
-    <button id="createRoomBtn">Odayı Oluştur</button>
+  <div class="container">
+    <h1>5N1Katil</h1>
+    <input id="nameInput" type="text" placeholder="Kullanıcı adınız" />
+    <input id="playerCountInput" type="number" min="2" max="12" placeholder="Oyuncu sayısı" />
+    <button id="createRoomBtn">Oda Oluştur</button>
+    <input id="joinRoomCodeInput" type="text" placeholder="Oda kodu" />
+    <button id="joinRoomBtn">Odaya Katıl</button>
   </div>
 
-<script>
-/***********************
- * Firebase
- ***********************/
-const firebaseConfig = {
-  apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
-  authDomain: "detektif-c17bb.firebaseapp.com",
-  databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com",
-  projectId: "detektif-c17bb",
-  storageBucket: "detektif-c17bb.firebasestorage.app",
-  messagingSenderId: "422256375848",
-  appId: "1:422256375848:web:873b0a6372c992accf9d1d",
-};
-firebase.initializeApp(firebaseConfig);
-window.db = firebase.database();
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
 
-/***********************
- * Oda oluşturma
- ***********************/
-document.getElementById("createRoomBtn").addEventListener("click", () => {
-  const name = document.getElementById("nameInput").value;
-  const playerCount = document.getElementById("playerCountInput").value;
-  const spyCount = document.getElementById("spyCountInput").value;
-  const useRoles = document.getElementById("roleSelect").value === "true";
-  const questionCount = document.getElementById("questionCountInput").value;
-  const guessCount = document.getElementById("guessCountInput").value;
-  const canEliminate = document.getElementById("eliminateSelect").value === "true";
+  <!-- Oyun Mantığı -->
+  <script src="game.js"></script>
 
-  if (!name || !playerCount) {
-    alert("Lütfen isim ve oyuncu sayısını girin!");
-    return;
-  }
+  <script>
+    document.getElementById("createRoomBtn").addEventListener("click", () => {
+      const name = document.getElementById("nameInput").value.trim();
+      const playerCount = document.getElementById("playerCountInput").value;
+      if (!name || !playerCount) return alert("İsim ve oyuncu sayısı gerekli!");
 
-  const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
-  const roomRef = window.db.ref("rooms/" + roomCode);
+      const roomCode = window.gameLogic.createRoom(name, playerCount, 1, false, 3, 1, true);
+      alert(`Oda kodunuz: ${roomCode}`);
+      window.location.href = "room.html";
+    });
 
-  const roomData = {
-    creator: name,
-    players: { [name]: { name: name, isCreator: true } },
-    settings: {
-      playerCount: Number(playerCount),
-      spyCount: Number(spyCount),
-      useRoles,
-      questionCount: Number(questionCount),
-      guessCount: Number(guessCount),
-      canEliminate,
-    },
-    status: "waiting",
-    createdAt: Date.now(),
-  };
+    document.getElementById("joinRoomBtn").addEventListener("click", () => {
+      const name = document.getElementById("nameInput").value.trim();
+      const roomCode = document.getElementById("joinRoomCodeInput").value.trim().toUpperCase();
+      if (!name || !roomCode) return alert("İsim ve oda kodu gerekli!");
 
-  roomRef.set(roomData);
-
-  localStorage.setItem("roomCode", roomCode);
-  localStorage.setItem("playerName", name);
-  localStorage.setItem("isCreator", "true");
-
-  alert(`Oda kodunuz: ${roomCode}`);
-  location.href = "room.html";
-});
-</script>
+      window.gameLogic.joinRoom(name, roomCode, (err) => {
+        if (err) return alert(err);
+        window.location.href = "room.html";
+      });
+    });
+  </script>
 </body>
 </html>
