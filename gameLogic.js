@@ -21,8 +21,14 @@ function createRoom(creatorName, playerCount, spyCount, useRoles, questionCount,
       useRoles,
       questionCount,
       guessCount,
-      canEliminate
-    }
+      canEliminate,
+      locations: [
+        "Kütüphane", "Hastane", "Müze", "Tren Garı", 
+        "Restoran", "Otobüs Terminali", "Park", "Ofis"
+      ],
+      roles: ["Doktor", "Memur", "Garson", "Öğrenci", "Turist", "Güvenlik"]
+    },
+    status: "waiting"
   };
 
   window.db.ref("rooms/" + roomCode).set(roomData);
@@ -57,11 +63,18 @@ function startGame(roomCode, settings) {
     if (!room) return;
 
     const players = room.players || [];
-    if (players.length < 2) return alert("En az 2 oyuncu gerekli.");
+    if (players.length < 2) {
+      alert("Oyun başlatılamaz! En az 2 oyuncu gerekli.");
+      return;
+    }
 
     const shuffled = [...players].sort(() => 0.5 - Math.random());
-    const spies = shuffled.slice(0, settings.spyCount);
-    const location = settings.locations[Math.floor(Math.random() * settings.locations.length)];
+    const spies = shuffled.slice(0, settings.spyCount || 1); // Varsayılan 1 casus
+
+    // Rastgele konum seç
+    const location = settings.locations[
+      Math.floor(Math.random() * settings.locations.length)
+    ];
 
     const assignments = {};
     players.forEach(name => {
@@ -69,15 +82,20 @@ function startGame(roomCode, settings) {
       assignments[name] = {
         role: isSpy ? "spy" : "normal",
         location: isSpy ? null : location,
-        character: !isSpy && settings.useRoles ? settings.roles[Math.floor(Math.random() * settings.roles.length)] : null
+        character: !isSpy && settings.useRoles 
+          ? settings.roles[Math.floor(Math.random() * settings.roles.length)] 
+          : null
       };
     });
 
+    // Firebase'e yaz
     window.db.ref("rooms/" + roomCode + "/assignments").set(assignments);
+    window.db.ref("rooms/" + roomCode + "/status").set("started");
+    window.db.ref("rooms/" + roomCode + "/currentLocation").set(location);
   });
 }
 
-// Katılımcı çıkınca oyuncular listesinden sil (YENİ)
+// Katılımcı çıkınca oyuncular listesinden sil
 function leaveRoom(roomCode, playerName) {
   const ref = window.db.ref("rooms/" + roomCode + "/players");
   return ref.once("value").then(snapshot => {
@@ -98,5 +116,5 @@ window.gameLogic = {
   startGame,
   listenPlayers,
   deleteRoom,
-  leaveRoom // <-- Mutlaka ekle!
+  leaveRoom
 };
