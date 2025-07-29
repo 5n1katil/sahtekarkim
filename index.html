@@ -2,188 +2,115 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>5N1Katil - Oyun Başlat</title>
-  
-  <!-- Google Font -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
-  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>5N1Katil - Oyun</title>
   <style>
     body {
-      font-family: 'Inter', sans-serif;
-      background: linear-gradient(to right, #1f1c2c, #928dab);
-      color: #fff;
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: white;
       display: flex;
-      flex-direction: column;
-      align-items: center;
+      justify-content: center;
+      align-items: flex-start;
       min-height: 100vh;
-      margin: 0;
-      padding: 0;
+      padding: 20px;
     }
-    .container {
-      background: #2c2a4a;
-      padding: 1.5rem;
-      margin: 1rem;
-      border-radius: 12px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.3);
-      width: 90%;
+    #container {
       max-width: 500px;
-      animation: fadeIn 0.3s ease;
-    }
-    @keyframes fadeIn {
-      from {opacity: 0; transform: translateY(10px);}
-      to {opacity: 1; transform: translateY(0);}
-    }
-    h2 {
-      text-align: center;
-      margin-bottom: 1rem;
-    }
-    label {
-      margin-top: 1rem;
-      display: block;
-      font-weight: 600;
-    }
-    input, select, button {
       width: 100%;
-      padding: 0.6rem;
-      margin-top: 0.3rem;
-      border-radius: 6px;
+      background: #1e1e1e;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0 15px;
+      border-radius: 8px;
       border: none;
-      font-size: 1rem;
-      box-sizing: border-box;
+      outline: none;
     }
     button {
-      background-color: #7b5cff;
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      background: #4caf50;
+      border: none;
+      border-radius: 8px;
       color: white;
-      margin-top: 1.2rem;
-      font-weight: bold;
+      font-size: 16px;
       cursor: pointer;
-      transition: 0.2s;
     }
-    button:hover {
-      opacity: 0.9;
-      transform: scale(1.02);
-    }
-    ul {
-      list-style-type: disc;
-      padding-left: 1.2rem;
-    }
-    .hidden { display: none; }
-    .small-btn {
-      background-color: #444;
-      margin-top: 0.5rem;
-      font-size: 0.9rem;
-    }
+    button:hover { background: #45a049; }
+
+    #roomArea { display: none; margin-top: 20px; }
+    #playerList { list-style: none; padding: 0; }
+    #playerList li { background: #333; margin: 5px 0; padding: 8px; border-radius: 6px; }
   </style>
 </head>
 <body>
+  <div id="container">
+    <h2>5N1Katil - Oyun</h2>
+    <div id="lobbyArea">
+      <input type="text" id="nameInput" placeholder="Kullanıcı adınız" />
+      <input type="text" id="roomCodeInput" placeholder="Oda kodu (katılmak için)" />
+      <input type="number" id="playerCountInput" placeholder="Maksimum oyuncu sayısı (kurucu)" value="6" />
 
-  <!-- Kurucu için oyun ayarları ekranı -->
-  <div class="container" id="setup">
-    <h2>5N1Katil - Oyun Ayarları</h2>
-    <label>İsminizi girin (Kurucu):</label>
-    <input id="creatorName" placeholder="Adınız" />
-    
-    <label>Kaç kişi oynayacak? (min 4 - max 16)</label>
-    <input id="playerCount" type="number" min="4" max="16" value="4" />
+      <button id="createRoomBtn">Oda Oluştur</button>
+      <button id="joinRoomBtn">Odaya Katıl</button>
+    </div>
 
-    <label>Kaç sahtekar olacak?</label>
-    <input id="spyCount" type="number" min="1" value="1" />
-
-    <label>Karakterler dahil edilsin mi?</label>
-    <select id="useRoles">
-      <option value="no">Hayır</option>
-      <option value="yes">Evet</option>
-    </select>
-
-    <label>Her turda kaç soru sorulsun?</label>
-    <input id="questionCount" type="number" min="1" value="1" />
-
-    <label>Sahtekarın kaç konum tahmin hakkı olacak?</label>
-    <input id="guessCount" type="number" min="1" value="1" />
-
-    <label>Sahtekar her tur sonunda birini eleyebilsin mi?</label>
-    <select id="canEliminate">
-      <option value="no">Hayır</option>
-      <option value="yes">Evet</option>
-    </select>
-
-    <button id="createRoomBtn">Odayı Oluştur</button>
+    <div id="roomArea">
+      <h3>Oda Kodu: <span id="roomCodeDisplay"></span></h3>
+      <p>Oyuncu Sayısı: <span id="playerCountDisplay">0</span></p>
+      <ul id="playerList"><li>Henüz oyuncu yok</li></ul>
+      <button id="leaveRoomBtn" style="background:#e53935;">Odadan Çık</button>
+    </div>
   </div>
 
-  <!-- Oyuncuların odaya katılması için ekran -->
-  <div class="container" id="playerJoin">
-    <h2>Oyuna Katıl</h2>
-    <label>İsminizi girin:</label>
-    <input id="joinName" placeholder="Adınız" />
-    
-    <label>Oda kodunu girin:</label>
-    <input id="joinCode" placeholder="ABCDE" maxlength="5" />
-    
-    <button id="joinRoomBtn">Oyuna Katıl</button>
-  </div>
+  <!-- Firebase & Oyun Scripti -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js"></script>
+  <script src="game.js"></script>
 
-  <!-- Oda bilgileri ekranı -->
-  <div class="container hidden" id="roomInfo">
-    <h2 id="roomTitle">Oda başarıyla oluşturuldu!</h2>
-    <p><strong>Oda kodunuz:</strong> <span id="roomCode"></span> 
-      <button id="copyRoomBtn" class="small-btn">Kopyala</button>
-    </p>
-    <p id="roomInstructions">Diğer oyuncular bu kodla giriş yapabilir.</p>
+  <script>
+    // Oda oluşturulduğunda UI değiştir
+    function enterRoomUI(roomCode) {
+      document.getElementById('lobbyArea').style.display = 'none';
+      document.getElementById('roomArea').style.display = 'block';
+      document.getElementById('roomCodeDisplay').textContent = roomCode;
 
-    <h3>Oyuncu Sayısı (<span id="playerCountDisplay">0</span>)</h3>
-    <ul id="playerList"></ul>
+      // Canlı oyuncu listesi dinle
+      window.gameLogic.listenPlayers(roomCode);
+    }
 
-    <button id="startGameBtn" class="hidden">Oyunu Başlat</button>
-    <button id="leaveRoomBtn">Odadan Çık</button>
-  </div>
+    // Oda oluştur butonu
+    document.getElementById('createRoomBtn').addEventListener('click', () => {
+      const name = document.getElementById('nameInput').value.trim();
+      const playerCount = document.getElementById('playerCountInput').value;
+      if (!name) return alert('Lütfen adınızı girin');
 
-  <!-- Rol bilgisi ekranı -->
-  <div class="container hidden" id="playerRoleInfo">
-    <h2>Rol Bilgisi</h2>
-    <p id="roleMessage">(örnek) Rolünüz: Sahtekar.</p>
-    <button id="copyRoleBtn" class="small-btn">Rol Bilgisini Kopyala</button>
-    <button id="backToHomeBtn" class="small-btn">Oyundan Çık</button>
-  </div>
+      const roomCode = window.gameLogic.createRoom(name, playerCount, 1, false, 3, 1, true);
+      enterRoomUI(roomCode);
+    });
 
-<!-- Firebase ve JS dosyaları -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script src="firebase.js"></script>
-<script src="gameLogic.js"></script>
-<script src="main.js"></script>
+    // Odaya katıl butonu
+    document.getElementById('joinRoomBtn').addEventListener('click', () => {
+      const name = document.getElementById('nameInput').value.trim();
+      const roomCode = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+      if (!name || !roomCode) return alert('Lütfen adınızı ve oda kodunu girin');
 
-<script>
-  // Rol bilgisini kopyalama
-  document.getElementById("copyRoleBtn").addEventListener("click", () => {
-    const text = document.getElementById("roleMessage").innerText;
-    navigator.clipboard.writeText(text).then(() => alert("Rolünüz kopyalandı!"));
-  });
+      window.gameLogic.joinRoom(name, roomCode, (err) => {
+        if (err) return alert(err);
+        enterRoomUI(roomCode);
+      });
+    });
 
-  // Oda kodunu kopyala
-  document.getElementById("copyRoomBtn").addEventListener("click", () => {
-    const code = document.getElementById("roomCode").innerText;
-    navigator.clipboard.writeText(code).then(() => alert("Oda kodu kopyalandı!"));
-  });
-
-  // Oyundan çık (ana ekrana dön)
-  document.getElementById("backToHomeBtn").addEventListener("click", () => {
-    localStorage.clear();
-    location.reload();
-  });
-
-  // Canlı oyuncu listesi güncellemesi (gameLogic.js çağırıyor)
-  function updatePlayerList(players) {
-    const listEl = document.getElementById("playerList");
-    const countEl = document.getElementById("playerCountDisplay");
-    if (!listEl || !countEl) return;
-
-    const validPlayers = (players || []).filter(p => p && p.trim() !== "");
-    listEl.innerHTML = validPlayers.map(p => `<li>${p}</li>`).join("") || "<li>Henüz oyuncu yok</li>";
-    countEl.textContent = validPlayers.length;
-  }
-  window.updatePlayerList = updatePlayerList;
-</script>
-
+    // Oyuncu tarayıcıyı kapattıysa odada kalmasın
+    const savedRoom = localStorage.getItem('roomCode');
+    const savedPlayer = localStorage.getItem('playerName');
+    if (savedRoom && savedPlayer) enterRoomUI(savedRoom);
+  </script>
 </body>
 </html>
