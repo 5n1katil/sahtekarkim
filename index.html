@@ -8,7 +8,6 @@
   <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
   
-  <!-- Sayfa Stili -->
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -127,7 +126,9 @@
   <!-- Oda bilgileri ekranı -->
   <div class="container hidden" id="roomInfo">
     <h2 id="roomTitle">Oda başarıyla oluşturuldu!</h2>
-    <p><strong>Oda kodunuz:</strong> <span id="roomCode"></span></p>
+    <p><strong>Oda kodunuz:</strong> <span id="roomCode"></span> 
+      <button id="copyRoomBtn" class="small-btn">Kopyala</button>
+    </p>
     <p id="roomInstructions">Diğer oyuncular bu kodla giriş yapabilir.</p>
 
     <h3>Oyuncu Sayısı (<span id="playerCountDisplay">0</span>)</h3>
@@ -159,21 +160,26 @@
     navigator.clipboard.writeText(text).then(() => alert("Rolünüz kopyalandı!"));
   });
 
+  // Oda kodunu kopyala
+  document.getElementById("copyRoomBtn").addEventListener("click", () => {
+    const code = document.getElementById("roomCode").innerText;
+    navigator.clipboard.writeText(code).then(() => alert("Oda kodu kopyalandı!"));
+  });
+
   // Oyundan çık (ana ekrana dön)
   document.getElementById("backToHomeBtn").addEventListener("click", () => {
     localStorage.clear();
     location.reload();
   });
 
-  // Canlı oyuncu listesi güncellemesi
+  // Canlı oyuncu listesi güncellemesi (gameLogic.js çağırıyor)
   function updatePlayerList(players) {
     const listEl = document.getElementById("playerList");
     const countEl = document.getElementById("playerCountDisplay");
     if (!listEl || !countEl) return;
 
     const validPlayers = (players || []).filter(p => p && p.trim() !== "");
-
-    listEl.innerHTML = validPlayers.map(p => `<li>${p}</li>`).join("");
+    listEl.innerHTML = validPlayers.map(p => `<li>${p}</li>`).join("") || "<li>Henüz oyuncu yok</li>";
     countEl.textContent = validPlayers.length;
   }
   window.updatePlayerList = updatePlayerList;
