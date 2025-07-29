@@ -54,6 +54,12 @@ window.gameLogic = {
         return;
       }
 
+      // Aynı isimde oyuncu varsa engelle
+      if (players[playerName]) {
+        callback?.("Bu isim zaten alınmış!", null);
+        return;
+      }
+
       const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
       playerRef.set({ name: playerName, isCreator: false });
 
@@ -75,7 +81,7 @@ window.gameLogic = {
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
     localStorage.clear();
     playerRef.remove();
-    location.href = "index.html"; // Oyundan çıkınca ana sayfaya dön
+    location.href = "index.html";
   },
 
   /** Oyuncuları canlı dinle */
@@ -86,6 +92,23 @@ window.gameLogic = {
       const players = Object.keys(playersObj);
       callback(players);
 
+      // Oyuncu listesini güncelle
+      const playerListEl = document.getElementById("playerList");
+      const playerCountEl = document.getElementById("playerCount");
+
+      if (playerListEl) {
+        playerListEl.innerHTML = players
+          .map((p) => {
+            const isCreator = playersObj[p]?.isCreator;
+            return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
+          })
+          .join("");
+      }
+
+      if (playerCountEl) {
+        playerCountEl.textContent = players.length;
+      }
+
       // Oda tamamen boşaldıysa kapat
       if (players.length === 0) {
         window.db.ref("rooms/" + roomCode).remove();
@@ -95,16 +118,15 @@ window.gameLogic = {
       }
 
       // Kurucu yoksa odayı kapat
-      const roomRef = window.db.ref(`rooms/${roomCode}`);
-      roomRef.get().then((snap) => {
-        const data = snap.val();
-        const creatorName = data?.creator;
-        if (!data || !creatorName || !players.includes(creatorName)) {
-          roomRef.remove();
-          localStorage.clear();
-          location.reload();
-        }
-      });
+      const creatorName = snapshot.val()?.[Object.keys(playersObj)[0]]?.isCreator
+        ? Object.keys(playersObj).find((p) => playersObj[p].isCreator)
+        : null;
+
+      if (!creatorName || !players.includes(creatorName)) {
+        window.db.ref(`rooms/${roomCode}`).remove();
+        localStorage.clear();
+        location.reload();
+      }
     });
   },
 
@@ -115,27 +137,6 @@ window.gameLogic = {
     roomRef.on("value", (snapshot) => {
       const roomData = snapshot.val();
       if (!roomData) return;
-
-      const playersObj = roomData.players || {};
-      const players = Object.keys(playersObj);
-      const totalPlayers = players.length; // ⭐ Kurucu dahil toplam oyuncu sayısı
-
-      // Oyuncu listesi
-      const playerListEl = document.getElementById("playerList");
-      if (playerListEl) {
-        playerListEl.innerHTML = players
-          .map((p) => {
-            const isCreator = playersObj[p]?.isCreator;
-            return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
-          })
-          .join("");
-      }
-
-      // Oyuncu sayısını güncelle (kurucu dahil)
-      const playerCountEl = document.getElementById("playerCount");
-      if (playerCountEl) {
-        playerCountEl.textContent = totalPlayers;
-      }
 
       // Oyun başladıysa rol göster
       if (roomData.status === "started") {
@@ -173,7 +174,7 @@ window.gameLogic = {
         "Hastane": ["Doktor", "Hemşire", "Hasta", "Ziyaretçi", "Temizlikçi", "Güvenlik"],
         "Restoran": ["Garson", "Şef", "Müşteri", "Kasiyer", "Temizlikçi", "Menajer"],
         "Kütüphane": ["Kütüphaneci", "Öğrenci", "Araştırmacı", "Güvenlik", "Temizlikçi", "Ziyaretçi"]
-        // diğer konumlar buraya eklenebilir
+        // Diğer konumlar eklenecek
       };
 
       const locations = Object.keys(locationRoles);
