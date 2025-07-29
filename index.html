@@ -4,76 +4,91 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>5N1Katil - Oyun</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+
   <style>
+    /* Sayfa arka plan */
     body {
-      background-color: #0d0d1a;
-      font-family: 'Roboto', sans-serif;
-      color: white;
+      background-color: #0d0c1d;
+      font-family: Arial, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
       margin: 0;
     }
+
+    /* Ortadaki kutu */
     .card {
-      background-color: #16162a;
-      padding: 2rem;
-      border-radius: 12px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+      background-color: #1b1a2a;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
       width: 320px;
       text-align: center;
     }
-    input, select {
-      width: 100%;
-      padding: 0.5rem;
-      margin: 0.4rem 0;
-      border-radius: 6px;
-      border: none;
-      outline: none;
-    }
-    button {
-      width: 100%;
-      background-color: #6c4ff5;
+
+    .card h1 {
       color: white;
-      padding: 0.6rem;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      margin-top: 0.5rem;
+      margin-bottom: 20px;
+      font-size: 22px;
     }
-    button:hover {
-      background-color: #593adf;
+
+    /* Inputlar */
+    .card input, 
+    .card select {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: none;
+      border-radius: 8px;
+      background-color: #292845;
+      color: white;
+      font-size: 14px;
+    }
+
+    .card input::placeholder {
+      color: #bbb;
+    }
+
+    /* Buton */
+    .card button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background-color: #6c5ce7;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .card button:hover {
+      background-color: #5a4dd4;
     }
   </style>
 </head>
 <body>
 
   <div class="card">
-    <h2>5N1Katil - Oyun Ayarları</h2>
-    <input type="text" id="nameInput" placeholder="Adınız">
-    <input type="number" id="playerCountInput" placeholder="Oyuncu Sayısı" value="4">
-    <input type="number" id="spyCountInput" placeholder="Sahtekar Sayısı" value="1">
+    <h1>5N1Katil - Oyun Ayarları</h1>
+    <input id="nameInput" placeholder="Adınız" />
+    <input id="playerCountInput" type="number" placeholder="Kaç kişi oynayacak?" />
+    <input id="spyCountInput" type="number" placeholder="Kaç sahtekar olacak?" />
     <select id="useRolesInput">
       <option value="false">Karakterler kullanılmasın</option>
       <option value="true">Karakterler kullanılsın</option>
     </select>
-    <input type="number" id="questionCountInput" placeholder="Soru sayısı" value="1">
-    <input type="number" id="guessCountInput" placeholder="Tahmin hakkı" value="1">
-    <select id="canEliminateInput">
+    <input id="questionCountInput" type="number" placeholder="Her turda kaç soru?" />
+    <input id="guessCountInput" type="number" placeholder="Sahtekarın tahmin hakkı?" />
+    <select id="eliminationInput">
       <option value="false">Eleme yok</option>
       <option value="true">Eleme var</option>
     </select>
     <button id="createRoomBtn">Odayı Oluştur</button>
   </div>
 
-  <!-- Firebase Scripts -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-
-  <!-- game.js dosyanı sona ekle -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
