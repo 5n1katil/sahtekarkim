@@ -105,9 +105,41 @@ window.gameLogic = {
         return;
       }
 
-      // Konum ve roller
-      const locations = settings.locations || [];
-      const roles = settings.roles || [];
+      // === 30 KONUM VE ROL HAVUZU ===
+      const locationRoles = {
+        "Havalimanı": ["Pilot","Hostes","Yolcu","Güvenlik","Bagaj Görevlisi","Yer Hizmetleri"],
+        "Restoran": ["Şef","Garson","Müşteri","Kasiyer","Temizlikçi","Barmen"],
+        "Kütüphane": ["Kütüphaneci","Öğrenci","Okur","Temizlikçi","Güvenlik","Araştırmacı"],
+        "Müze": ["Sanatçı","Rehber","Turist","Güvenlik","Temizlikçi","Koleksiyoncu"],
+        "Otobüs": ["Şoför","Biletçi","Yolcu","Turist","Öğrenci","Memur"],
+        "Okul": ["Öğretmen","Öğrenci","Müdür","Hademe","Güvenlik","Kütüphaneci"],
+        "Hastane": ["Doktor","Hemşire","Hasta","Ziyaretçi","Temizlikçi","Güvenlik"],
+        "Spor Salonu": ["Antrenör","Sporcu","Üye","Resepsiyonist","Temizlikçi","Fizyoterapist"],
+        "Otel": ["Resepsiyonist","Müşteri","Kat Görevlisi","Güvenlik","Aşçı","Vale"],
+        "Sirk": ["Palyaço","Akrobat","Hayvan Terbiyecisi","Gösteri Sunucusu","Seyirci","Biletçi"],
+        "Stadyum": ["Futbolcu","Hakem","Seyirci","Biletçi","Güvenlik","Satıcı"],
+        "Denizaltı": ["Kaptan","Subay","Mühendis","Dalgıç","Teknisyen","Gözlemci"],
+        "Sinema": ["Biletçi","Seyirci","Gösterim Görevlisi","Temizlikçi","Satıcı","Yönetici"],
+        "Kayık": ["Balıkçı","Yolcu","Turist","Kaptan","Kürekçi","Rehber"],
+        "Çiftlik": ["Çiftçi","Veteriner","İşçi","Çocuk","Turist","Komşu"],
+        "Tren İstasyonu": ["Makinist","Biletçi","Yolcu","Turist","Güvenlik","Temizlikçi"],
+        "Hapishane": ["Gardiyan","Mahkum","Müdür","Avukat","Ziyaretçi","Temizlikçi"],
+        "Kışla": ["Asker","Komutan","Doktor","Aşçı","Eğitmen","Ziyaretçi"],
+        "Kafe": ["Barista","Garson","Müşteri","Kasiyer","Öğrenci","Turist"],
+        "Pazar": ["Satıcı","Müşteri","Hırsız","Güvenlik","Çocuk","Dilenci"],
+        "Dağ Evi": ["Dağcı","Turist","Ev Sahibi","Avcı","Aşçı","Komşu"],
+        "Festival": ["Dansçı","Müzisyen","Satıcı","Seyirci","Görevli","Turist"],
+        "Plaj": ["Can Kurtaran","Turist","Çocuk","Satıcı","Yüzücü","Balıkçı"],
+        "Yat Limanı": ["Kaptan","Turist","Balıkçı","Teknisyen","Güvenlik","Satıcı"],
+        "Konsolosluk": ["Konsolos","Sekreter","Misafir","Güvenlik","Temizlikçi","Vatandaş"],
+        "Tiyatro": ["Oyuncu","Seyirci","Biletçi","Işıkçı","Dekoratör","Temizlikçi"],
+        "Kilise": ["Papaz","Seyirci","Ziyaretçi","Güvenlik","Koro Üyesi","Temizlikçi"],
+        "Lunapark": ["Operatör","Biletçi","Çocuk","Anne-Baba","Satıcı","Güvenlik"],
+        "Üniversite": ["Profesör","Öğrenci","Memur","Temizlikçi","Güvenlik","Ziyaretçi"],
+        "Hayvanat Bahçesi": ["Bakıcı","Veteriner","Turist","Satıcı","Çocuk","Güvenlik"]
+      };
+
+      const locations = Object.keys(locationRoles);
       const chosenLocation = locations[Math.floor(Math.random() * locations.length)];
 
       // Casus sayısı
@@ -121,15 +153,27 @@ window.gameLogic = {
 
       // Oyuncu rolleri
       const playerRoles = {};
-      shuffledPlayers.forEach((player, idx) => {
-        if (spies.includes(player)) {
-          playerRoles[player] = { role: "Spy", location: null };
+      shuffledPlayers.forEach((player) => {
+        const isSpy = spies.includes(player);
+
+        if (isSpy) {
+          playerRoles[player] = {
+            isSpy: true,
+            role: "Sahtekar",
+            location: null,
+            allLocations: locations, // Casusa konum havuzu gösterilecek
+          };
         } else {
-          const roleName =
-            settings.useRoles && roles.length >= players.length
-              ? roles[idx % roles.length]
-              : "Sıradan Oyuncu";
-          playerRoles[player] = { role: roleName, location: chosenLocation };
+          const rolesForLoc = locationRoles[chosenLocation];
+          const randomRole = settings.useRoles
+            ? rolesForLoc[Math.floor(Math.random() * rolesForLoc.length)]
+            : "Masum";
+          playerRoles[player] = {
+            isSpy: false,
+            role: randomRole,
+            location: chosenLocation,
+            allLocations: null,
+          };
         }
       });
 
@@ -137,6 +181,7 @@ window.gameLogic = {
       roomRef.update({
         status: "started",
         location: chosenLocation,
+        spies,
         playerRoles,
       });
 
@@ -147,10 +192,9 @@ window.gameLogic = {
         document.getElementById("roomInfo")?.classList.add("hidden");
         document.getElementById("playerRoleInfo")?.classList.remove("hidden");
 
-        document.getElementById("roleMessage").textContent =
-          myRole.role === "Spy"
-            ? "Sen BİR CASUSSUN! Konumu bilmiyorsun, dikkatli sorular sor."
-            : `Konum: ${myRole.location} | Rolün: ${myRole.role}`;
+        document.getElementById("roleMessage").textContent = myRole.isSpy
+          ? `🎭 Sen BİR SAHTEKARSIN! Konumu bilmiyorsun. Olası konumlar: ${myRole.allLocations.join(", ")}`
+          : `✅ Konum: ${myRole.location} | Rolün: ${myRole.role}`;
       }
     });
   },
