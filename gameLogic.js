@@ -84,31 +84,28 @@ window.gameLogic = {
     location.href = "index.html";
   },
 
-/** Oyuncuları canlı dinle */
-listenPlayers: function (roomCode, callback) {
+  /** Oyuncuları canlı dinle */
+  listenPlayers: function (roomCode, callback) {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     playersRef.on("value", (snapshot) => {
-        const playersObj = snapshot.val() || {};
-        const players = Object.keys(playersObj);
+      const playersObj = snapshot.val() || {};
+      const players = Object.keys(playersObj);
 
-        // HTML elementlerini al
-        const playerListEl = document.getElementById("playerList");
-        const playerCountEl = document.getElementById("playerCountDisplay"); // doğru id
+      // HTML elementlerini al
+      const playerListEl = document.getElementById("playerList");
+      const playerCountEl = document.getElementById("playerCountDisplay");
 
-        if (playerListEl && playerCountEl) {
-            playerListEl.innerHTML = players
-                .map((p) => {
-                    const isCreator = playersObj[p]?.isCreator;
-                    return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
-                })
-                .join("");
-            playerCountEl.textContent = players.length; // Oyuncu sayısını güncelle
-        }
+      if (playerListEl && playerCountEl) {
+        playerListEl.innerHTML = players
+          .map((p) => {
+            const isCreator = playersObj[p]?.isCreator;
+            return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
+          })
+          .join("");
 
-        // Callback ile dışarıya da gönder
-        callback(players);
-    });
-},
+        // Oyuncu sayısını güncelle
+        playerCountEl.textContent = players.length;
+      }
 
       // Oda tamamen boşaldıysa kapat
       if (players.length === 0) {
@@ -119,15 +116,16 @@ listenPlayers: function (roomCode, callback) {
       }
 
       // Kurucu yoksa odayı kapat
-      const creatorName = snapshot.val()?.[Object.keys(playersObj)[0]]?.isCreator
-        ? Object.keys(playersObj).find((p) => playersObj[p].isCreator)
-        : null;
-
+      const creatorName = Object.keys(playersObj).find((p) => playersObj[p].isCreator);
       if (!creatorName || !players.includes(creatorName)) {
         window.db.ref(`rooms/${roomCode}`).remove();
         localStorage.clear();
         location.reload();
+        return;
       }
+
+      // Callback ile dışarıya da gönder
+      callback(players);
     });
   },
 
