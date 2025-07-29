@@ -171,14 +171,12 @@
     const countEl = document.getElementById("playerCountDisplay");
     if (!listEl || !countEl) return;
 
-    // Geçerli isimleri filtrele
     const validPlayers = (players || []).filter(p => p && p.trim() !== "");
 
-    // Listeyi güncelle
     listEl.innerHTML = validPlayers.map(p => `<li>${p}</li>`).join("");
     countEl.textContent = validPlayers.length;
   }
-  window.updatePlayerList = updatePlayerList; // main.js veya gameLogic.js içinden çağırabilsin
+  window.updatePlayerList = updatePlayerList;
 </script>
 
 </body>
