@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oda</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h2>Oda Kodu: <span id="roomCodeDisplay"></span></h2>
+    <p>Oyuncular (<span id="playerCountDisplay">0</span>):</p>
+    <ul id="playerList"></ul>
+    <button id="leaveRoomBtn">Odadan Çık</button>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
+
+  <!-- Oyun Mantığı -->
+  <script src="game.js"></script>
+
+  <script>
+    const roomCode = localStorage.getItem("roomCode");
+    const playerName = localStorage.getItem("playerName");
+
+    if (!roomCode || !playerName) {
+      window.location.href = "index.html";
+    }
+
+    document.getElementById("roomCodeDisplay").textContent = roomCode;
+    window.gameLogic.listenPlayers(roomCode);
+
+    document.getElementById("leaveRoomBtn").addEventListener("click", () => {
+      window.gameLogic.leaveRoom(roomCode, playerName);
+    });
+  </script>
+</body>
+</html>
