@@ -84,30 +84,31 @@ window.gameLogic = {
     location.href = "index.html";
   },
 
-  /** Oyuncuları canlı dinle */
-  listenPlayers: function (roomCode, callback) {
+/** Oyuncuları canlı dinle */
+listenPlayers: function (roomCode, callback) {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     playersRef.on("value", (snapshot) => {
-      const playersObj = snapshot.val() || {};
-      const players = Object.keys(playersObj);
-      callback(players);
+        const playersObj = snapshot.val() || {};
+        const players = Object.keys(playersObj);
 
-      // Oyuncu listesini güncelle
-      const playerListEl = document.getElementById("playerList");
-      const playerCountEl = document.getElementById("playerCount");
+        // HTML elementlerini al
+        const playerListEl = document.getElementById("playerList");
+        const playerCountEl = document.getElementById("playerCountDisplay"); // doğru id
 
-      if (playerListEl) {
-        playerListEl.innerHTML = players
-          .map((p) => {
-            const isCreator = playersObj[p]?.isCreator;
-            return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
-          })
-          .join("");
-      }
+        if (playerListEl && playerCountEl) {
+            playerListEl.innerHTML = players
+                .map((p) => {
+                    const isCreator = playersObj[p]?.isCreator;
+                    return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
+                })
+                .join("");
+            playerCountEl.textContent = players.length; // Oyuncu sayısını güncelle
+        }
 
-      if (playerCountEl) {
-        playerCountEl.textContent = players.length;
-      }
+        // Callback ile dışarıya da gönder
+        callback(players);
+    });
+},
 
       // Oda tamamen boşaldıysa kapat
       if (players.length === 0) {
