@@ -97,6 +97,7 @@ window.addEventListener("DOMContentLoaded", () => {
         location.reload();
       });
     } else {
+      // Oyuncu çıkarsa sadece players altından silinir
       window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName).then(() => {
         localStorage.clear();
         location.reload();
@@ -134,25 +135,27 @@ window.addEventListener("DOMContentLoaded", () => {
    *  ODA & OYUNCULARI DİNLE
    * ------------------------ */
   function listenPlayersAndRoom(roomCode) {
-    // Oyuncu listesi
-    window.gameLogic.listenPlayers(roomCode, (players) => {
+    // 🔹 Oyuncu listesi canlı dinleme
+    window.db.ref(`rooms/${roomCode}/players`).on("value", (snapshot) => {
+      const playersObj = snapshot.val();
+      const players = playersObj ? Object.keys(playersObj) : [];
       const listEl = document.getElementById("playerList");
       listEl.innerHTML =
-        players && players.length > 0
+        players.length > 0
           ? players.map((name) => `<li>${name}</li>`).join("")
           : "<li>Oyuncu bekleniyor...</li>";
     });
 
-    // Oda silinirse herkesi at
-    window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
+    // 🔹 Oda silinirse herkesi at
+    window.db.ref(`rooms/${roomCode}`).on("value", (snapshot) => {
       if (!snapshot.exists()) {
         localStorage.clear();
         location.reload();
       }
     });
 
-    // 🔹 YENİ: Oyun başlama durumunu dinle
-    window.db.ref("rooms/" + roomCode + "/gameState").on("value", (snapshot) => {
+    // 🔹 Oyun başlama durumunu dinle
+    window.db.ref(`rooms/${roomCode}/gameState`).on("value", (snapshot) => {
       const gameState = snapshot.val();
       if (gameState && gameState.started && gameState.players && gameState.players[currentPlayerName]) {
         const myData = gameState.players[currentPlayerName];
