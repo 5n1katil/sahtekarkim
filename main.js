@@ -3,19 +3,44 @@ window.addEventListener("DOMContentLoaded", () => {
   let currentPlayerName = localStorage.getItem("playerName") || null;
   let isCreator = localStorage.getItem("isCreator") === "true";
 
-  // Tarayıcı kapanırsa oyuncu odadan çıkar
+  /** ------------------------
+   *  SAYFA KAPANIRSA (Kurucu değilse) odadan çık
+   * ------------------------ */
   window.addEventListener("beforeunload", () => {
     if (currentRoomCode && currentPlayerName && !isCreator) {
       window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName);
     }
   });
 
-  // Sayfa yenilenirse kullanıcıyı odada tut
+  /** ------------------------
+   *  SAYFA YENİLENİNCE ODADA KAL
+   * ------------------------ */
   if (currentRoomCode && currentPlayerName) {
     showRoomUI(currentRoomCode, currentPlayerName, isCreator);
     listenPlayersAndRoom(currentRoomCode);
+
+    // Oyun başlamışsa rolü geri yükle
+    window.db.ref("rooms/" + currentRoomCode + "/gameState").once("value", (snapshot) => {
+      const gameState = snapshot.val();
+      if (gameState && gameState.started && gameState.players && gameState.players[currentPlayerName]) {
+        const myData = gameState.players[currentPlayerName];
+        document.getElementById("roomInfo").classList.add("hidden");
+        document.getElementById("playerRoleInfo").classList.remove("hidden");
+
+        const roleMessageEl = document.getElementById("roleMessage");
+        if (myData.roleInfo.includes("SAHTEKAR")) {
+          roleMessageEl.innerHTML =
+            `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
+            `Olası konumlar: ${gameState.allLocations.join(", ")}`;
+        } else {
+          roleMessageEl.innerHTML =
+            `📍 Konum: <b>${myData.location}</b><br>` +
+            `🎭 Rolün: <b>${myData.roleInfo}</b>`;
+        }
+      }
+    });
   } else {
-    // Başlangıç ekranı göster
+    // İlk giriş ekranı
     document.getElementById("setup").classList.remove("hidden");
     document.getElementById("playerJoin").classList.remove("hidden");
     document.getElementById("roomInfo").classList.add("hidden");
@@ -97,16 +122,17 @@ window.addEventListener("DOMContentLoaded", () => {
    *  ODADAN ÇIK
    * ------------------------ */
   document.getElementById("leaveRoomBtn").addEventListener("click", () => {
-    const clearAndReload = () => {
-      localStorage.clear();
-      location.reload();
-    };
-
     if (isCreator) {
       // Kurucu çıkarsa oda kapanır
-      window.gameLogic.deleteRoom(currentRoomCode).then(clearAndReload);
+      window.gameLogic.deleteRoom(currentRoomCode).then(() => {
+        localStorage.clear();
+        location.reload();
+      });
     } else {
-      window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName).then(clearAndReload);
+      window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName).then(() => {
+        localStorage.clear();
+        location.reload();
+      });
     }
   });
 
@@ -149,28 +175,25 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Oyun başlama durumunu dinle
+    // Oyun başlama durumunu canlı dinle
     window.db.ref("rooms/" + roomCode + "/gameState").on("value", (snapshot) => {
       const gameState = snapshot.val();
-      if (!gameState || !gameState.started || !gameState.players) return;
+      if (gameState && gameState.started && gameState.players && gameState.players[currentPlayerName]) {
+        const myData = gameState.players[currentPlayerName];
+        const roleMessageEl = document.getElementById("roleMessage");
 
-      const myData = gameState.players[currentPlayerName];
-      if (!myData) return;
+        document.getElementById("roomInfo").classList.add("hidden");
+        document.getElementById("playerRoleInfo").classList.remove("hidden");
 
-      // UI geçişi
-      document.getElementById("roomInfo").classList.add("hidden");
-      document.getElementById("playerRoleInfo").classList.remove("hidden");
-
-      const roleMessageEl = document.getElementById("roleMessage");
-
-      if (myData.roleInfo.includes("SAHTEKAR")) {
-        roleMessageEl.innerHTML =
-          `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
-          `Olası konumlar: ${gameState.allLocations.join(", ")}`;
-      } else {
-        roleMessageEl.innerHTML =
-          `📍 Konum: <b>${myData.location}</b><br>` +
-          `🎭 Rolün: <b>${myData.roleInfo}</b>`;
+        if (myData.roleInfo.includes("SAHTEKAR")) {
+          roleMessageEl.innerHTML =
+            `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
+            `Olası konumlar: ${gameState.allLocations.join(", ")}`;
+        } else {
+          roleMessageEl.innerHTML =
+            `📍 Konum: <b>${myData.location}</b><br>` +
+            `🎭 Rolün: <b>${myData.roleInfo}</b>`;
+        }
       }
     });
   }
