@@ -77,6 +77,14 @@ window.gameLogic = {
     return playerRef.remove();
   },
 
+  /** Oyuncu listesi güncelle */
+  updatePlayerList: function(players) {
+    const playerListEl = document.getElementById("playerList");
+    if (playerListEl) {
+      playerListEl.innerHTML = players.map((p) => `<li>${p}</li>`).join("");
+    }
+  },
+
   /** Oyuncuları canlı dinle */
   listenPlayers: function (roomCode, callback) {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
@@ -85,23 +93,13 @@ window.gameLogic = {
       const players = Object.keys(playersObj);
       callback(players);
 
+      // Listeyi anlık güncelle
+      window.gameLogic.updatePlayerList(players);
+
       // Oda tamamen boşaldıysa kapat
       if (players.length === 0) {
         window.db.ref("rooms/" + roomCode).remove();
-        localStorage.clear();
-        location.reload();
       }
-
-      // Kurucu yoksa odayı kapat
-      const roomRef = window.db.ref(`rooms/${roomCode}`);
-      roomRef.get().then((snap) => {
-        const data = snap.val();
-        if (!data || !data.creator || !players.includes(data.creator)) {
-          roomRef.remove();
-          localStorage.clear();
-          location.reload();
-        }
-      });
     });
   },
 
@@ -111,14 +109,18 @@ window.gameLogic = {
 
     roomRef.on("value", (snapshot) => {
       const roomData = snapshot.val();
-      if (!roomData) return;
+
+      // Oda silindiyse herkesi ana ekrana döndür
+      if (!roomData) {
+        alert("Oda kapatıldı veya kurucu çıktı.");
+        localStorage.clear();
+        location.reload();
+        return;
+      }
 
       // Oyuncu listesi güncelle
       const players = Object.keys(roomData.players || {});
-      const playerListEl = document.getElementById("playerList");
-      if (playerListEl) {
-        playerListEl.innerHTML = players.map((p) => `<li>${p}</li>`).join("");
-      }
+      window.gameLogic.updatePlayerList(players);
 
       // Oyun başladıysa rol göster
       if (roomData.status === "started") {
