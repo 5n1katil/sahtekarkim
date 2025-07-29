@@ -227,12 +227,18 @@ window.gameLogic = {
 };
 
 // ------------------------
-// Sekme kapanınca odadan çık (Yenilemede çıkma!)
+// Sekme kapanınca odadan çık (F5'te çıkmaz)
 // ------------------------
 let unloadTimer;
 
-window.addEventListener("pagehide", () => {
-  clearTimeout(unloadTimer);
+window.addEventListener("beforeunload", () => {
+  const navEntries = performance.getEntriesByType("navigation");
+  const navType = navEntries.length ? navEntries[0].type : null;
+
+  // Yenileme durumunda çıkış yapma
+  if (navType === "reload") return;
+
+  // Sekme kapandıysa veya tarayıcı kapandıysa
   unloadTimer = setTimeout(() => {
     const roomCode = localStorage.getItem("roomCode");
     const playerName = localStorage.getItem("playerName");
@@ -242,6 +248,7 @@ window.addEventListener("pagehide", () => {
   }, 1500);
 });
 
+// Sayfa geri görünür olursa çıkışı iptal et
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
     clearTimeout(unloadTimer);
