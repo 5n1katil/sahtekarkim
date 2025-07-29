@@ -54,7 +54,6 @@ window.gameLogic = {
         return;
       }
 
-      // Aynı isimde oyuncu varsa engelle
       if (players[playerName]) {
         callback?.("Bu isim zaten alınmış!", null);
         return;
@@ -71,17 +70,13 @@ window.gameLogic = {
     });
   },
 
-  /** Odayı sil */
-  deleteRoom: function (roomCode) {
-    return window.db.ref("rooms/" + roomCode).remove();
-  },
-
   /** Odadan çık */
   leaveRoom: function (roomCode, playerName) {
+    if (!roomCode || !playerName) return;
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
-    localStorage.clear();
-    playerRef.remove();
-    location.href = "index.html";
+    return playerRef.remove().then(() => {
+      localStorage.clear();
+    });
   },
 
   /** Oyuncuları canlı dinle */
@@ -91,7 +86,6 @@ window.gameLogic = {
       const playersObj = snapshot.val() || {};
       const players = Object.keys(playersObj);
 
-      // HTML elementlerini al
       const playerListEl = document.getElementById("playerList");
       const playerCountEl = document.getElementById("playerCountDisplay");
 
@@ -103,29 +97,29 @@ window.gameLogic = {
           })
           .join("");
 
-        // Oyuncu sayısını güncelle
         playerCountEl.textContent = players.length;
       }
 
       // Oda tamamen boşaldıysa kapat
       if (players.length === 0) {
-        window.db.ref("rooms/" + roomCode).remove();
-        localStorage.clear();
-        location.reload();
+        window.db.ref("rooms/" + roomCode).remove().then(() => {
+          localStorage.clear();
+          window.location.href = "index.html";
+        });
         return;
       }
 
-      // Kurucu yoksa odayı kapat
+      // Kurucu yoksa oda kapanır
       const creatorName = Object.keys(playersObj).find((p) => playersObj[p].isCreator);
       if (!creatorName || !players.includes(creatorName)) {
-        window.db.ref(`rooms/${roomCode}`).remove();
-        localStorage.clear();
-        location.reload();
+        window.db.ref(`rooms/${roomCode}`).remove().then(() => {
+          localStorage.clear();
+          window.location.href = "index.html";
+        });
         return;
       }
 
-      // Callback ile dışarıya da gönder
-      callback(players);
+      callback?.(players);
     });
   },
 
@@ -168,12 +162,38 @@ window.gameLogic = {
         return;
       }
 
-      // 30 konum ve 6 rol örneği
+      // 30 konum × 6 rol
       const locationRoles = {
         "Hastane": ["Doktor", "Hemşire", "Hasta", "Ziyaretçi", "Temizlikçi", "Güvenlik"],
         "Restoran": ["Garson", "Şef", "Müşteri", "Kasiyer", "Temizlikçi", "Menajer"],
-        "Kütüphane": ["Kütüphaneci", "Öğrenci", "Araştırmacı", "Güvenlik", "Temizlikçi", "Ziyaretçi"]
-        // Diğer konumlar eklenecek
+        "Kütüphane": ["Kütüphaneci", "Öğrenci", "Araştırmacı", "Güvenlik", "Temizlikçi", "Ziyaretçi"],
+        "Okul": ["Öğretmen", "Öğrenci", "Müdür", "Hizmetli", "Güvenlik", "Veli"],
+        "Plaj": ["Cankurtaran", "Turist", "Çocuk", "Satıcı", "Balıkçı", "Fotoğrafçı"],
+        "Uçak": ["Pilot", "Hostes", "Yolcu", "Kaptan", "Güvenlik", "Temizlikçi"],
+        "Otobüs": ["Şoför", "Muavin", "Yolcu", "Kontrolör", "Turist", "Çocuk"],
+        "Tren": ["Makinist", "Hostes", "Yolcu", "Biletçi", "Güvenlik", "Temizlikçi"],
+        "Spor Salonu": ["Antrenör", "Sporcu", "Temizlikçi", "Doktor", "Seyirci", "Görevli"],
+        "Stadyum": ["Hakem", "Oyuncu", "Antrenör", "Seyirci", "Satıcı", "Güvenlik"],
+        "Kütüphane": ["Kütüphaneci", "Öğrenci", "Araştırmacı", "Temizlikçi", "Güvenlik", "Ziyaretçi"],
+        "Sinema": ["Biletçi", "İzleyici", "Projeksiyoncu", "Görevli", "Temizlikçi", "Satıcı"],
+        "Tiyatro": ["Oyuncu", "Yönetmen", "Seyirci", "Işıkçı", "Dekoratör", "Temizlikçi"],
+        "Park": ["Çocuk", "Anne", "Baba", "Satıcı", "Koşucu", "Güvenlik"],
+        "Hapishane": ["Gardiyan", "Mahkum", "Müdür", "Avukat", "Doktor", "Temizlikçi"],
+        "Müze": ["Rehber", "Ziyaretçi", "Güvenlik", "Temizlikçi", "Öğrenci", "Sanatçı"],
+        "Otogar": ["Şoför", "Biletçi", "Yolcu", "Güvenlik", "Satıcı", "Temizlikçi"],
+        "Havaalanı": ["Pilot", "Hostes", "Yolcu", "Kontrol", "Güvenlik", "Bagaj Görevlisi"],
+        "Denizaltı": ["Kaptan", "Mühendis", "Asker", "Aşçı", "Doktor", "Gözcü"],
+        "Uzay Üssü": ["Astronot", "Komutan", "Mühendis", "Doktor", "Bilim İnsanı", "Teknisyen"],
+        "Ofis": ["Sekreter", "Müdür", "Çalışan", "Temizlikçi", "Misafir", "Teknisyen"],
+        "Kafe": ["Garson", "Barista", "Müşteri", "Kasiyer", "Temizlikçi", "Sokak Sanatçısı"],
+        "Market": ["Kasiyer", "Müşteri", "Reyon Görevlisi", "Temizlikçi", "Güvenlik", "Depocu"],
+        "Fabrika": ["İşçi", "Mühendis", "Müdür", "Teknisyen", "Temizlikçi", "Güvenlik"],
+        "Otelde": ["Resepsiyonist", "Müşteri", "Temizlikçi", "Aşçı", "Güvenlik", "Bellboy"],
+        "Bahçe": ["Bahçıvan", "Çocuk", "Ev Sahibi", "Komşu", "Kedi", "Köpek"],
+        "Dağ Evi": ["Dağcı", "Avcı", "Turist", "Aşçı", "Rehber", "Köylü"],
+        "Kışla": ["Asker", "Komutan", "Doktor", "Aşçı", "Temizlikçi", "Mühendis"],
+        "Sahil": ["Balıkçı", "Cankurtaran", "Turist", "Satıcı", "Çocuk", "Güvenlik"],
+        "Tatil Köyü": ["Turist", "Animatör", "Garson", "Aşçı", "Temizlikçi", "Yönetici"]
       };
 
       const locations = Object.keys(locationRoles);
@@ -219,7 +239,7 @@ window.gameLogic = {
 };
 
 // ------------------------
-// Sekme kapanınca odadan çık (F5'te çıkmaz)
+// Sekme kapanınca odadan çık
 // ------------------------
 let unloadTimer;
 
@@ -235,11 +255,9 @@ window.addEventListener("beforeunload", () => {
     if (roomCode && playerName) {
       window.gameLogic.leaveRoom(roomCode, playerName);
     }
-  }, 1500);
+  }, 500);
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    clearTimeout(unloadTimer);
-  }
+  if (!document.hidden) clearTimeout(unloadTimer);
 });
