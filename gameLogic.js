@@ -116,22 +116,25 @@ window.gameLogic = {
       const roomData = snapshot.val();
       if (!roomData) return;
 
-      // Oyuncu listesi ve sayısı
-      const players = Object.keys(roomData.players || {});
+      const playersObj = roomData.players || {};
+      const players = Object.keys(playersObj);
+      const totalPlayers = players.length; // ⭐ Kurucu dahil toplam oyuncu sayısı
+
+      // Oyuncu listesi
       const playerListEl = document.getElementById("playerList");
       if (playerListEl) {
         playerListEl.innerHTML = players
           .map((p) => {
-            const isCreator = roomData.players[p]?.isCreator;
+            const isCreator = playersObj[p]?.isCreator;
             return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
           })
           .join("");
       }
 
-      // Oyuncu sayısını güncelle
+      // Oyuncu sayısını güncelle (kurucu dahil)
       const playerCountEl = document.getElementById("playerCount");
       if (playerCountEl) {
-        playerCountEl.textContent = players.length;
+        playerCountEl.textContent = totalPlayers;
       }
 
       // Oyun başladıysa rol göster
