@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>5N1Katil - Oyun Başlat</title>
+  <title>5N1Katil - Oyun</title>
   <link rel="icon" href="favicon.ico" />
   <style>
     body {
       margin: 0;
       font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #2b2b52, #6a5acd);
+      background: #0f0f1e;
+      color: white;
       display: flex;
       justify-content: center;
       align-items: flex-start;
@@ -22,12 +23,10 @@
       margin-top: 40px;
       border-radius: 12px;
       box-shadow: 0 0 20px rgba(0,0,0,0.5);
-      width: 320px;
+      width: 350px;
       text-align: center;
     }
-    h1 {
-      margin-bottom: 20px;
-    }
+    h1 { margin-bottom: 20px; }
     input, select {
       width: 100%;
       padding: 10px;
@@ -47,39 +46,67 @@
       cursor: pointer;
       transition: 0.3s;
     }
-    button:hover {
-      background: #5a3fc0;
+    button:hover { background: #5a3fc0; }
+
+    /* Oyun ekranı özel stil */
+    #roomScreen {
+      display: none;
+    }
+    #playerList {
+      background-color: #2c2c54;
+      padding: 10px;
+      border-radius: 6px;
+      margin: 10px 0;
+      text-align: left;
+    }
+    #leaveBtn {
+      background-color: #ff4d4d;
+    }
+    #leaveBtn:hover {
+      background-color: #c0392b;
     }
   </style>
 </head>
 <body>
-  <div class="container">
+
+  <!-- Oda oluşturma ekranı -->
+  <div class="container" id="lobbyScreen">
     <h1>5N1Katil - Oyun Ayarları</h1>
     <input type="text" id="creatorName" placeholder="İsminizi girin (Kurucu)">
-    <input type="number" id="playerCount" min="4" max="16" placeholder="Kaç kişi oynayacak? (min 4 - max 16)">
+    <input type="number" id="playerCount" min="4" max="16" placeholder="Kaç kişi oynayacak?">
     <input type="number" id="spyCount" min="1" placeholder="Kaç sahtekar olacak?">
-
     <select id="useRoles">
-      <option value="false">Karakterler dahil edilsin mi? Hayır</option>
-      <option value="true">Karakterler dahil edilsin mi? Evet</option>
+      <option value="false">Karakterler kullanılmasın</option>
+      <option value="true">Karakterler kullanılsın</option>
     </select>
-
-    <input type="number" id="questionCount" min="1" placeholder="Her turda kaç soru sorulsun?">
-    <input type="number" id="guessCount" min="1" placeholder="Sahtekarın kaç konum tahmin hakkı olacak?">
-
+    <input type="number" id="questionCount" min="1" placeholder="Her turda kaç soru?">
+    <input type="number" id="guessCount" min="1" placeholder="Sahtekarın tahmin hakkı?">
     <select id="canEliminate">
-      <option value="false">Sahtekar her tur sonunda birini eleyebilsin mi? Hayır</option>
-      <option value="true">Sahtekar her tur sonunda birini eleyebilsin mi? Evet</option>
+      <option value="false">Eleme yok</option>
+      <option value="true">Eleme var</option>
     </select>
-
     <button id="createRoomBtn">Odayı Oluştur</button>
   </div>
 
-  <!-- Artık tek bir JS dosyamız var -->
-  <script src="game.js"></script>
+  <!-- Oyun/oda ekranı -->
+  <div class="container" id="roomScreen">
+    <h1>5N1Katil - Oyun</h1>
+    <p>Oda Kodu: <span id="roomCodeText"></span></p>
+    <p>Oyuncu Sayısı: <span id="playerCountText">0</span></p>
+    <div id="playerList">Henüz oyuncu yok</div>
+    <button id="leaveBtn">Odadan Çık</button>
+  </div>
 
+  <script src="game.js"></script>
   <script>
-    document.getElementById("createRoomBtn").addEventListener("click", function() {
+    const lobbyScreen = document.getElementById("lobbyScreen");
+    const roomScreen = document.getElementById("roomScreen");
+    const roomCodeText = document.getElementById("roomCodeText");
+    const playerCountText = document.getElementById("playerCountText");
+    const playerListDiv = document.getElementById("playerList");
+
+    // Oda oluştur
+    document.getElementById("createRoomBtn").addEventListener("click", () => {
       const creatorName = document.getElementById("creatorName").value.trim();
       const playerCount = document.getElementById("playerCount").value;
       const spyCount = document.getElementById("spyCount").value;
@@ -88,26 +115,41 @@
       const guessCount = document.getElementById("guessCount").value;
       const canEliminate = document.getElementById("canEliminate").value === "true";
 
-      if (!creatorName) {
-        alert("Lütfen isminizi girin!");
+      if (!creatorName) return alert("Lütfen isminizi girin!");
+
+      window.gameLogic.createRoom(
+        creatorName,
+        playerCount,
+        spyCount,
+        useRoles,
+        questionCount,
+        guessCount,
+        canEliminate
+      );
+    });
+
+    // Odadan çık
+    document.getElementById("leaveBtn").addEventListener("click", () => {
+      localStorage.clear();
+      location.reload();
+    });
+
+    // game.js'ten çağrılacak basit UI güncelleme
+    window.showRoomUI = function(roomCode, playerName, isCreator) {
+      lobbyScreen.style.display = "none";
+      roomScreen.style.display = "block";
+      roomCodeText.textContent = roomCode;
+    };
+
+    window.updatePlayerList = function(players) {
+      if (!players || Object.keys(players).length === 0) {
+        playerListDiv.textContent = "Henüz oyuncu yok";
+        playerCountText.textContent = "0";
         return;
       }
-
-      // game.js içindeki createRoom fonksiyonunu çağırıyoruz
-      if (window.gameLogic && typeof window.gameLogic.createRoom === "function") {
-        window.gameLogic.createRoom(
-          creatorName,
-          playerCount,
-          spyCount,
-          useRoles,
-          questionCount,
-          guessCount,
-          canEliminate
-        );
-      } else {
-        alert("Oyun mantığı yüklenemedi. Lütfen sayfayı yenileyin.");
-      }
-    });
+      playerCountText.textContent = Object.keys(players).length;
+      playerListDiv.innerHTML = Object.values(players).map(p => `<div>${p.name}</div>`).join("");
+    };
   </script>
 </body>
 </html>
