@@ -93,7 +93,7 @@ listenPlayers: function (roomCode, callback) {
 
         // HTML elementlerini al
         const playerListEl = document.getElementById("playerList");
-        const playerCountEl = document.getElementById("playerCountDisplay");
+        const playerCountEl = document.getElementById("playerCountDisplay"); // doğru id
 
         if (playerListEl && playerCountEl) {
             playerListEl.innerHTML = players
@@ -102,33 +102,14 @@ listenPlayers: function (roomCode, callback) {
                     return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
                 })
                 .join("");
-
-            // Oyuncu sayısını güncelle
-            playerCountEl.textContent = players.length;
-        }
-
-        // Oda tamamen boşaldıysa kapat
-        if (players.length === 0) {
-            window.db.ref("rooms/" + roomCode).remove();
-            localStorage.clear();
-            location.reload();
-            return;
-        }
-
-        // Kurucu yoksa odayı kapat
-        const creatorName = Object.keys(playersObj).find((p) => playersObj[p].isCreator);
-        if (!creatorName || !players.includes(creatorName)) {
-            window.db.ref(`rooms/${roomCode}`).remove();
-            localStorage.clear();
-            location.reload();
-            return;
+            playerCountEl.textContent = players.length; // Oyuncu sayısını güncelle
         }
 
         // Callback ile dışarıya da gönder
         callback(players);
     });
 },
-  
+
       // Oda tamamen boşaldıysa kapat
       if (players.length === 0) {
         window.db.ref("rooms/" + roomCode).remove();
