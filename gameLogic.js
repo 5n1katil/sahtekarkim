@@ -49,7 +49,6 @@ window.gameLogic = {
       const roomData = snapshot.val();
       const players = roomData.players || {};
 
-      // Oda dolu mu kontrol et
       if (Object.keys(players).length >= roomData.settings.playerCount) {
         callback?.("Oda dolu!", null);
         return;
@@ -75,7 +74,8 @@ window.gameLogic = {
   leaveRoom: function (roomCode, playerName) {
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
     localStorage.clear();
-    return playerRef.remove();
+    playerRef.remove();
+    location.href = "index.html"; // Oyundan çıkınca ana sayfaya dön
   },
 
   /** Oyuncuları canlı dinle */
@@ -165,8 +165,13 @@ window.gameLogic = {
         return;
       }
 
-      // 30 konum ve 6 rol
-      const locationRoles = { ... /* mevcut locationRoles aynen buraya gelecek */ };
+      // 30 konum ve 6 rol örneği
+      const locationRoles = {
+        "Hastane": ["Doktor", "Hemşire", "Hasta", "Ziyaretçi", "Temizlikçi", "Güvenlik"],
+        "Restoran": ["Garson", "Şef", "Müşteri", "Kasiyer", "Temizlikçi", "Menajer"],
+        "Kütüphane": ["Kütüphaneci", "Öğrenci", "Araştırmacı", "Güvenlik", "Temizlikçi", "Ziyaretçi"]
+        // diğer konumlar buraya eklenebilir
+      };
 
       const locations = Object.keys(locationRoles);
       const chosenLocation = locations[Math.floor(Math.random() * locations.length)];
