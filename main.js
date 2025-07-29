@@ -123,7 +123,6 @@ window.addEventListener("DOMContentLoaded", () => {
       questionCount,
       guessCount,
       canEliminate,
-      // Basit örnek lokasyon ve roller
       locations: ["Havalimanı", "Restoran", "Kütüphane", "Müze"],
       roles: ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"],
     };
@@ -149,6 +148,29 @@ window.addEventListener("DOMContentLoaded", () => {
       if (!snapshot.exists()) {
         localStorage.clear();
         location.reload();
+      }
+    });
+
+    // 🔹 YENİ: Oyun başlama durumunu dinle
+    window.db.ref("rooms/" + roomCode + "/gameState").on("value", (snapshot) => {
+      const gameState = snapshot.val();
+      if (gameState && gameState.started && gameState.players && gameState.players[currentPlayerName]) {
+        const myData = gameState.players[currentPlayerName];
+        const myRole = myData.roleInfo;
+        const myLocation = myData.location || null;
+
+        document.getElementById("roomInfo").classList.add("hidden");
+        document.getElementById("playerRoleInfo").classList.remove("hidden");
+
+        if (myRole.includes("SAHTEKAR")) {
+          document.getElementById("playerRoleInfo").innerHTML =
+            `🎭 Sen BİR SAHTEKARSIN! Konumu bilmiyorsun.<br>` +
+            `Olası konumlar: ${gameState.allLocations.join(", ")}`;
+        } else {
+          document.getElementById("playerRoleInfo").innerHTML =
+            `📍 Konum: <b>${myLocation}</b><br>` +
+            `🎭 Rolün: <b>${myRole}</b>`;
+        }
       }
     });
   }
