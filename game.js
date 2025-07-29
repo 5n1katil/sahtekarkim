@@ -1,14 +1,19 @@
+<!-- Firebase SDK (Realtime DB dahil) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
+
+<script>
 /***********************
  * Firebase Config
  ***********************/
 const firebaseConfig = {
-  apiKey: "SENİN_API_KEYİN",
-  authDomain: "SENIN_PROJEN.firebaseapp.com",
-  databaseURL: "https://SENIN_PROJEN-default-rtdb.firebaseio.com",
-  projectId: "SENIN_PROJEN",
-  storageBucket: "SENIN_PROJEN.appspot.com",
-  messagingSenderId: "XXXXXX",
-  appId: "1:XXXXXX:web:XXXXXX",
+  apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
+  authDomain: "detektif-c17bb.firebaseapp.com",
+  databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com",
+  projectId: "detektif-c17bb",
+  storageBucket: "detektif-c17bb.firebasestorage.app",
+  messagingSenderId: "422256375848",
+  appId: "1:422256375848:web:873b0a6372c992accf9d1d",
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -19,15 +24,7 @@ window.db = firebase.database();
  ***********************/
 window.gameLogic = {
   /** Oda oluştur */
-  createRoom: function (
-    creatorName,
-    playerCount,
-    spyCount,
-    useRoles,
-    questionCount,
-    guessCount,
-    canEliminate
-  ) {
+  createRoom: function (creatorName, playerCount, spyCount, useRoles, questionCount, guessCount, canEliminate) {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = window.db.ref("rooms/" + roomCode);
 
@@ -89,7 +86,7 @@ window.gameLogic = {
     });
   },
 
-  /** Odadan çık (oyuncu veya kurucu) */
+  /** Odadan çık */
   leaveRoom: function (roomCode, playerName) {
     return new Promise((resolve) => {
       if (!roomCode || !playerName) {
@@ -200,3 +197,4 @@ document.getElementById("leaveRoomBtn")?.addEventListener("click", () => {
     window.gameLogic.leaveRoom(roomCode, playerName);
   }
 });
+</script>
