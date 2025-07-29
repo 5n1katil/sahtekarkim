@@ -4,9 +4,6 @@ window.addEventListener("DOMContentLoaded", () => {
   let isCreator = localStorage.getItem("isCreator") === "true";
   let isRefreshing = false;
 
-  /** ------------------------
-   *  SAYFA KAPANIRSA (Kurucu değilse) odadan çık
-   * ------------------------ */
   window.addEventListener("beforeunload", () => {
     if (performance.getEntriesByType("navigation")[0].type === "reload") {
       isRefreshing = true;
@@ -25,14 +22,10 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  /** ------------------------
-   *  SAYFA YENİLENİNCE ODADA KAL
-   * ------------------------ */
   if (currentRoomCode && currentPlayerName) {
     showRoomUI(currentRoomCode, currentPlayerName, isCreator);
     listenPlayersAndRoom(currentRoomCode);
 
-    // Oyun başlamışsa rolü geri yükle
     window.db.ref("rooms/" + currentRoomCode + "/gameState").once("value", (snapshot) => {
       const gameState = snapshot.val();
       if (gameState && gameState.started && gameState.players && gameState.players[currentPlayerName]) {
@@ -40,16 +33,12 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
   } else {
-    // İlk giriş ekranı
     document.getElementById("setup").classList.remove("hidden");
     document.getElementById("playerJoin").classList.remove("hidden");
     document.getElementById("roomInfo").classList.add("hidden");
     document.getElementById("playerRoleInfo").classList.add("hidden");
   }
 
-  /** ------------------------
-   *  ODA OLUŞTUR
-   * ------------------------ */
   document.getElementById("createRoomBtn").addEventListener("click", () => {
     const creatorName = document.getElementById("creatorName").value.trim();
     const playerCount = parseInt(document.getElementById("playerCount").value);
@@ -78,7 +67,6 @@ window.addEventListener("DOMContentLoaded", () => {
     currentPlayerName = creatorName;
     isCreator = true;
 
-    // LocalStorage güncelle
     localStorage.setItem("roomCode", currentRoomCode);
     localStorage.setItem("playerName", currentPlayerName);
     localStorage.setItem("isCreator", "true");
@@ -87,9 +75,6 @@ window.addEventListener("DOMContentLoaded", () => {
     listenPlayersAndRoom(roomCode);
   });
 
-  /** ------------------------
-   *  ODAYA KATIL
-   * ------------------------ */
   document.getElementById("joinRoomBtn").addEventListener("click", () => {
     const joinName = document.getElementById("joinName").value.trim();
     const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
@@ -118,12 +103,8 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  /** ------------------------
-   *  ODADAN ÇIK
-   * ------------------------ */
   document.getElementById("leaveRoomBtn").addEventListener("click", () => {
     if (isCreator) {
-      // Kurucu çıkarsa oda kapanır
       window.gameLogic.deleteRoom(currentRoomCode).then(() => {
         localStorage.clear();
         location.reload();
@@ -136,12 +117,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  /** ------------------------
-   *  OYUNU BAŞLAT
-   * ------------------------ */
   document.getElementById("startGameBtn").addEventListener("click", () => {
-    console.log("Start Game butonuna basıldı");
-
     if (!currentRoomCode || !isCreator) {
       alert("Sadece oda kurucusu oyunu başlatabilir!");
       return;
@@ -159,29 +135,23 @@ window.addEventListener("DOMContentLoaded", () => {
     };
 
     if (!window.gameLogic || typeof window.gameLogic.startGame !== "function") {
-      console.error("gameLogic.startGame bulunamadı!");
       alert("Oyun başlatılamıyor. Konsolu kontrol et.");
       return;
     }
 
     window.gameLogic.startGame(currentRoomCode, settings);
-    console.log("Oyun başlatıldı:", settings);
   });
 
-  /** ------------------------
-   *  ODA & OYUNCULARI DİNLE
-   * ------------------------ */
   function listenPlayersAndRoom(roomCode) {
-    // Oyuncu listesi
-    window.gameLogic.listenPlayers(roomCode, (players) => {
+    window.gameLogic.listenPlayers(roomCode, (playersObj) => {
       const listEl = document.getElementById("playerList");
+      const players = playersObj ? Object.keys(playersObj) : [];
       listEl.innerHTML =
-        players && players.length > 0
+        players.length > 0
           ? players.map((name) => `<li>${name}</li>`).join("")
           : "<li>Oyuncu bekleniyor...</li>";
     });
 
-    // Oda silinirse herkesi at
     window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
       if (!snapshot.exists()) {
         localStorage.clear();
@@ -189,7 +159,6 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Oyun başlama durumunu canlı dinle
     window.db.ref("rooms/" + roomCode + "/gameState").on("value", (snapshot) => {
       const gameState = snapshot.val();
       if (gameState && gameState.started && gameState.players && gameState.players[currentPlayerName]) {
@@ -198,9 +167,6 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  /** ------------------------
-   *  ROL MESAJI GÖSTER
-   * ------------------------ */
   function restorePlayerRole(playerData, allLocations) {
     const roleMessageEl = document.getElementById("roleMessage");
 
@@ -218,9 +184,6 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  /** ------------------------
-   *  ODA UI GÖSTER
-   * ------------------------ */
   function showRoomUI(roomCode, playerName, isCreator) {
     document.getElementById("setup").classList.add("hidden");
     document.getElementById("playerJoin").classList.add("hidden");
