@@ -5,9 +5,21 @@ window.addEventListener("DOMContentLoaded", () => {
 
   /** ------------------------
    *  SAYFA KAPANIRSA (Kurucu değilse) odadan çık
+   *  - F5 yenilemede çıkmaz
+   *  - Tarayıcı / sekme kapanınca çıkar
    * ------------------------ */
-  window.addEventListener("beforeunload", () => {
-    if (currentRoomCode && currentPlayerName && !isCreator) {
+  let isRefreshing = false;
+  window.addEventListener("beforeunload", (e) => {
+    if (performance.getEntriesByType("navigation")[0].type === "reload") {
+      isRefreshing = true;
+    }
+  });
+  window.addEventListener("unload", () => {
+    if (!isRefreshing && currentRoomCode && currentPlayerName && !isCreator) {
+      navigator.sendBeacon(
+        "/leave-room",
+        JSON.stringify({ room: currentRoomCode, player: currentPlayerName })
+      );
       window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName);
     }
   });
