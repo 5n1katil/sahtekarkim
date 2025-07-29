@@ -1,8 +1,3 @@
-<!-- Firebase SDK (Realtime DB dahil) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
-
-<script>
 /***********************
  * Firebase Config
  ***********************/
@@ -24,7 +19,7 @@ window.db = firebase.database();
  ***********************/
 window.gameLogic = {
   /** Oda oluştur */
-  createRoom: function (creatorName, playerCount, spyCount, useRoles, questionCount, guessCount, canEliminate) {
+  createRoom(creatorName, playerCount, spyCount, useRoles, questionCount, guessCount, canEliminate) {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = window.db.ref("rooms/" + roomCode);
 
@@ -53,27 +48,19 @@ window.gameLogic = {
   },
 
   /** Odaya katıl */
-  joinRoom: function (playerName, roomCode, callback) {
+  joinRoom(playerName, roomCode, callback) {
     const roomRef = window.db.ref("rooms/" + roomCode);
 
     roomRef.get().then((snapshot) => {
-      if (!snapshot.exists()) {
-        callback?.("Oda bulunamadı!", null);
-        return;
-      }
+      if (!snapshot.exists()) return callback?.("Oda bulunamadı!", null);
 
       const roomData = snapshot.val();
       const players = roomData.players || {};
 
       if (Object.keys(players).length >= roomData.settings.playerCount) {
-        callback?.("Oda dolu!", null);
-        return;
+        return callback?.("Oda dolu!", null);
       }
-
-      if (players[playerName]) {
-        callback?.("Bu isim zaten alınmış!", null);
-        return;
-      }
+      if (players[playerName]) return callback?.("Bu isim zaten alınmış!", null);
 
       const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
       playerRef.set({ name: playerName, isCreator: false });
@@ -87,41 +74,30 @@ window.gameLogic = {
   },
 
   /** Odadan çık */
-  leaveRoom: function (roomCode, playerName) {
-    return new Promise((resolve) => {
-      if (!roomCode || !playerName) {
-        resolve();
-        return;
-      }
+  leaveRoom(roomCode, playerName) {
+    const isCreator = localStorage.getItem("isCreator") === "true";
+    const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
 
-      const isCreator = localStorage.getItem("isCreator") === "true";
-      const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
-
-      playerRef.remove().then(() => {
-        if (isCreator) {
-          // Kurucu çıkınca oda tamamen silinir
-          window.db.ref(`rooms/${roomCode}`).remove().then(() => {
-            localStorage.clear();
-            window.location.href = "index.html";
-            resolve();
-          });
-        } else {
+    playerRef.remove().then(() => {
+      if (isCreator) {
+        window.db.ref(`rooms/${roomCode}`).remove().then(() => {
           localStorage.clear();
           window.location.href = "index.html";
-          resolve();
-        }
-      });
+        });
+      } else {
+        localStorage.clear();
+        window.location.href = "index.html";
+      }
     });
   },
 
   /** Oyuncuları canlı dinle */
-  listenPlayers: function (roomCode, callback) {
+  listenPlayers(roomCode) {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     playersRef.on("value", (snapshot) => {
       const playersObj = snapshot.val() || {};
       const playersArr = Object.values(playersObj).map((p) => p.name);
 
-      // UI güncelle
       const playerListEl = document.getElementById("playerList");
       const playerCountEl = document.getElementById("playerCountDisplay");
 
@@ -133,68 +109,13 @@ window.gameLogic = {
         playerCountEl.textContent = playersArr.length;
       }
 
-      // Oda tamamen boşaldıysa kapat
-      if (playersArr.length === 0) {
+      // Oda boşsa kapat
+      if (playersArr.length === 0 || !Object.values(playersObj).some((p) => p.isCreator)) {
         window.db.ref("rooms/" + roomCode).remove().then(() => {
           localStorage.clear();
           window.location.href = "index.html";
         });
-        return;
       }
-
-      // Kurucu yoksa oda kapanır
-      const creatorExists = Object.values(playersObj).some((p) => p.isCreator);
-      if (!creatorExists) {
-        window.db.ref(`rooms/${roomCode}`).remove().then(() => {
-          localStorage.clear();
-          window.location.href = "index.html";
-        });
-        return;
-      }
-
-      callback?.(playersArr);
     });
   },
 };
-
-/***********************
- * Sekme kapanınca odadan çık
- ***********************/
-let unloadTimer;
-
-window.addEventListener("beforeunload", () => {
-  const navEntries = performance.getEntriesByType("navigation");
-  const navType = navEntries.length ? navEntries[0].type : null;
-  if (navType === "reload") return; // sadece gerçek çıkışta
-
-  unloadTimer = setTimeout(() => {
-    const roomCode = localStorage.getItem("roomCode");
-    const playerName = localStorage.getItem("playerName");
-    if (roomCode && playerName) {
-      window.gameLogic.leaveRoom(roomCode, playerName);
-    }
-  }, 300);
-});
-
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) clearTimeout(unloadTimer);
-});
-
-/***********************
- * UI Butonları
- ***********************/
-document.getElementById("createRoomBtn")?.addEventListener("click", () => {
-  const name = document.getElementById("nameInput").value;
-  const playerCount = document.getElementById("playerCountInput").value;
-  const roomCode = window.gameLogic.createRoom(name, playerCount, 1, false, 3, 1, true);
-  alert(`Oda kodunuz: ${roomCode}`);
-});
-
-document.getElementById("leaveRoomBtn")?.addEventListener("click", () => {
-  const roomCode = localStorage.getItem("roomCode");
-  const playerName = localStorage.getItem("playerName");
-  if (roomCode && playerName) {
-    window.gameLogic.leaveRoom(roomCode, playerName);
-  }
-});
-</script>
