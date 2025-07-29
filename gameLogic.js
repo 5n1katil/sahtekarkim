@@ -73,8 +73,14 @@ window.gameLogic = {
   /** Odadan çık */
   leaveRoom: function (roomCode, playerName) {
     if (!roomCode || !playerName) return;
+    const isCreator = localStorage.getItem("isCreator") === "true";
+
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
     return playerRef.remove().then(() => {
+      if (isCreator) {
+        // Kurucu çıkarsa oda tamamen kapanır
+        window.db.ref(`rooms/${roomCode}`).remove();
+      }
       localStorage.clear();
     });
   },
@@ -84,24 +90,22 @@ window.gameLogic = {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     playersRef.on("value", (snapshot) => {
       const playersObj = snapshot.val() || {};
-      const players = Object.keys(playersObj);
+      const playersArr = Object.values(playersObj).map((p) => p.name);
 
+      // UI güncelle
       const playerListEl = document.getElementById("playerList");
       const playerCountEl = document.getElementById("playerCountDisplay");
 
       if (playerListEl && playerCountEl) {
-        playerListEl.innerHTML = players
-          .map((p) => {
-            const isCreator = playersObj[p]?.isCreator;
-            return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
-          })
-          .join("");
+        playerListEl.innerHTML = Object.values(playersObj)
+          .map((p) => `<li>${p.name}${p.isCreator ? " ⭐" : ""}</li>`)
+          .join("") || "<li>Henüz oyuncu yok</li>";
 
-        playerCountEl.textContent = players.length;
+        playerCountEl.textContent = playersArr.length;
       }
 
       // Oda tamamen boşaldıysa kapat
-      if (players.length === 0) {
+      if (playersArr.length === 0) {
         window.db.ref("rooms/" + roomCode).remove().then(() => {
           localStorage.clear();
           window.location.href = "index.html";
@@ -110,8 +114,8 @@ window.gameLogic = {
       }
 
       // Kurucu yoksa oda kapanır
-      const creatorName = Object.keys(playersObj).find((p) => playersObj[p].isCreator);
-      if (!creatorName || !players.includes(creatorName)) {
+      const creatorExists = Object.values(playersObj).some((p) => p.isCreator);
+      if (!creatorExists) {
         window.db.ref(`rooms/${roomCode}`).remove().then(() => {
           localStorage.clear();
           window.location.href = "index.html";
@@ -119,7 +123,7 @@ window.gameLogic = {
         return;
       }
 
-      callback?.(players);
+      callback?.(playersArr);
     });
   },
 
@@ -162,7 +166,7 @@ window.gameLogic = {
         return;
       }
 
-      // 30 konum × 6 rol
+      // --- 30 konum × 6 rol ---
       const locationRoles = {
         "Hastane": ["Doktor", "Hemşire", "Hasta", "Ziyaretçi", "Temizlikçi", "Güvenlik"],
         "Restoran": ["Garson", "Şef", "Müşteri", "Kasiyer", "Temizlikçi", "Menajer"],
@@ -174,7 +178,6 @@ window.gameLogic = {
         "Tren": ["Makinist", "Hostes", "Yolcu", "Biletçi", "Güvenlik", "Temizlikçi"],
         "Spor Salonu": ["Antrenör", "Sporcu", "Temizlikçi", "Doktor", "Seyirci", "Görevli"],
         "Stadyum": ["Hakem", "Oyuncu", "Antrenör", "Seyirci", "Satıcı", "Güvenlik"],
-        "Kütüphane": ["Kütüphaneci", "Öğrenci", "Araştırmacı", "Temizlikçi", "Güvenlik", "Ziyaretçi"],
         "Sinema": ["Biletçi", "İzleyici", "Projeksiyoncu", "Görevli", "Temizlikçi", "Satıcı"],
         "Tiyatro": ["Oyuncu", "Yönetmen", "Seyirci", "Işıkçı", "Dekoratör", "Temizlikçi"],
         "Park": ["Çocuk", "Anne", "Baba", "Satıcı", "Koşucu", "Güvenlik"],
@@ -247,7 +250,7 @@ window.addEventListener("beforeunload", () => {
   const navEntries = performance.getEntriesByType("navigation");
   const navType = navEntries.length ? navEntries[0].type : null;
 
-  if (navType === "reload") return;
+  if (navType === "reload") return; // sadece gerçek çıkışta
 
   unloadTimer = setTimeout(() => {
     const roomCode = localStorage.getItem("roomCode");
@@ -255,7 +258,7 @@ window.addEventListener("beforeunload", () => {
     if (roomCode && playerName) {
       window.gameLogic.leaveRoom(roomCode, playerName);
     }
-  }, 500);
+  }, 300);
 });
 
 document.addEventListener("visibilitychange", () => {
