@@ -1,6 +1,14 @@
 window.gameLogic = {
-  // Oda oluştur
-  createRoom: function (creatorName, playerCount, spyCount, useRoles, questionCount, guessCount, canEliminate) {
+  /** Oda oluştur */
+  createRoom: function (
+    creatorName,
+    playerCount,
+    spyCount,
+    useRoles,
+    questionCount,
+    guessCount,
+    canEliminate
+  ) {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = window.db.ref("rooms/" + roomCode);
 
@@ -22,8 +30,6 @@ window.gameLogic = {
     // Odayı kaydet
     roomRef.set(roomData);
 
-    // ✅ onDisconnect kaldırıldı
-
     // LocalStorage kaydı
     localStorage.setItem("roomCode", roomCode);
     localStorage.setItem("playerName", creatorName);
@@ -32,12 +38,13 @@ window.gameLogic = {
     return roomCode;
   },
 
-  // Odaya katıl
+  /** Odaya katıl */
   joinRoom: function (playerName, roomCode, callback) {
     const roomRef = window.db.ref("rooms/" + roomCode);
+
     roomRef.get().then((snapshot) => {
       if (!snapshot.exists()) {
-        callback("Oda bulunamadı!", null);
+        callback?.("Oda bulunamadı!", null);
         return;
       }
 
@@ -45,7 +52,7 @@ window.gameLogic = {
       const players = roomData.players || {};
 
       if (Object.keys(players).length >= roomData.settings.playerCount) {
-        callback("Oda dolu!", null);
+        callback?.("Oda dolu!", null);
         return;
       }
 
@@ -53,30 +60,28 @@ window.gameLogic = {
       const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
       playerRef.set({ name: playerName });
 
-      // ✅ onDisconnect kaldırıldı
-
       // LocalStorage
       localStorage.setItem("roomCode", roomCode);
       localStorage.setItem("playerName", playerName);
       localStorage.setItem("isCreator", "false");
 
-      callback(null, Object.keys(players).concat(playerName));
+      callback?.(null, Object.keys(players).concat(playerName));
     });
   },
 
-  // Odayı sil
+  /** Odayı sil */
   deleteRoom: function (roomCode) {
     return window.db.ref("rooms/" + roomCode).remove();
   },
 
-  // Odadan çık
+  /** Odadan çık */
   leaveRoom: function (roomCode, playerName) {
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
     localStorage.clear();
     return playerRef.remove();
   },
 
-  // Oyuncuları canlı dinle
+  /** Oyuncuları canlı dinle */
   listenPlayers: function (roomCode, callback) {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     playersRef.on("value", (snapshot) => {
@@ -86,7 +91,7 @@ window.gameLogic = {
     });
   },
 
-  // Oyunu başlat ve roller ata
+  /** Oyunu başlat ve roller ata */
   startGame: function (roomCode, settings) {
     const roomRef = window.db.ref("rooms/" + roomCode);
 
@@ -100,13 +105,13 @@ window.gameLogic = {
         return;
       }
 
-      // Roller ve konumlar
-      const locations = settings.locations;
-      const roles = settings.roles;
+      // Konum ve roller
+      const locations = settings.locations || [];
+      const roles = settings.roles || [];
       const chosenLocation = locations[Math.floor(Math.random() * locations.length)];
 
-      // Kaç casus olacak
-      let spyCount = Math.min(settings.spyCount, players.length - 1);
+      // Casus sayısı
+      const spyCount = Math.min(settings.spyCount, players.length - 1);
 
       // Oyuncuları karıştır
       const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
@@ -114,7 +119,7 @@ window.gameLogic = {
       // Casusları seç
       const spies = shuffledPlayers.slice(0, spyCount);
 
-      // Her oyuncuya rol belirle
+      // Oyuncu rolleri
       const playerRoles = {};
       shuffledPlayers.forEach((player, idx) => {
         if (spies.includes(player)) {
@@ -128,27 +133,24 @@ window.gameLogic = {
         }
       });
 
-      // Firebase'e yaz
+      // Firebase güncelle
       roomRef.update({
         status: "started",
         location: chosenLocation,
         playerRoles,
       });
 
-      // UI güncelle
+      // UI'de kendi rolünü göster
       const myName = localStorage.getItem("playerName");
       if (myName && playerRoles[myName]) {
-        document.getElementById("roomInfo").classList.add("hidden");
-        document.getElementById("playerRoleInfo").classList.remove("hidden");
-
         const myRole = playerRoles[myName];
-        if (myRole.role === "Spy") {
-          document.getElementById("roleMessage").textContent =
-            `Sen BİR CASUSSUN! Konumu bilmiyorsun, dikkatli sorular sor.`;
-        } else {
-          document.getElementById("roleMessage").textContent =
-            `Konum: ${myRole.location} | Rolün: ${myRole.role}`;
-        }
+        document.getElementById("roomInfo")?.classList.add("hidden");
+        document.getElementById("playerRoleInfo")?.classList.remove("hidden");
+
+        document.getElementById("roleMessage").textContent =
+          myRole.role === "Spy"
+            ? "Sen BİR CASUSSUN! Konumu bilmiyorsun, dikkatli sorular sor."
+            : `Konum: ${myRole.location} | Rolün: ${myRole.role}`;
       }
     });
   },
