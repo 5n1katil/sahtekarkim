@@ -91,6 +91,38 @@ window.gameLogic = {
     });
   },
 
+  /** Oda ve oyun durumunu canlı dinle */
+  listenRoom: function (roomCode) {
+    const roomRef = window.db.ref("rooms/" + roomCode);
+
+    roomRef.on("value", (snapshot) => {
+      const roomData = snapshot.val();
+      if (!roomData) return;
+
+      // Oyuncu listesi güncelle
+      const players = Object.keys(roomData.players || {});
+      const playerListEl = document.getElementById("playerList");
+      if (playerListEl) {
+        playerListEl.innerHTML = players.map((p) => `<li>${p}</li>`).join("");
+      }
+
+      // Oyun başladıysa kendi rolünü göster
+      if (roomData.status === "started") {
+        const myName = localStorage.getItem("playerName");
+        if (myName && roomData.playerRoles && roomData.playerRoles[myName]) {
+          const myRole = roomData.playerRoles[myName];
+
+          document.getElementById("roomInfo")?.classList.add("hidden");
+          document.getElementById("playerRoleInfo")?.classList.remove("hidden");
+
+          document.getElementById("roleMessage").textContent = myRole.isSpy
+            ? `🎭 Sen BİR SAHTEKARSIN! Konumu bilmiyorsun. Olası konumlar: ${myRole.allLocations.join(", ")}`
+            : `✅ Konum: ${myRole.location} | Rolün: ${myRole.role}`;
+        }
+      }
+    });
+  },
+
   /** Oyunu başlat ve roller ata */
   startGame: function (roomCode, settings) {
     const roomRef = window.db.ref("rooms/" + roomCode);
@@ -161,7 +193,7 @@ window.gameLogic = {
             isSpy: true,
             role: "Sahtekar",
             location: null,
-            allLocations: locations, // Casusa konum havuzu gösterilecek
+            allLocations: locations,
           };
         } else {
           const rolesForLoc = locationRoles[chosenLocation];
@@ -185,7 +217,7 @@ window.gameLogic = {
         playerRoles,
       });
 
-      // UI'de kendi rolünü göster
+      // Kurucunun rolünü göster
       const myName = localStorage.getItem("playerName");
       if (myName && playerRoles[myName]) {
         const myRole = playerRoles[myName];
