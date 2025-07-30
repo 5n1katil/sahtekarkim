@@ -41,22 +41,27 @@ window.addEventListener("DOMContentLoaded", () => {
     listenPlayersAndRoom(currentRoomCode);
 
     // Oyun başlamışsa rolü geri yükle
-    window.db.ref("rooms/" + currentRoomCode + "/gameState").once("value", (snapshot) => {
-      const gameState = snapshot.val();
-      if (gameState && gameState.started && gameState.players && gameState.players[currentPlayerName]) {
-        const myData = gameState.players[currentPlayerName];
+    window.db.ref("rooms/" + currentRoomCode).once("value", (snapshot) => {
+      const roomData = snapshot.val();
+      if (
+        roomData &&
+        roomData.status === "started" &&
+        roomData.playerRoles &&
+        roomData.playerRoles[currentPlayerName]
+      ) {
+        const myData = roomData.playerRoles[currentPlayerName];
         document.getElementById("roomInfo").classList.add("hidden");
         document.getElementById("playerRoleInfo").classList.remove("hidden");
 
         const roleMessageEl = document.getElementById("roleMessage");
-        if (myData.roleInfo.includes("SAHTEKAR")) {
+        if (myData.role.includes("Sahtekar")) {
           roleMessageEl.innerHTML =
             `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
-            `Olası konumlar: ${gameState.allLocations.join(", ")}`;
+            `Olası konumlar: ${myData.allLocations.join(", ")}`;
         } else {
           roleMessageEl.innerHTML =
             `📍 Konum: <b>${myData.location}</b><br>` +
-            `🎭 Rolün: <b>${myData.roleInfo}</b>`;
+            `🎭 Rolün: <b>${myData.role}</b>`;
         }
       }
     });
@@ -172,7 +177,7 @@ window.addEventListener("DOMContentLoaded", () => {
       roles: ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"]
     };
 
-    window.gameLogic.startGame(currentRoomCode, settings);
+   window.gameLogic.startGame(currentRoomCode, settings);
   });
 
   /** ------------------------
@@ -197,23 +202,28 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     // Oyun başlama durumunu canlı dinle
-    window.db.ref("rooms/" + roomCode + "/gameState").on("value", (snapshot) => {
-      const gameState = snapshot.val();
-      if (gameState && gameState.started && gameState.players && gameState.players[currentPlayerName]) {
-        const myData = gameState.players[currentPlayerName];
+    window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
+      const roomData = snapshot.val();
+      if (
+        roomData &&
+        roomData.status === "started" &&
+        roomData.playerRoles &&
+        roomData.playerRoles[currentPlayerName]
+      ) {
+        const myData = roomData.playerRoles[currentPlayerName];
         const roleMessageEl = document.getElementById("roleMessage");
 
         document.getElementById("roomInfo").classList.add("hidden");
         document.getElementById("playerRoleInfo").classList.remove("hidden");
 
-        if (myData.roleInfo.includes("SAHTEKAR")) {
+        if (myData.role.includes("Sahtekar")) {
           roleMessageEl.innerHTML =
             `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
-            `Olası konumlar: ${gameState.allLocations.join(", ")}`;
+            `Olası konumlar: ${myData.allLocations.join(", ")}`;
         } else {
           roleMessageEl.innerHTML =
             `📍 Konum: <b>${myData.location}</b><br>` +
-            `🎭 Rolün: <b>${myData.roleInfo}</b>`;
+            `🎭 Rolün: <b>${myData.role}</b>`;
         }
       }
     });
