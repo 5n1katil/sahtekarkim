@@ -14,7 +14,7 @@ window.gameLogic = {
 
     const roomData = {
       creator: creatorName,
-      players: { [creatorName]: { name: creatorName, isCreator: true } },
+      players: { [creatorName]: { name: creatorName } },
       settings: {
         playerCount: Number(playerCount),
         spyCount: Number(spyCount),
@@ -54,14 +54,8 @@ window.gameLogic = {
         return;
       }
 
-      // Aynı isimde oyuncu varsa engelle
-      if (players[playerName]) {
-        callback?.("Bu isim zaten alınmış!", null);
-        return;
-      }
-
       const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
-      playerRef.set({ name: playerName, isCreator: false });
+      playerRef.set({ name: playerName });
 
       localStorage.setItem("roomCode", roomCode);
       localStorage.setItem("playerName", playerName);
@@ -80,8 +74,7 @@ window.gameLogic = {
   leaveRoom: function (roomCode, playerName) {
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
     localStorage.clear();
-    playerRef.remove();
-    location.href = "index.html";
+    return playerRef.remove();
   },
 
   /** Oyuncuları canlı dinle */
@@ -90,42 +83,25 @@ window.gameLogic = {
     playersRef.on("value", (snapshot) => {
       const playersObj = snapshot.val() || {};
       const players = Object.keys(playersObj);
-
-      // HTML elementlerini al
-      const playerListEl = document.getElementById("playerList");
-      const playerCountEl = document.getElementById("playerCountDisplay");
-
-      if (playerListEl && playerCountEl) {
-        playerListEl.innerHTML = players
-          .map((p) => {
-            const isCreator = playersObj[p]?.isCreator;
-            return `<li>${p}${isCreator ? " ⭐" : ""}</li>`;
-          })
-          .join("");
-
-        // Oyuncu sayısını güncelle
-        playerCountEl.textContent = players.length;
-      }
+      callback(players);
 
       // Oda tamamen boşaldıysa kapat
       if (players.length === 0) {
         window.db.ref("rooms/" + roomCode).remove();
         localStorage.clear();
         location.reload();
-        return;
       }
 
       // Kurucu yoksa odayı kapat
-      const creatorName = Object.keys(playersObj).find((p) => playersObj[p].isCreator);
-      if (!creatorName || !players.includes(creatorName)) {
-        window.db.ref(`rooms/${roomCode}`).remove();
-        localStorage.clear();
-        location.reload();
-        return;
-      }
-
-      // Callback ile dışarıya da gönder
-      callback(players);
+      const roomRef = window.db.ref(`rooms/${roomCode}`);
+      roomRef.get().then((snap) => {
+        const data = snap.val();
+        if (!data || !data.creator || !players.includes(data.creator)) {
+          roomRef.remove();
+          localStorage.clear();
+          location.reload();
+        }
+      });
     });
   },
 
@@ -136,6 +112,13 @@ window.gameLogic = {
     roomRef.on("value", (snapshot) => {
       const roomData = snapshot.val();
       if (!roomData) return;
+
+      // Oyuncu listesi güncelle
+      const players = Object.keys(roomData.players || {});
+      const playerListEl = document.getElementById("playerList");
+      if (playerListEl) {
+        playerListEl.innerHTML = players.map((p) => `<li>${p}</li>`).join("");
+      }
 
       // Oyun başladıysa rol göster
       if (roomData.status === "started") {
@@ -168,12 +151,37 @@ window.gameLogic = {
         return;
       }
 
-      // 30 konum ve 6 rol örneği
       const locationRoles = {
-        "Hastane": ["Doktor", "Hemşire", "Hasta", "Ziyaretçi", "Temizlikçi", "Güvenlik"],
-        "Restoran": ["Garson", "Şef", "Müşteri", "Kasiyer", "Temizlikçi", "Menajer"],
-        "Kütüphane": ["Kütüphaneci", "Öğrenci", "Araştırmacı", "Güvenlik", "Temizlikçi", "Ziyaretçi"]
-        // Diğer konumlar eklenecek
+        "Havalimanı": ["Pilot","Hostes","Yolcu","Güvenlik","Bagaj Görevlisi","Yer Hizmetleri"],
+        "Restoran": ["Şef","Garson","Müşteri","Kasiyer","Temizlikçi","Barmen"],
+        "Kütüphane": ["Kütüphaneci","Öğrenci","Okur","Temizlikçi","Güvenlik","Araştırmacı"],
+        "Müze": ["Sanatçı","Rehber","Turist","Güvenlik","Temizlikçi","Koleksiyoncu"],
+        "Otobüs": ["Şoför","Biletçi","Yolcu","Turist","Öğrenci","Memur"],
+        "Okul": ["Öğretmen","Öğrenci","Müdür","Hademe","Güvenlik","Kütüphaneci"],
+        "Hastane": ["Doktor","Hemşire","Hasta","Ziyaretçi","Temizlikçi","Güvenlik"],
+        "Spor Salonu": ["Antrenör","Sporcu","Üye","Resepsiyonist","Temizlikçi","Fizyoterapist"],
+        "Otel": ["Resepsiyonist","Müşteri","Kat Görevlisi","Güvenlik","Aşçı","Vale"],
+        "Sirk": ["Palyaço","Akrobat","Hayvan Terbiyecisi","Gösteri Sunucusu","Seyirci","Biletçi"],
+        "Stadyum": ["Futbolcu","Hakem","Seyirci","Biletçi","Güvenlik","Satıcı"],
+        "Denizaltı": ["Kaptan","Subay","Mühendis","Dalgıç","Teknisyen","Gözlemci"],
+        "Sinema": ["Biletçi","Seyirci","Gösterim Görevlisi","Temizlikçi","Satıcı","Yönetici"],
+        "Kayık": ["Balıkçı","Yolcu","Turist","Kaptan","Kürekçi","Rehber"],
+        "Çiftlik": ["Çiftçi","Veteriner","İşçi","Çocuk","Turist","Komşu"],
+        "Tren İstasyonu": ["Makinist","Biletçi","Yolcu","Turist","Güvenlik","Temizlikçi"],
+        "Hapishane": ["Gardiyan","Mahkum","Müdür","Avukat","Ziyaretçi","Temizlikçi"],
+        "Kışla": ["Asker","Komutan","Doktor","Aşçı","Eğitmen","Ziyaretçi"],
+        "Kafe": ["Barista","Garson","Müşteri","Kasiyer","Öğrenci","Turist"],
+        "Pazar": ["Satıcı","Müşteri","Hırsız","Güvenlik","Çocuk","Dilenci"],
+        "Dağ Evi": ["Dağcı","Turist","Ev Sahibi","Avcı","Aşçı","Komşu"],
+        "Festival": ["Dansçı","Müzisyen","Satıcı","Seyirci","Görevli","Turist"],
+        "Plaj": ["Can Kurtaran","Turist","Çocuk","Satıcı","Yüzücü","Balıkçı"],
+        "Yat Limanı": ["Kaptan","Turist","Balıkçı","Teknisyen","Güvenlik","Satıcı"],
+        "Konsolosluk": ["Konsolos","Sekreter","Misafir","Güvenlik","Temizlikçi","Vatandaş"],
+        "Tiyatro": ["Oyuncu","Seyirci","Biletçi","Işıkçı","Dekoratör","Temizlikçi"],
+        "Kilise": ["Papaz","Seyirci","Ziyaretçi","Güvenlik","Koro Üyesi","Temizlikçi"],
+        "Lunapark": ["Operatör","Biletçi","Çocuk","Anne-Baba","Satıcı","Güvenlik"],
+        "Üniversite": ["Profesör","Öğrenci","Memur","Temizlikçi","Güvenlik","Ziyaretçi"],
+        "Hayvanat Bahçesi": ["Bakıcı","Veteriner","Turist","Satıcı","Çocuk","Güvenlik"]
       };
 
       const locations = Object.keys(locationRoles);
@@ -227,8 +235,10 @@ window.addEventListener("beforeunload", () => {
   const navEntries = performance.getEntriesByType("navigation");
   const navType = navEntries.length ? navEntries[0].type : null;
 
+  // Yenileme durumunda çıkış yapma
   if (navType === "reload") return;
 
+  // Sekme kapandıysa veya tarayıcı kapandıysa
   unloadTimer = setTimeout(() => {
     const roomCode = localStorage.getItem("roomCode");
     const playerName = localStorage.getItem("playerName");
@@ -238,6 +248,7 @@ window.addEventListener("beforeunload", () => {
   }, 1500);
 });
 
+// Sayfa geri görünür olursa çıkışı iptal et
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
     clearTimeout(unloadTimer);
