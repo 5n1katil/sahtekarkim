@@ -250,16 +250,23 @@ window.gameLogic = {
 // ------------------------
 let unloadTimer;
 
-const markClose = () => {
-  const navEntries = performance.getEntriesByType("navigation");
-  const navType = navEntries.length
-    ? navEntries[0].type
-    : performance.navigation && performance.navigation.type === 1
-    ? "reload"
-    : null;
+const isPageReload = () => {
+  const entries = performance.getEntriesByType("navigation");
+  if (entries && entries.length > 0) {
+    const type = entries[0].type;
+    return type === "reload" || type === "back_forward";
+  }
+  if (performance.navigation) {
+    return (
+      performance.navigation.type === 1 ||
+      performance.navigation.type === 2
+    );
+  }
+  return false;
+};
 
-  // Yenileme durumunda çıkış yapma
-  if (navType === "reload") return;
+const markClose = () => {
+  if (isPageReload()) return;
 
   // Sekme kapandıysa veya tarayıcı kapandıysa
   unloadTimer = setTimeout(() => {
