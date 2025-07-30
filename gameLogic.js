@@ -28,6 +28,7 @@ window.gameLogic = {
     };
 
     roomRef.set(roomData);
+    roomRef.onDisconnect().remove();
 
     localStorage.setItem("roomCode", roomCode);
     localStorage.setItem("playerName", creatorName);
@@ -56,6 +57,7 @@ window.gameLogic = {
 
       const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
       playerRef.set({ name: playerName });
+      playerRef.onDisconnect().remove();
 
       localStorage.setItem("roomCode", roomCode);
       localStorage.setItem("playerName", playerName);
