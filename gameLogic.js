@@ -236,7 +236,10 @@ window.addEventListener("beforeunload", () => {
   const navType = navEntries.length ? navEntries[0].type : null;
 
   // Yenileme durumunda çıkış yapma
-  if (navType === "reload") return;
+  if (navType === "reload") {
+    sessionStorage.setItem("reloading", "true");
+    return;
+  }
 
   // Sekme kapandıysa veya tarayıcı kapandıysa
   unloadTimer = setTimeout(() => {
