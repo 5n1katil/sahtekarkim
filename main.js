@@ -3,18 +3,27 @@ window.addEventListener("DOMContentLoaded", () => {
   let currentPlayerName = localStorage.getItem("playerName") || null;
   let isCreator = localStorage.getItem("isCreator") === "true";
 
+  // Geçerli sayfa yenileme işaretini temizle
+  sessionStorage.removeItem("reloading");
+
   /** ------------------------
    *  SAYFA KAPANIRSA (Kurucu değilse) odadan çık
    *  - F5 yenilemede çıkmaz
    *  - Tarayıcı / sekme kapanınca çıkar
    * ------------------------ */
   let isRefreshing = false;
-  window.addEventListener("beforeunload", (e) => {
-    if (performance.getEntriesByType("navigation")[0].type === "reload") {
+
+  window.addEventListener("beforeunload", () => {
+    const navEntries = performance.getEntriesByType("navigation");
+    const navType = navEntries.length ? navEntries[0].type : null;
+    if (navType === "reload") {
       isRefreshing = true;
+      sessionStorage.setItem("reloading", "true");
     }
   });
+
   window.addEventListener("unload", () => {
+    if (sessionStorage.getItem("reloading") === "true") return;
     if (!isRefreshing && currentRoomCode && currentPlayerName && !isCreator) {
       navigator.sendBeacon(
         "/leave-room",
