@@ -8,6 +8,7 @@
   <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
   
+  <!-- Sayfa Stili -->
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -20,101 +21,165 @@
       margin: 0;
       padding: 0;
     }
-    h1 {
-      margin-top: 2rem;
-      font-size: 2rem;
-    }
     .container {
       background: #2c2a4a;
       padding: 1.5rem;
       margin: 1rem;
       border-radius: 12px;
-      box-shadow: 0 0 12px rgba(0,0,0,0.4);
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
       width: 90%;
-      max-width: 400px;
+      max-width: 500px;
+      animation: fadeIn 0.3s ease;
     }
-    input, select {
+    @keyframes fadeIn {
+      from {opacity: 0; transform: translateY(10px);}
+      to {opacity: 1; transform: translateY(0);}
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    label {
+      margin-top: 1rem;
+      display: block;
+      font-weight: 600;
+    }
+    input, select, button {
       width: 100%;
-      padding: 0.5rem;
-      margin-bottom: 0.75rem;
-      border-radius: 8px;
+      padding: 0.6rem;
+      margin-top: 0.3rem;
+      border-radius: 6px;
       border: none;
+      font-size: 1rem;
+      box-sizing: border-box;
     }
     button {
-      width: 100%;
-      padding: 0.75rem;
-      background-color: #7b61ff;
-      border: none;
-      border-radius: 8px;
+      background-color: #7b5cff;
       color: white;
-      font-size: 1rem;
+      margin-top: 1.2rem;
+      font-weight: bold;
       cursor: pointer;
+      transition: 0.2s;
     }
     button:hover {
-      background-color: #9d83ff;
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+    ul {
+      list-style-type: disc;
+      padding-left: 1.2rem;
+    }
+    .hidden { display: none; }
+    .small-btn {
+      background-color: #444;
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
     }
   </style>
 </head>
 <body>
-  <h1>5N1Katil - Oyun Ayarları</h1>
-  
-  <div class="container">
-    <input type="text" id="playerName" placeholder="İsminizi girin (Kurucu)" />
-    <input type="number" id="playerCount" placeholder="Kaç kişi oynayacak? (min 4 - max 16)" min="4" max="16" />
-    <input type="number" id="impostorCount" placeholder="Kaç sahtekar olacak?" min="1" />
+
+  <!-- Kurucu için oyun ayarları ekranı -->
+  <div class="container" id="setup">
+    <h2>5N1Katil - Oyun Ayarları</h2>
+    <label>İsminizi girin (Kurucu):</label>
+    <input id="creatorName" placeholder="Adınız" />
     
-    <label for="includeCharacters">Karakterler dahil edilsin mi?</label>
-    <select id="includeCharacters">
-      <option>Hayır</option>
-      <option>Evet</option>
+    <label>Kaç kişi oynayacak? (min 4 - max 16)</label>
+    <input id="playerCount" type="number" min="4" max="16" value="4" />
+
+    <label>Kaç sahtekar olacak?</label>
+    <input id="spyCount" type="number" min="1" value="1" />
+
+    <label>Karakterler dahil edilsin mi?</label>
+    <select id="useRoles">
+      <option value="no">Hayır</option>
+      <option value="yes">Evet</option>
     </select>
-    
-    <input type="number" id="questionsPerRound" placeholder="Her turda kaç soru sorulsun?" min="1" />
-    <input type="number" id="impostorGuesses" placeholder="Sahtekarın kaç konum tahmin hakkı olacak?" min="1" />
-    
-    <label for="elimination">Sahtekar her tur sonunda birini eleyebilsin mi?</label>
-    <select id="elimination">
-      <option>Hayır</option>
-      <option>Evet</option>
+
+    <label>Her turda kaç soru sorulsun?</label>
+    <input id="questionCount" type="number" min="1" value="1" />
+
+    <label>Sahtekarın kaç konum tahmin hakkı olacak?</label>
+    <input id="guessCount" type="number" min="1" value="1" />
+
+    <label>Sahtekar her tur sonunda birini eleyebilsin mi?</label>
+    <select id="canEliminate">
+      <option value="no">Hayır</option>
+      <option value="yes">Evet</option>
     </select>
-    
+
     <button id="createRoomBtn">Odayı Oluştur</button>
   </div>
 
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
-  <script src="firebase.js"></script>
+  <!-- Oyuncuların odaya katılması için ekran -->
+  <div class="container" id="playerJoin">
+    <h2>Oyuna Katıl</h2>
+    <label>İsminizi girin:</label>
+    <input id="joinName" placeholder="Adınız" />
+    
+    <label>Oda kodunu girin:</label>
+    <input id="joinCode" placeholder="ABCDE" maxlength="5" />
+    
+    <button id="joinRoomBtn">Oyuna Katıl</button>
+  </div>
 
-  <!-- Oyun Scriptleri -->
-  <script src="gameLogic.js"></script>
-  <script src="main.js"></script>
+  <!-- Oda bilgileri ekranı -->
+  <div class="container hidden" id="roomInfo">
+    <h2 id="roomTitle">Oda başarıyla oluşturuldu!</h2>
+    <p><strong>Oda kodunuz:</strong> <span id="roomCode"></span></p>
+    <p id="roomInstructions">Diğer oyuncular bu kodla giriş yapabilir.</p>
 
-  <script>
-    document.getElementById("createRoomBtn").addEventListener("click", () => {
-      if (!window.gameLogic || !window.gameLogic.createRoom) {
-        alert("⚠️ gameLogic.js yüklenmedi veya createRoom fonksiyonu bulunamadı!");
-        return;
-      }
+    <h3>Oyuncu Sayısı (<span id="playerCountDisplay">0</span>)</h3>
+    <ul id="playerList"></ul>
 
-      const playerName = document.getElementById("playerName").value;
-      const playerCount = parseInt(document.getElementById("playerCount").value);
-      const impostorCount = parseInt(document.getElementById("impostorCount").value);
-      const includeCharacters = document.getElementById("includeCharacters").value === "Evet";
-      const questionsPerRound = parseInt(document.getElementById("questionsPerRound").value);
-      const impostorGuesses = parseInt(document.getElementById("impostorGuesses").value);
-      const elimination = document.getElementById("elimination").value === "Evet";
+    <button id="startGameBtn" class="hidden">Oyunu Başlat</button>
+    <button id="leaveRoomBtn">Odadan Çık</button>
+  </div>
 
-      window.gameLogic.createRoom({
-        playerName,
-        playerCount,
-        impostorCount,
-        includeCharacters,
-        questionsPerRound,
-        impostorGuesses,
-        elimination
-      });
-    });
-  </script>
+  <!-- Rol bilgisi ekranı -->
+  <div class="container hidden" id="playerRoleInfo">
+    <h2>Rol Bilgisi</h2>
+    <p id="roleMessage">(örnek) Rolünüz: Sahtekar.</p>
+    <button id="copyRoleBtn" class="small-btn">Rol Bilgisini Kopyala</button>
+    <button id="backToHomeBtn" class="small-btn">Oyundan Çık</button>
+  </div>
+
+<!-- Firebase ve JS dosyaları -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="firebase.js"></script>
+<script src="gameLogic.js"></script>
+<script src="main.js"></script>
+
+<script>
+  // Rol bilgisini kopyalama
+  document.getElementById("copyRoleBtn").addEventListener("click", () => {
+    const text = document.getElementById("roleMessage").innerText;
+    navigator.clipboard.writeText(text).then(() => alert("Rolünüz kopyalandı!"));
+  });
+
+  // Oyundan çık (ana ekrana dön)
+  document.getElementById("backToHomeBtn").addEventListener("click", () => {
+    localStorage.clear();
+    location.reload();
+  });
+
+  // Canlı oyuncu listesi güncellemesi
+  function updatePlayerList(players) {
+    const listEl = document.getElementById("playerList");
+    const countEl = document.getElementById("playerCountDisplay");
+    if (!listEl || !countEl) return;
+
+    // Geçerli isimleri filtrele
+    const validPlayers = (players || []).filter(p => p && p.trim() !== "");
+
+    // Listeyi güncelle
+    listEl.innerHTML = validPlayers.map(p => `<li>${p}</li>`).join("");
+    countEl.textContent = validPlayers.length;
+  }
+  window.updatePlayerList = updatePlayerList; // main.js veya gameLogic.js içinden çağırabilsin
+</script>
+
 </body>
 </html>
