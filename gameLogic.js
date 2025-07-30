@@ -250,9 +250,13 @@ window.gameLogic = {
 // ------------------------
 let unloadTimer;
 
-window.addEventListener("beforeunload", () => {
+const markClose = () => {
   const navEntries = performance.getEntriesByType("navigation");
-  const navType = navEntries.length ? navEntries[0].type : null;
+  const navType = navEntries.length
+    ? navEntries[0].type
+    : performance.navigation && performance.navigation.type === 1
+    ? "reload"
+    : null;
 
   // Yenileme durumunda çıkış yapma
   if (navType === "reload") return;
@@ -265,3 +269,7 @@ window.addEventListener("beforeunload", () => {
       window.gameLogic.leaveRoom(roomCode, playerName);
     }
   }, 1500);
+};
+
+window.addEventListener("beforeunload", markClose);
+window.addEventListener("pagehide", markClose);
