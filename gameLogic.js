@@ -28,7 +28,6 @@ window.gameLogic = {
     };
 
     roomRef.set(roomData);
-    roomRef.onDisconnect().remove();
 
     localStorage.setItem("roomCode", roomCode);
     localStorage.setItem("playerName", creatorName);
@@ -57,7 +56,6 @@ window.gameLogic = {
 
       const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
       playerRef.set({ name: playerName });
-      playerRef.onDisconnect().remove();
 
       localStorage.setItem("roomCode", roomCode);
       localStorage.setItem("playerName", playerName);
@@ -246,41 +244,3 @@ window.gameLogic = {
     });
   },
 };
-
-// ------------------------
-let unloadTimer;
-
-const isPageReload = () => {
-  const entries = performance.getEntriesByType("navigation");
-  if (entries && entries.length > 0) {
-    const type = entries[0].type;
-    return type === "reload" || type === "back_forward";
-  }
-  if (performance.navigation) {
-    return (
-      performance.navigation.type === 1 ||
-      performance.navigation.type === 2
-    );
-  }
-  return false;
-};
-
-const markClose = () => {
-  if (isPageReload()) return;
-
-  // Sekme kapandıysa veya tarayıcı kapandıysa
-  unloadTimer = setTimeout(() => {
-    const roomCode = localStorage.getItem("roomCode");
-    const playerName = localStorage.getItem("playerName");
-    const isCreator = localStorage.getItem("isCreator") === "true";
-    if (!roomCode) return;
-    if (isCreator) {
-      window.gameLogic.deleteRoom(roomCode);
-    } else if (playerName) {
-      window.gameLogic.leaveRoom(roomCode, playerName);
-    }
-  }, 1500);
-};
-
-window.addEventListener("beforeunload", markClose);
-window.addEventListener("pagehide", markClose);
