@@ -3,55 +3,29 @@ window.addEventListener("DOMContentLoaded", () => {
   let currentPlayerName = localStorage.getItem("playerName") || null;
   let isCreator = localStorage.getItem("isCreator") === "true";
 
-  // Geçerli sayfa yenileme işaretini temizle
-  sessionStorage.removeItem("reloading");
-
-  /** ------------------------
-   *  SAYFA KAPANIRSA (Kurucu değilse) odadan çık
-   *  - F5 yenilemede çıkmaz
-   *  - Tarayıcı / sekme kapanınca çıkar
-   * ------------------------ */
-  let isRefreshing = false;
-
-  const isPageReload = () => {
-    const entries = performance.getEntriesByType("navigation");
-    if (entries && entries.length > 0) {
-      const type = entries[0].type;
-      return type === "reload" || type === "back_forward";
-    }
-    if (performance.navigation) {
-      return (
-        performance.navigation.type === 1 ||
-        performance.navigation.type === 2
-      );
-    }
-    return false;
-  };
-
-  const markReload = () => {
-    if (isPageReload()) {
-      isRefreshing = true;
-      sessionStorage.setItem("reloading", "true");
-    }
-  };
-
-  window.addEventListener("beforeunload", markReload);
-  window.addEventListener("pagehide", markReload);
-
-  window.addEventListener("unload", () => {
-    if (sessionStorage.getItem("reloading") === "true") return;
-    if (!isRefreshing && currentRoomCode) {
-      if (isCreator) {
-        window.gameLogic.deleteRoom(currentRoomCode);
-      } else if (currentPlayerName) {
-        navigator.sendBeacon(
-          "/leave-room",
-          JSON.stringify({ room: currentRoomCode, player: currentPlayerName })
-        );
-        window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName);
+  /** Sayfa yenilendiğinde oyuncu bilgisini koru */
+  if (currentRoomCode && currentPlayerName) {
+    const roomRef = window.db.ref("rooms/" + currentRoomCode);
+    roomRef.get().then((roomSnap) => {
+      if (!roomSnap.exists()) {
+        // Oda silinmişse bilgiler geçersizdir
+        localStorage.clear();
+        currentRoomCode = null;
+        currentPlayerName = null;
+        isCreator = false;
+        return;
       }
-    }
-  });
+
+      const playerRef = window.db.ref(
+        `rooms/${currentRoomCode}/players/${currentPlayerName}`
+      );
+      playerRef.get().then((playerSnap) => {
+        if (!playerSnap.exists()) {
+          playerRef.set({ name: currentPlayerName });
+        }
+      });
+    });
+  }
 
   /** ------------------------
    *  SAYFA YENİLENİNCE ODADA KAL
