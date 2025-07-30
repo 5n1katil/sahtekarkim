@@ -272,7 +272,11 @@ const markClose = () => {
   unloadTimer = setTimeout(() => {
     const roomCode = localStorage.getItem("roomCode");
     const playerName = localStorage.getItem("playerName");
-    if (roomCode && playerName) {
+    const isCreator = localStorage.getItem("isCreator") === "true";
+    if (!roomCode) return;
+    if (isCreator) {
+      window.gameLogic.deleteRoom(roomCode);
+    } else if (playerName) {
       window.gameLogic.leaveRoom(roomCode, playerName);
     }
   }, 1500);
