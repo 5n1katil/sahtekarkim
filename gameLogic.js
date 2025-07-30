@@ -227,7 +227,7 @@ window.gameLogic = {
 };
 
 // ------------------------
-// Sekme kapanınca odadan çık (F5'te çıkmaz)
+// Sekme veya tarayıcı kapanınca (yenileme hariç) odadan çık
 // ------------------------
 let unloadTimer;
 
