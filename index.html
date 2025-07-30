@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>5N1Katil - Oyun Başlat</title>
+  
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(to right, #1f1c2c, #928dab);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      margin-top: 2rem;
+      font-size: 2rem;
+    }
+    .container {
+      background: #2c2a4a;
+      padding: 1.5rem;
+      margin: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.4);
+      width: 90%;
+      max-width: 400px;
+    }
+    input, select {
+      width: 100%;
+      padding: 0.5rem;
+      margin-bottom: 0.75rem;
+      border-radius: 8px;
+      border: none;
+    }
+    button {
+      width: 100%;
+      padding: 0.75rem;
+      background-color: #7b61ff;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #9d83ff;
+    }
+  </style>
+</head>
+<body>
+  <h1>5N1Katil - Oyun Ayarları</h1>
+  
+  <div class="container">
+    <input type="text" id="playerName" placeholder="İsminizi girin (Kurucu)" />
+    <input type="number" id="playerCount" placeholder="Kaç kişi oynayacak? (min 4 - max 16)" min="4" max="16" />
+    <input type="number" id="impostorCount" placeholder="Kaç sahtekar olacak?" min="1" />
+    
+    <label for="includeCharacters">Karakterler dahil edilsin mi?</label>
+    <select id="includeCharacters">
+      <option>Hayır</option>
+      <option>Evet</option>
+    </select>
+    
+    <input type="number" id="questionsPerRound" placeholder="Her turda kaç soru sorulsun?" min="1" />
+    <input type="number" id="impostorGuesses" placeholder="Sahtekarın kaç konum tahmin hakkı olacak?" min="1" />
+    
+    <label for="elimination">Sahtekar her tur sonunda birini eleyebilsin mi?</label>
+    <select id="elimination">
+      <option>Hayır</option>
+      <option>Evet</option>
+    </select>
+    
+    <button id="createRoomBtn">Odayı Oluştur</button>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
+  <script src="firebase.js"></script>
+
+  <!-- Oyun Scriptleri -->
+  <script src="gameLogic.js"></script>
+  <script src="main.js"></script>
+
+  <script>
+    document.getElementById("createRoomBtn").addEventListener("click", () => {
+      if (!window.gameLogic || !window.gameLogic.createRoom) {
+        alert("⚠️ gameLogic.js yüklenmedi veya createRoom fonksiyonu bulunamadı!");
+        return;
+      }
+
+      const playerName = document.getElementById("playerName").value;
+      const playerCount = parseInt(document.getElementById("playerCount").value);
+      const impostorCount = parseInt(document.getElementById("impostorCount").value);
+      const includeCharacters = document.getElementById("includeCharacters").value === "Evet";
+      const questionsPerRound = parseInt(document.getElementById("questionsPerRound").value);
+      const impostorGuesses = parseInt(document.getElementById("impostorGuesses").value);
+      const elimination = document.getElementById("elimination").value === "Evet";
+
+      window.gameLogic.createRoom({
+        playerName,
+        playerCount,
+        impostorCount,
+        includeCharacters,
+        questionsPerRound,
+        impostorGuesses,
+        elimination
+      });
+    });
+  </script>
+</body>
+</html>
