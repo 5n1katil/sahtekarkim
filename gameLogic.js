@@ -174,7 +174,7 @@ window.gameLogic = {
         "Pazar": ["Satıcı","Müşteri","Hırsız","Güvenlik","Çocuk","Dilenci"],
         "Dağ Evi": ["Dağcı","Turist","Ev Sahibi","Avcı","Aşçı","Komşu"],
         "Festival": ["Dansçı","Müzisyen","Satıcı","Seyirci","Görevli","Turist"],
-        "Plaj": ["Can Kurtaran","Turist","Çocuk","Satıcı","Yüzücü","Balıkçı"],
+        "Plaj": ["Cankurtaran","Turist","Çocuk","Satıcı","Yüzücü","Balıkçı"],
         "Yat Limanı": ["Kaptan","Turist","Balıkçı","Teknisyen","Güvenlik","Satıcı"],
         "Konsolosluk": ["Konsolos","Sekreter","Misafir","Güvenlik","Temizlikçi","Vatandaş"],
         "Tiyatro": ["Oyuncu","Seyirci","Biletçi","Işıkçı","Dekoratör","Temizlikçi"],
