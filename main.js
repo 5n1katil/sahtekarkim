@@ -7,9 +7,24 @@ window.addEventListener("DOMContentLoaded", () => {
   if (currentRoomCode && currentPlayerName) {
     showRoomUI(currentRoomCode, currentPlayerName, isCreator);
 
-    // Oyuncu listesini dinle
-    listenPlayersAndRoom(currentRoomCode);
+    // Her oyuncuda canlı oda/oyuncu dinle
+window.gameLogic.listenPlayers(currentRoomCode, function(players) {
+  if (!players || players.length === 0) {
+    localStorage.clear();
+    location.reload();
+    return;
+  }
+  document.getElementById("playerList").innerHTML =
+    players.map(name => <li>${name}</li>).join("");
+});
 
+// --- Oda silinirse anında herkes atılır ---
+window.db.ref("rooms/" + currentRoomCode).on("value", function(snapshot) {
+  if (!snapshot.exists()) {
+    localStorage.clear();
+    location.reload();
+  }
+});
   } else {
     document.getElementById("setup").classList.remove("hidden");
     document.getElementById("playerJoin").classList.remove("hidden");
@@ -45,8 +60,15 @@ window.addEventListener("DOMContentLoaded", () => {
 
     showRoomUI(roomCode, creatorName, true);
 
-    // YENİ: Canlı oda ve oyuncu kontrolü başlat
-    listenPlayersAndRoom(roomCode);
+    window.gameLogic.listenPlayers(roomCode, function(players) {
+      if (!players || players.length === 0) {
+        localStorage.clear();
+        location.reload();
+        return;
+      }
+      document.getElementById("playerList").innerHTML =
+        players.map(name => <li>${name}</li>).join("");
+    });
   });
 
   // OYUNA KATIL
@@ -72,8 +94,15 @@ window.addEventListener("DOMContentLoaded", () => {
 
       showRoomUI(joinCode, joinName, false);
 
-      // YENİ: Canlı oda ve oyuncu kontrolü başlat
-      listenPlayersAndRoom(joinCode);
+      window.gameLogic.listenPlayers(joinCode, function(players) {
+        if (!players || players.length === 0) {
+          localStorage.clear();
+          location.reload();
+          return;
+        }
+        document.getElementById("playerList").innerHTML =
+          players.map(name => <li>${name}</li>).join("");
+      });
     });
   });
 
@@ -119,28 +148,6 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("playerRoleInfo").classList.remove("hidden");
     document.getElementById("roleMessage").textContent = "Rol atanıyor...";
   });
-
-  // Ortak: Oda ve oyuncu listesini, oda silinirse kontrol et
-  function listenPlayersAndRoom(roomCode) {
-    // Oyuncu dinleyici
-    window.gameLogic.listenPlayers(roomCode, function(players) {
-      if (!players || players.length === 0) {
-        localStorage.clear();
-        location.reload();
-        return;
-      }
-      document.getElementById("playerList").innerHTML =
-        players.map(name => `<li>${name}</li>`).join("");
-    });
-
-    // ODA var mı, canlı dinle!
-    window.db.ref("rooms/" + roomCode).on("value", function(snapshot) {
-      if (!snapshot.exists()) {
-        localStorage.clear();
-        location.reload();
-      }
-    });
-  }
 
   // Oda ekranı yardımcı fonksiyon
   function showRoomUI(roomCode, playerName, isCreator) {
