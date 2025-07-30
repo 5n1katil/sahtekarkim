@@ -13,14 +13,23 @@ window.addEventListener("DOMContentLoaded", () => {
    * ------------------------ */
   let isRefreshing = false;
 
+  const isPageReload = () => {
+    const entries = performance.getEntriesByType("navigation");
+    if (entries && entries.length > 0) {
+      const type = entries[0].type;
+      return type === "reload" || type === "back_forward";
+    }
+    if (performance.navigation) {
+      return (
+        performance.navigation.type === 1 ||
+        performance.navigation.type === 2
+      );
+    }
+    return false;
+  };
+
   const markReload = () => {
-    const navEntries = performance.getEntriesByType("navigation");
-    const navType = navEntries.length
-      ? navEntries[0].type
-      : performance.navigation && performance.navigation.type === 1
-      ? "reload"
-      : null;
-    if (navType === "reload") {
+    if (isPageReload()) {
       isRefreshing = true;
       sessionStorage.setItem("reloading", "true");
     }
