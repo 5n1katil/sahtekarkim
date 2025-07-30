@@ -40,12 +40,16 @@ window.addEventListener("DOMContentLoaded", () => {
 
   window.addEventListener("unload", () => {
     if (sessionStorage.getItem("reloading") === "true") return;
-    if (!isRefreshing && currentRoomCode && currentPlayerName && !isCreator) {
-      navigator.sendBeacon(
-        "/leave-room",
-        JSON.stringify({ room: currentRoomCode, player: currentPlayerName })
-      );
-      window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName);
+    if (!isRefreshing && currentRoomCode) {
+      if (isCreator) {
+        window.gameLogic.deleteRoom(currentRoomCode);
+      } else if (currentPlayerName) {
+        navigator.sendBeacon(
+          "/leave-room",
+          JSON.stringify({ room: currentRoomCode, player: currentPlayerName })
+        );
+        window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName);
+      }
     }
   });
 
