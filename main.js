@@ -13,14 +13,21 @@ window.addEventListener("DOMContentLoaded", () => {
    * ------------------------ */
   let isRefreshing = false;
 
-  window.addEventListener("beforeunload", () => {
+  const markReload = () => {
     const navEntries = performance.getEntriesByType("navigation");
-    const navType = navEntries.length ? navEntries[0].type : null;
+    const navType = navEntries.length
+      ? navEntries[0].type
+      : performance.navigation && performance.navigation.type === 1
+      ? "reload"
+      : null;
     if (navType === "reload") {
       isRefreshing = true;
       sessionStorage.setItem("reloading", "true");
     }
-  });
+  };
+
+  window.addEventListener("beforeunload", markReload);
+  window.addEventListener("pagehide", markReload);
 
   window.addEventListener("unload", () => {
     if (sessionStorage.getItem("reloading") === "true") return;
