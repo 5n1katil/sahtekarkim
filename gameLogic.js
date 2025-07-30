@@ -192,6 +192,8 @@ window.gameLogic = {
       const spies = shuffledPlayers.slice(0, spyCount);
 
       const playerRoles = {};
+      const gameStatePlayers = {};
+
       shuffledPlayers.forEach((player) => {
         const isSpy = spies.includes(player);
 
@@ -201,6 +203,11 @@ window.gameLogic = {
             role: "Sahtekar",
             location: null,
             allLocations: locations,
+          };
+
+          gameStatePlayers[player] = {
+            roleInfo: "SAHTEKAR",
+            location: null,
           };
         } else {
           const rolesForLoc = locationRoles[chosenLocation];
@@ -213,21 +220,33 @@ window.gameLogic = {
             location: chosenLocation,
             allLocations: null,
           };
+
+          gameStatePlayers[player] = {
+            roleInfo: randomRole,
+            location: chosenLocation,
+          };
         }
       });
+
+      const gameState = {
+        started: true,
+        players: gameStatePlayers,
+        allLocations: locations,
+      };
 
       roomRef.update({
         status: "started",
         location: chosenLocation,
         spies,
         playerRoles,
+        gameState,
       });
     });
   },
 };
 
 // ------------------------
-// Sekme veya tarayıcı kapanınca (yenileme hariç) odadan çık
+// Sekme kapanınca odadan çık (F5'te çıkmaz)
 // ------------------------
 let unloadTimer;
 
@@ -236,10 +255,7 @@ window.addEventListener("beforeunload", () => {
   const navType = navEntries.length ? navEntries[0].type : null;
 
   // Yenileme durumunda çıkış yapma
-  if (navType === "reload") {
-    sessionStorage.setItem("reloading", "true");
-    return;
-  }
+  if (navType === "reload") return;
 
   // Sekme kapandıysa veya tarayıcı kapandıysa
   unloadTimer = setTimeout(() => {
@@ -249,11 +265,3 @@ window.addEventListener("beforeunload", () => {
       window.gameLogic.leaveRoom(roomCode, playerName);
     }
   }, 1500);
-});
-
-// Sayfa geri görünür olursa çıkışı iptal et
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    clearTimeout(unloadTimer);
-  }
-});
