@@ -248,8 +248,6 @@ window.gameLogic = {
 };
 
 // ------------------------
-// Sekme kapanınca odadan çık (F5'te çıkmaz)
-// ------------------------
 let unloadTimer;
 
 const isPageReload = () => {
