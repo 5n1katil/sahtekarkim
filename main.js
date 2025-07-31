@@ -42,7 +42,7 @@ window.addEventListener("DOMContentLoaded", () => {
         roomData.playerRoles[currentPlayerName]
       ) {
         document.getElementById("leaveRoomBtn")?.classList.add("hidden");
-        document.getElementById("backToHomeBtn")?.classList.add("hidden");
+        document.getElementById("backToHomeBtn")?.classList.remove("hidden");
         const myData = roomData.playerRoles[currentPlayerName];
         document.getElementById("roomInfo").classList.add("hidden");
         document.getElementById("playerRoleInfo").classList.remove("hidden");
