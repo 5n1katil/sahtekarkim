@@ -2,6 +2,7 @@ window.addEventListener("DOMContentLoaded", () => {
   let currentRoomCode = localStorage.getItem("roomCode") || null;
   let currentPlayerName = localStorage.getItem("playerName") || null;
   let isCreator = localStorage.getItem("isCreator") === "true";
+  let currentPlayers = [];
 
   /** Sayfa yenilendiğinde oyuncu bilgisini koru */
   if (currentRoomCode && currentPlayerName) {
@@ -171,6 +172,25 @@ window.addEventListener("DOMContentLoaded", () => {
    window.gameLogic.startGame(currentRoomCode, settings);
   });
 
+  // Oylamayı başlat
+  document.getElementById("startVotingBtn").addEventListener("click", () => {
+    window.gameLogic.startVoting(currentRoomCode);
+  });
+
+  // Oy ver
+  document.getElementById("submitVoteBtn").addEventListener("click", () => {
+    const target = document.getElementById("voteSelect").value;
+    if (target) {
+      window.gameLogic.submitVote(currentRoomCode, currentPlayerName, target);
+      document.getElementById("votingSection").classList.add("hidden");
+    }
+  });
+
+  // Sonraki tur
+  document.getElementById("nextRoundBtn").addEventListener("click", () => {
+    window.gameLogic.nextRound(currentRoomCode);
+  });
+
   /** ------------------------
    *  ODA & OYUNCULARI DİNLE
    * ------------------------ */
@@ -182,6 +202,15 @@ window.addEventListener("DOMContentLoaded", () => {
         players && players.length > 0
           ? players.map((name) => `<li>${name}</li>`).join("")
           : "<li>Oyuncu bekleniyor...</li>";
+
+      currentPlayers = players || [];
+      const selectEl = document.getElementById("voteSelect");
+      if (selectEl) {
+        selectEl.innerHTML = currentPlayers
+          .filter((p) => p !== currentPlayerName)
+          .map((p) => `<option value="${p}">${p}</option>`)
+          .join("");
+      }
     });
 
     // Oda silinirse herkesi at
@@ -195,17 +224,18 @@ window.addEventListener("DOMContentLoaded", () => {
     // Oyun başlama durumunu canlı dinle
     window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
       const roomData = snapshot.val();
-      if (
-        roomData &&
-        roomData.status === "started" &&
-        roomData.playerRoles &&
-        roomData.playerRoles[currentPlayerName]
-      ) {
+      if (!roomData || roomData.status !== "started") {
+        document.getElementById("gameActions").classList.add("hidden");
+        return;
+      }
+
+      if (roomData.playerRoles && roomData.playerRoles[currentPlayerName]) {
         const myData = roomData.playerRoles[currentPlayerName];
         const roleMessageEl = document.getElementById("roleMessage");
 
         document.getElementById("roomInfo").classList.add("hidden");
         document.getElementById("playerRoleInfo").classList.remove("hidden");
+        document.getElementById("gameActions").classList.remove("hidden");
 
         if (myData.role.includes("Sahtekar")) {
           roleMessageEl.innerHTML =
@@ -215,6 +245,39 @@ window.addEventListener("DOMContentLoaded", () => {
           roleMessageEl.innerHTML =
             `📍 Konum: <b>${myData.location}</b><br>` +
             `🎭 Rolün: <b>${myData.role}</b>`;
+        }
+
+        // Oylama durumu
+        document
+          .getElementById("startVotingBtn")
+          .classList.toggle("hidden", !!roomData.votingStarted);
+        const hasVoted =
+          roomData.votes && roomData.votes[currentPlayerName] ? true : false;
+        document
+          .getElementById("votingSection")
+          .classList.toggle("hidden", !roomData.votingStarted || hasVoted);
+        const resultEl = document.getElementById("voteResults");
+        if (roomData.voteResult) {
+          resultEl.classList.remove("hidden");
+          const outcomeEl = document.getElementById("voteOutcome");
+          outcomeEl.textContent = roomData.voteResult.isSpy
+            ? `${roomData.voteResult.voted} sahtekar çıktı! Oyun bitti.`
+            : `${roomData.voteResult.voted} masum çıktı.`;
+          document
+            .getElementById("nextRoundBtn")
+            .classList.toggle("hidden", roomData.voteResult.isSpy);
+        } else {
+          resultEl.classList.add("hidden");
+        }
+
+        if (
+          isCreator &&
+          roomData.votingStarted &&
+          roomData.votes &&
+          Object.keys(roomData.votes).length === currentPlayers.length &&
+          !roomData.voteResult
+        ) {
+          window.gameLogic.tallyVotes(currentRoomCode);
         }
       }
     });
