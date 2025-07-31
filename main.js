@@ -153,7 +153,11 @@ window.addEventListener("DOMContentLoaded", () => {
    *  ODADAN ÇIK
    * ------------------------ */
   document.getElementById("leaveRoomBtn").addEventListener("click", () => {
-    window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName).then(() => {
+    const action = isCreator
+      ? window.gameLogic.deleteRoom(currentRoomCode)
+      : window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName);
+
+    Promise.resolve(action).then(() => {
       localStorage.clear();
       location.reload();
     });
