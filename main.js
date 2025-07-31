@@ -209,7 +209,6 @@ window.addEventListener("DOMContentLoaded", () => {
   function listenPlayersAndRoom(roomCode) {
     // Oyuncu listesi
     window.gameLogic.listenPlayers(roomCode, (players) => {
-      const listEl = document.getElementById("playerList");
       listEl.innerHTML =
         players && players.length > 0
           ? players.map((name) => `<li>${name}</li>`).join("")
