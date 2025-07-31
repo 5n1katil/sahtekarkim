@@ -16,15 +16,12 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      // Her ihtimale karşı oyuncuyu tekrar kaydet
       const playerRef = window.db.ref(
         `rooms/${currentRoomCode}/players/${currentPlayerName}`
       );
-      playerRef.get().then((playerSnap) => {
-        if (!playerSnap.exists()) {
-          playerRef.set({ name: currentPlayerName });
-        }
-      });
-    });
+      playerRef.set({ name: currentPlayerName });
+          });
   }
 
   /** ------------------------
