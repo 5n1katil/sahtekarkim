@@ -41,6 +41,8 @@ window.addEventListener("DOMContentLoaded", () => {
         roomData.playerRoles &&
         roomData.playerRoles[currentPlayerName]
       ) {
+        document.getElementById("leaveRoomBtn")?.classList.add("hidden");
+        document.getElementById("backToHomeBtn")?.classList.add("hidden");
         const myData = roomData.playerRoles[currentPlayerName];
         document.getElementById("roomInfo").classList.add("hidden");
         document.getElementById("playerRoleInfo").classList.remove("hidden");
@@ -231,10 +233,16 @@ window.addEventListener("DOMContentLoaded", () => {
     // Oyun başlama durumunu canlı dinle
     window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
       const roomData = snapshot.val();
+      const leaveBtn = document.getElementById("leaveRoomBtn");
+      const exitBtn = document.getElementById("backToHomeBtn");
       if (!roomData || roomData.status !== "started") {
         document.getElementById("gameActions").classList.add("hidden");
+        leaveBtn?.classList.remove("hidden");
+        exitBtn?.classList.remove("hidden");
         return;
       }
+      leaveBtn?.classList.add("hidden");
+      exitBtn?.classList.add("hidden");
 
       if (roomData.playerRoles && roomData.playerRoles[currentPlayerName]) {
         const myData = roomData.playerRoles[currentPlayerName];
