@@ -149,6 +149,7 @@
   <div class="container hidden" id="gameActions">
     <h2>Oyun</h2>
     <button id="startVotingBtn">Oylamayı Başlat</button>
+    <p id="waitingVoteStart" class="hidden">Oylama için diğerlerini bekliyoruz...</p>
 
     <div id="votingSection" class="hidden">
       <label>Şüphelendiğin kişiyi seç:</label>
@@ -170,6 +171,23 @@
 <script src="main.js"></script>
 
 <script>
+  // Rol bilgisini kopyalama
+  document.getElementById("copyRoleBtn").addEventListener("click", () => {
+    const text = document.getElementById("roleMessage").innerText;
+    navigator.clipboard.writeText(text).then(() => alert("Rolünüz kopyalandı!"));
+  });
+
+  // Oyundan çık (ana ekrana dön)
+  document.getElementById("backToHomeBtn").addEventListener("click", () => {
+    const roomCode = localStorage.getItem("roomCode");
+    const playerName = localStorage.getItem("playerName");
+    const isCreator = localStorage.getItem("isCreator") === "true";
+
+    if (roomCode && isCreator) {
+      window.gameLogic.deleteRoom(roomCode).then(() => {
+        localStorage.clear();
+        location.reload();
+      });
   // Rol bilgisini kopyalama
   document.getElementById("copyRoleBtn").addEventListener("click", () => {
     const text = document.getElementById("roleMessage").innerText;
