@@ -186,29 +186,16 @@
     const isCreator = localStorage.getItem("isCreator") === "true";
 
     if (roomCode) {
-      window.db
-        .ref("rooms/" + roomCode + "/status")
-        .get()
-        .then((snap) => {
-          if (snap.exists() && snap.val() === "started") {
-            return; // oyun başladıysa çıkışa izin verme
-          }
+      const action = isCreator
+        ? window.gameLogic.deleteRoom(roomCode)
+        : playerName
+        ? window.gameLogic.leaveRoom(roomCode, playerName)
+        : Promise.resolve();
 
-          if (isCreator) {
-            window.gameLogic.deleteRoom(roomCode).then(() => {
-              localStorage.clear();
-              location.reload();
-            });
-          } else if (playerName) {
-            window.gameLogic.leaveRoom(roomCode, playerName).then(() => {
-              localStorage.clear();
-              location.reload();
-            });
-          } else {
-            localStorage.clear();
-            location.reload();
-          }
-        });
+      Promise.resolve(action).then(() => {
+        localStorage.clear();
+        location.reload();
+      });
     } else {
       localStorage.clear();
       location.reload();
