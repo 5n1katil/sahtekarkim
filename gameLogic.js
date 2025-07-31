@@ -246,6 +246,92 @@ window.gameLogic = {
     });
   },
 
+  /**
+   * Bir oyuncu oylamayı başlatma isteği gönderdiğinde çağrılır.
+   * Tüm oyuncular isteği gönderdiğinde oylama otomatik başlar.
+   */
+  requestVotingStart: function (roomCode, playerName) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref.child(`voteRequests/${playerName}`).set(true).then(() => {
+      ref.get().then((snap) => {
+        if (!snap.exists()) return;
+        const data = snap.val();
+        const players = Object.keys(data.players || {});
+        const requests = Object.keys(data.voteRequests || {});
+
+        if (requests.length === players.length) {
+          this.startVoting(roomCode);
+          ref.child("voteRequests").remove();
+        }
+      });
+    });
+  },
+
+  startVoting: function (roomCode) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref.update({ votingStarted: true, votes: null, voteResult: null });
+  },
+
+  submitVote: function (roomCode, voter, target) {
+    window.db
+      .ref(`rooms/${roomCode}/votes/${voter}`)
+      .set(target);
+  },
+
+  tallyVotes: function (roomCode) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref.get().then((snap) => {
+      if (!snap.exists()) return;
+      const data = snap.val();
+      const players = Object.keys(data.players || {});
+      const votes = data.votes || {};
+      if (Object.keys(votes).length < players.length) return;
+
+      const counts = {};
+      Object.values(votes).forEach((t) => {
+        counts[t] = (counts[t] || 0) + 1;
+      });
+      let voted = null;
+      let max = -1;
+      Object.keys(counts).forEach((p) => {
+        if (counts[p] > max) {
+          max = counts[p];
+          voted = p;
+        }
+      });
+      if (!voted) return;
+      const votedRole = data.playerRoles && data.playerRoles[voted];
+      const isSpy = votedRole ? votedRole.isSpy : false;
+
+      ref.update({
+        voteResult: { voted, isSpy },
+        votingStarted: false,
+      });
+
+      if (isSpy) {
+        ref.update({ status: "finished" });
+      }
+    });
+  },
+
+  nextRound: function (roomCode) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref.get().then((snap) => {
+      if (!snap.exists()) return;
+      const data = snap.val();
+      const nextRound = (data.round || 1) + 1;
+      ref.update({
+        round: nextRound,
+        votes: null,
+        voteResult: null,
+        votingStarted: false,
+        voteRequests: null,
+      });
+    });
+  },
+};
+  },
+
   startVoting: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref.update({ votingStarted: true, votes: null, voteResult: null });
