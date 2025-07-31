@@ -148,21 +148,13 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   /** ------------------------
-        localStorage.clear();
-        location.reload();
-      });
-    }
-  });
-
-  /** ------------------------
-   *  OYUNU BAŞLAT
+   *  ODADAN ÇIK
    * ------------------------ */
-  document.getElementById("startGameBtn").addEventListener("click", () => {
-      window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName).then(() => {
-        localStorage.clear();
-        location.reload();
-      });
-    }
+  document.getElementById("leaveRoomBtn").addEventListener("click", () => {
+    window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName).then(() => {
+      localStorage.clear();
+      location.reload();
+    });
   });
 
   /** ------------------------
