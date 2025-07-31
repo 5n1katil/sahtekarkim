@@ -145,6 +145,23 @@
     <button id="backToHomeBtn" class="small-btn">Oyundan Çık</button>
   </div>
 
+  <!-- Oyun sırasında kullanılacak bölüm -->
+  <div class="container hidden" id="gameActions">
+    <h2>Oyun</h2>
+    <button id="startVotingBtn">Oylamayı Başlat</button>
+
+    <div id="votingSection" class="hidden">
+      <label>Şüphelendiğin kişiyi seç:</label>
+      <select id="voteSelect"></select>
+      <button id="submitVoteBtn">Oy Ver</button>
+    </div>
+
+    <div id="voteResults" class="hidden">
+      <p id="voteOutcome"></p>
+      <button id="nextRoundBtn" class="hidden">Sıradaki Tur</button>
+    </div>
+  </div>
+
 <!-- Firebase ve JS dosyaları -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
