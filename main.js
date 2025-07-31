@@ -184,7 +184,6 @@ window.addEventListener("DOMContentLoaded", () => {
   // Oylamayı başlatma isteği
   document.getElementById("startVotingBtn").addEventListener("click", () => {
     window.gameLogic.requestVotingStart(currentRoomCode, currentPlayerName);
-    document.getElementById("startVotingBtn").classList.add("hidden");
     document
       .getElementById("waitingVoteStart")
       .classList.remove("hidden");
@@ -267,22 +266,16 @@ window.addEventListener("DOMContentLoaded", () => {
         }
 
         // Oylama durumu
+        const hasRequested =
+          roomData.voteRequests && roomData.voteRequests[currentPlayerName];
         document
           .getElementById("startVotingBtn")
-          .classList.toggle(
-            "hidden",
-            !!roomData.votingStarted ||
-              (roomData.voteRequests && roomData.voteRequests[currentPlayerName])
-          );
+          .classList.toggle("hidden", !!roomData.votingStarted);
         document
           .getElementById("waitingVoteStart")
           .classList.toggle(
             "hidden",
-            !(
-              roomData.voteRequests &&
-              roomData.voteRequests[currentPlayerName] &&
-              !roomData.votingStarted
-            )
+            !(hasRequested && !roomData.votingStarted)
           );
         const hasVoted =
           roomData.votes && roomData.votes[currentPlayerName] ? true : false;
