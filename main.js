@@ -246,7 +246,7 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
       leaveBtn?.classList.add("hidden");
-      exitBtn?.classList.add("hidden");
+      exitBtn?.classList.remove("hidden");
 
       if (roomData.playerRoles && roomData.playerRoles[currentPlayerName]) {
         const myData = roomData.playerRoles[currentPlayerName];
