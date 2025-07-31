@@ -68,8 +68,14 @@ window.addEventListener("DOMContentLoaded", () => {
   /** ------------------------
    *  ODA OLUŞTUR
    * ------------------------ */
+  const hasInvalidChars = (name) => /[.#$\[\]\/]/.test(name);
+
   document.getElementById("createRoomBtn").addEventListener("click", () => {
     const creatorName = document.getElementById("creatorName").value.trim();
+    if (hasInvalidChars(creatorName)) {
+      alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
+      return;
+    }
     const playerCount = parseInt(document.getElementById("playerCount").value);
     const spyCount = parseInt(document.getElementById("spyCount").value);
     const useRoles = document.getElementById("useRoles").value === "yes";
@@ -112,6 +118,11 @@ window.addEventListener("DOMContentLoaded", () => {
     const joinName = document.getElementById("joinName").value.trim();
     const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
 
+    if (hasInvalidChars(joinName)) {
+      alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
+      return;
+    }
+
     if (!joinName || !joinCode) {
       alert("Lütfen adınızı ve oda kodunu girin.");
       return;
@@ -137,16 +148,16 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   /** ------------------------
-   *  ODADAN ÇIK
-   * ------------------------ */
-  document.getElementById("leaveRoomBtn").addEventListener("click", () => {
-    if (isCreator) {
-      // Kurucu çıkarsa oda kapanır
-      window.gameLogic.deleteRoom(currentRoomCode).then(() => {
         localStorage.clear();
         location.reload();
       });
-    } else {
+    }
+  });
+
+  /** ------------------------
+   *  OYUNU BAŞLAT
+   * ------------------------ */
+  document.getElementById("startGameBtn").addEventListener("click", () => {
       window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName).then(() => {
         localStorage.clear();
         location.reload();
