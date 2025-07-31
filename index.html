@@ -185,16 +185,30 @@
     const playerName = localStorage.getItem("playerName");
     const isCreator = localStorage.getItem("isCreator") === "true";
 
-    if (roomCode && isCreator) {
-      window.gameLogic.deleteRoom(roomCode).then(() => {
-        localStorage.clear();
-        location.reload();
-      });
-    } else if (roomCode && playerName) {
-      window.gameLogic.leaveRoom(roomCode, playerName).then(() => {
-        localStorage.clear();
-        location.reload();
-      });
+    if (roomCode) {
+      window.db
+        .ref("rooms/" + roomCode + "/status")
+        .get()
+        .then((snap) => {
+          if (snap.exists() && snap.val() === "started") {
+            return; // oyun başladıysa çıkışa izin verme
+          }
+
+          if (isCreator) {
+            window.gameLogic.deleteRoom(roomCode).then(() => {
+              localStorage.clear();
+              location.reload();
+            });
+          } else if (playerName) {
+            window.gameLogic.leaveRoom(roomCode, playerName).then(() => {
+              localStorage.clear();
+              location.reload();
+            });
+          } else {
+            localStorage.clear();
+            location.reload();
+          }
+        });
     } else {
       localStorage.clear();
       location.reload();
