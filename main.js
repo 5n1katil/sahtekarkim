@@ -172,9 +172,13 @@ window.addEventListener("DOMContentLoaded", () => {
    window.gameLogic.startGame(currentRoomCode, settings);
   });
 
-  // Oylamayı başlat
+  // Oylamayı başlatma isteği
   document.getElementById("startVotingBtn").addEventListener("click", () => {
-    window.gameLogic.startVoting(currentRoomCode);
+    window.gameLogic.requestVotingStart(currentRoomCode, currentPlayerName);
+    document.getElementById("startVotingBtn").classList.add("hidden");
+    document
+      .getElementById("waitingVoteStart")
+      .classList.remove("hidden");
   });
 
   // Oy ver
@@ -250,7 +254,21 @@ window.addEventListener("DOMContentLoaded", () => {
         // Oylama durumu
         document
           .getElementById("startVotingBtn")
-          .classList.toggle("hidden", !!roomData.votingStarted);
+          .classList.toggle(
+            "hidden",
+            !!roomData.votingStarted ||
+              (roomData.voteRequests && roomData.voteRequests[currentPlayerName])
+          );
+        document
+          .getElementById("waitingVoteStart")
+          .classList.toggle(
+            "hidden",
+            !(
+              roomData.voteRequests &&
+              roomData.voteRequests[currentPlayerName] &&
+              !roomData.votingStarted
+            )
+          );
         const hasVoted =
           roomData.votes && roomData.votes[currentPlayerName] ? true : false;
         document
