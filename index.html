@@ -174,24 +174,9 @@
   // Rol bilgisini kopyalama
   document.getElementById("copyRoleBtn").addEventListener("click", () => {
     const text = document.getElementById("roleMessage").innerText;
-    navigator.clipboard.writeText(text).then(() => alert("Rolünüz kopyalandı!"));
-  });
-
-  // Oyundan çık (ana ekrana dön)
-  document.getElementById("backToHomeBtn").addEventListener("click", () => {
-    const roomCode = localStorage.getItem("roomCode");
-    const playerName = localStorage.getItem("playerName");
-    const isCreator = localStorage.getItem("isCreator") === "true";
-
-    if (roomCode && isCreator) {
-      window.gameLogic.deleteRoom(roomCode).then(() => {
-        localStorage.clear();
-        location.reload();
-      });
-  // Rol bilgisini kopyalama
-  document.getElementById("copyRoleBtn").addEventListener("click", () => {
-    const text = document.getElementById("roleMessage").innerText;
-    navigator.clipboard.writeText(text).then(() => alert("Rolünüz kopyalandı!"));
+    navigator.clipboard
+      .writeText(text)
+      .then(() => alert("Rolünüz kopyalandı!"));
   });
 
   // Oyundan çık (ana ekrana dön)
@@ -223,13 +208,14 @@
     if (!listEl || !countEl) return;
 
     // Geçerli isimleri filtrele
-    const validPlayers = (players || []).filter(p => p && p.trim() !== "");
+    const validPlayers = (players || []).filter((p) => p && p.trim() !== "");
 
     // Listeyi güncelle
-    listEl.innerHTML = validPlayers.map(p => `<li>${p}</li>`).join("");
+    listEl.innerHTML = validPlayers.map((p) => `<li>${p}</li>`).join("");
     countEl.textContent = validPlayers.length;
   }
-  window.updatePlayerList = updatePlayerList; // main.js veya gameLogic.js içinden çağırabilsin
+  // Dışardan kullanılabilsin
+  window.updatePlayerList = updatePlayerList;
 </script>
 
 </body>
