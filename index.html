@@ -147,7 +147,7 @@
 
   <!-- Oyun sırasında kullanılacak bölüm -->
   <div class="container hidden" id="gameActions">
-    <h2>Oyun</h2>
+    <h2>Find the Impostor!</h2>
     <button id="startVotingBtn">Oylamayı Başlat</button>
     <p id="waitingVoteStart" class="hidden">Oylama için diğerlerini bekliyoruz...</p>
 
@@ -155,6 +155,11 @@
       <label>Şüphelendiğin kişiyi seç:</label>
       <select id="voteSelect"></select>
       <button id="submitVoteBtn">Oy Ver</button>
+    </div>
+
+    <div id="liveVoteCounts" class="hidden">
+      <h3>Oy Durumu</h3>
+      <ul id="voteCountList"></ul>
     </div>
 
     <div id="voteResults" class="hidden">
