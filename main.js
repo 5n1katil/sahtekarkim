@@ -209,12 +209,12 @@ window.addEventListener("DOMContentLoaded", () => {
   function listenPlayersAndRoom(roomCode) {
     // Oyuncu listesi
     window.gameLogic.listenPlayers(roomCode, (players) => {
-      listEl.innerHTML =
-        players && players.length > 0
-          ? players.map((name) => `<li>${name}</li>`).join("")
-          : "<li>Oyuncu bekleniyor...</li>";
+      // Update player list in UI and player count
+      window.updatePlayerList?.(players);
 
-      currentPlayers = players || [];
+      // Maintain a filtered array of current players
+      currentPlayers = (players || []).filter((p) => p && p.trim() !== "");
+
       const selectEl = document.getElementById("voteSelect");
       if (selectEl) {
         selectEl.innerHTML = currentPlayers
