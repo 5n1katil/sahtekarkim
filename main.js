@@ -281,6 +281,22 @@ window.addEventListener("DOMContentLoaded", () => {
         document
           .getElementById("votingSection")
           .classList.toggle("hidden", !roomData.votingStarted || hasVoted);
+
+        const liveCountsEl = document.getElementById("liveVoteCounts");
+        const voteCountListEl = document.getElementById("voteCountList");
+        if (roomData.votingStarted) {
+          liveCountsEl.classList.remove("hidden");
+          const votes = roomData.votes || {};
+          const counts = {};
+          Object.values(votes).forEach((t) => {
+            counts[t] = (counts[t] || 0) + 1;
+          });
+          voteCountListEl.innerHTML = currentPlayers
+            .map((p) => `<li>${p}: ${counts[p] || 0}</li>`)
+            .join("");
+        } else {
+          liveCountsEl.classList.add("hidden");
+        }
         const resultEl = document.getElementById("voteResults");
         if (roomData.voteResult) {
           resultEl.classList.remove("hidden");
