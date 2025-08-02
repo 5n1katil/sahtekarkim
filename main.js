@@ -1,8 +1,33 @@
 window.addEventListener("DOMContentLoaded", () => {
+  window.addEventListener("beforeunload", () => {
+    localStorage.clear();
+  });
+
   let currentRoomCode = localStorage.getItem("roomCode") || null;
   let currentPlayerName = localStorage.getItem("playerName") || null;
   let isCreator = localStorage.getItem("isCreator") === "true";
   let currentPlayers = [];
+  let lastVoteResult = null;
+
+  function showResultOverlay(isSpy, name) {
+    const overlay = document.getElementById("resultOverlay");
+    const cls = isSpy ? "impostor-animation" : "innocent-animation";
+    overlay.textContent = isSpy
+      ? `${name} sahtekar çıktı!`
+      : `${name} masumdu.`;
+    overlay.className = `result-overlay ${cls}`;
+    overlay.classList.remove("hidden");
+    setTimeout(() => {
+      overlay.classList.add("hidden");
+      overlay.className = "result-overlay hidden";
+      if (isSpy) {
+        localStorage.clear();
+        location.reload();
+      } else {
+        window.gameLogic.nextRound(currentRoomCode);
+      }
+    }, 3000);
+  }
 
   /** Sayfa yenilendiğinde oyuncu bilgisini koru */
   if (currentRoomCode && currentPlayerName) {
@@ -299,23 +324,25 @@ window.addEventListener("DOMContentLoaded", () => {
         }
         const resultEl = document.getElementById("voteResults");
         if (roomData.voteResult) {
-          resultEl.classList.remove("hidden");
           const outcomeEl = document.getElementById("voteOutcome");
           if (roomData.voteResult.tie) {
+            resultEl.classList.remove("hidden");
             outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
             document.getElementById("nextRoundBtn").classList.add("hidden");
           } else {
-            if (roomData.voteResult.isSpy) {
-              outcomeEl.innerHTML = `<span class="impostor-name">${roomData.voteResult.voted}</span> sahtekar çıktı! Masumlar kazandı!`;
-            } else {
-              outcomeEl.textContent = `${roomData.voteResult.voted} masum çıktı.`;
+            const key = JSON.stringify(roomData.voteResult);
+            if (key !== lastVoteResult) {
+              lastVoteResult = key;
+              showResultOverlay(
+                roomData.voteResult.isSpy,
+                roomData.voteResult.voted
+              );
             }
-            document
-              .getElementById("nextRoundBtn")
-              .classList.toggle("hidden", roomData.voteResult.isSpy);
+            resultEl.classList.add("hidden");
           }
         } else {
           resultEl.classList.add("hidden");
+          lastVoteResult = null;
         }
 
         if (
