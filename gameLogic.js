@@ -291,15 +291,18 @@ window.gameLogic = {
       Object.values(votes).forEach((t) => {
         counts[t] = (counts[t] || 0) + 1;
       });
-      let voted = null;
-      let max = -1;
-      Object.keys(counts).forEach((p) => {
-        if (counts[p] > max) {
-          max = counts[p];
-          voted = p;
-        }
-      });
-      if (!voted) return;
+      const max = Math.max(...Object.values(counts));
+      const top = Object.keys(counts).filter((p) => counts[p] === max);
+      if (top.length !== 1) {
+        ref.update({
+          votes: null,
+          voteRequests: null,
+          votingStarted: false,
+          voteResult: { tie: true },
+        });
+        return;
+      }
+      const voted = top[0];
       const votedRole = data.playerRoles && data.playerRoles[voted];
       const isSpy = votedRole ? votedRole.isSpy : false;
 
