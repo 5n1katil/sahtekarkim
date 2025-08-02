@@ -15,11 +15,15 @@ window.addEventListener("DOMContentLoaded", () => {
     overlay.textContent = isSpy
       ? `${name} sahtekar çıktı!`
       : `${name} masumdu.`;
-    overlay.className = `result-overlay ${cls}`;
-    overlay.classList.remove("hidden");
+    overlay.classList.remove(
+      "hidden",
+      "impostor-animation",
+      "innocent-animation"
+    );
+    overlay.classList.add(cls);
     setTimeout(() => {
       overlay.classList.add("hidden");
-      overlay.className = "result-overlay hidden";
+      overlay.classList.remove("impostor-animation", "innocent-animation");
       if (isSpy) {
         localStorage.clear();
         location.reload();
