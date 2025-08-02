@@ -301,9 +301,11 @@ window.addEventListener("DOMContentLoaded", () => {
         if (roomData.voteResult) {
           resultEl.classList.remove("hidden");
           const outcomeEl = document.getElementById("voteOutcome");
-          outcomeEl.textContent = roomData.voteResult.isSpy
-            ? `${roomData.voteResult.voted} sahtekar çıktı! Oyun bitti.`
-            : `${roomData.voteResult.voted} masum çıktı.`;
+          if (roomData.voteResult.isSpy) {
+            outcomeEl.innerHTML = `<span class="impostor-name">${roomData.voteResult.voted}</span> sahtekar çıktı! Masumlar kazandı!`;
+          } else {
+            outcomeEl.textContent = `${roomData.voteResult.voted} masum çıktı.`;
+          }
           document
             .getElementById("nextRoundBtn")
             .classList.toggle("hidden", roomData.voteResult.isSpy);
