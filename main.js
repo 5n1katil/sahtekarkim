@@ -301,14 +301,19 @@ window.addEventListener("DOMContentLoaded", () => {
         if (roomData.voteResult) {
           resultEl.classList.remove("hidden");
           const outcomeEl = document.getElementById("voteOutcome");
-          if (roomData.voteResult.isSpy) {
-            outcomeEl.innerHTML = `<span class="impostor-name">${roomData.voteResult.voted}</span> sahtekar çıktı! Masumlar kazandı!`;
+          if (roomData.voteResult.tie) {
+            outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
+            document.getElementById("nextRoundBtn").classList.add("hidden");
           } else {
-            outcomeEl.textContent = `${roomData.voteResult.voted} masum çıktı.`;
+            if (roomData.voteResult.isSpy) {
+              outcomeEl.innerHTML = `<span class="impostor-name">${roomData.voteResult.voted}</span> sahtekar çıktı! Masumlar kazandı!`;
+            } else {
+              outcomeEl.textContent = `${roomData.voteResult.voted} masum çıktı.`;
+            }
+            document
+              .getElementById("nextRoundBtn")
+              .classList.toggle("hidden", roomData.voteResult.isSpy);
           }
-          document
-            .getElementById("nextRoundBtn")
-            .classList.toggle("hidden", roomData.voteResult.isSpy);
         } else {
           resultEl.classList.add("hidden");
         }
