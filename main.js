@@ -8,6 +8,7 @@ window.addEventListener("DOMContentLoaded", () => {
   let isCreator = localStorage.getItem("isCreator") === "true";
   let currentPlayers = [];
   let lastVoteResult = null;
+  let lastGuessResult = null;
 
   function showResultOverlay(isSpy, name) {
     const overlay = document.getElementById("resultOverlay");
@@ -30,6 +31,26 @@ window.addEventListener("DOMContentLoaded", () => {
       } else {
         window.gameLogic.nextRound(currentRoomCode);
       }
+    }, 3000);
+  }
+
+  function showGuessOverlay(correct, location, guesser) {
+    const overlay = document.getElementById("resultOverlay");
+    const cls = correct ? "impostor-animation" : "innocent-animation";
+    overlay.textContent = correct
+      ? `${guesser} doğru tahmin etti! Konum ${location}. Sahtekar kazandı!`
+      : `${guesser} yanlış tahmin etti! Konum ${location}. Masumlar kazandı!`;
+    overlay.classList.remove(
+      "hidden",
+      "impostor-animation",
+      "innocent-animation"
+    );
+    overlay.classList.add(cls);
+    setTimeout(() => {
+      overlay.classList.add("hidden");
+      overlay.classList.remove("impostor-animation", "innocent-animation");
+      localStorage.clear();
+      location.reload();
     }, 3000);
   }
 
@@ -196,7 +217,7 @@ window.addEventListener("DOMContentLoaded", () => {
    *  OYUNU BAŞLAT
    * ------------------------ */
   document.getElementById("startGameBtn").addEventListener("click", () => {
-    const settings = {
+   const settings = {
       playerCount: parseInt(document.getElementById("playerCount").value),
       spyCount: parseInt(document.getElementById("spyCount").value),
       useRoles: document.getElementById("useRoles").value === "yes",
@@ -208,6 +229,13 @@ window.addEventListener("DOMContentLoaded", () => {
     };
 
    window.gameLogic.startGame(currentRoomCode, settings);
+  });
+  document.getElementById("guessBtn").addEventListener("click", () => {
+    const loc = document.getElementById("guessSelect").value;
+    if (loc) {
+      window.gameLogic.guessLocation(currentRoomCode, currentPlayerName, loc);
+      document.getElementById("guessSection").classList.add("hidden");
+    }
   });
 
   // Oylamayı başlatma isteği
@@ -266,6 +294,19 @@ window.addEventListener("DOMContentLoaded", () => {
       const roomData = snapshot.val();
       const leaveBtn = document.getElementById("leaveRoomBtn");
       const exitBtn = document.getElementById("backToHomeBtn");
+      if (roomData && roomData.guessResult) {
+        const key = JSON.stringify(roomData.guessResult);
+        if (key !== lastGuessResult) {
+          lastGuessResult = key;
+          showGuessOverlay(
+            roomData.guessResult.correct,
+            roomData.location,
+            roomData.guessResult.guesser
+          );
+        }
+      } else {
+        lastGuessResult = null;
+      }
       if (!roomData || roomData.status !== "started") {
         document.getElementById("gameActions").classList.add("hidden");
         leaveBtn?.classList.remove("hidden");
@@ -287,10 +328,19 @@ window.addEventListener("DOMContentLoaded", () => {
           roleMessageEl.innerHTML =
             `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
             `Olası konumlar: ${myData.allLocations.join(", ")}`;
+          const guessSection = document.getElementById("guessSection");
+          const canGuess =
+            roomData.settings && roomData.settings.guessCount > 0 && !roomData.guessResult;
+          guessSection.classList.toggle("hidden", !canGuess);
+          const guessSelect = document.getElementById("guessSelect");
+          guessSelect.innerHTML = myData.allLocations
+            .map((loc) => `<option value="${loc}">${loc}</option>`)
+            .join("");
         } else {
           roleMessageEl.innerHTML =
             `📍 Konum: <b>${myData.location}</b><br>` +
             `🎭 Rolün: <b>${myData.role}</b>`;
+          document.getElementById("guessSection").classList.add("hidden");
         }
 
         // Oylama durumu
