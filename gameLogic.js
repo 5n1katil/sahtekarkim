@@ -242,6 +242,7 @@ window.gameLogic = {
         gameState,
         round: 1,
         votingStarted: false,
+        guessResult: null,
       });
     });
   },
@@ -270,6 +271,28 @@ window.gameLogic = {
   startVoting: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref.update({ votingStarted: true, votes: null, voteResult: null });
+  },
+
+  guessLocation: function (roomCode, playerName, guessedLocation) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref.get().then((snap) => {
+      if (!snap.exists()) return;
+      const data = snap.val();
+      if (
+        data.status !== "started" ||
+        !data.spies ||
+        !data.spies.includes(playerName) ||
+        (data.settings && data.settings.guessCount <= 0) ||
+        data.guessResult
+      ) {
+        return;
+      }
+      const correct = data.location === guessedLocation;
+      ref.update({
+        guessResult: { guesser: playerName, guessedLocation, correct },
+        status: "finished",
+      });
+    });
   },
 
   submitVote: function (roomCode, voter, target) {
