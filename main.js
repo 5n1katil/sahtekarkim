@@ -11,6 +11,22 @@ window.addEventListener("DOMContentLoaded", () => {
   let lastGuessResult = null;
   let gameEnded = false;
 
+  function getQuestionWord(count) {
+    const words = {
+      1: "birer",
+      2: "ikişer",
+      3: "üçer",
+      4: "dörder",
+      5: "beşer",
+      6: "altışar",
+      7: "yedişer",
+      8: "sekizer",
+      9: "dokuzar",
+      10: "onar",
+    };
+    return words[count] || `${count}'er`;
+  }
+
   function showResultOverlay(isSpy, name) {
     const overlay = document.getElementById("resultOverlay");
     const cls = isSpy ? "impostor-animation" : "innocent-animation";
@@ -483,6 +499,15 @@ window.addEventListener("DOMContentLoaded", () => {
             `🎭 Rolün: <b>${myData.role}</b>`;
           document.getElementById("guessSection").classList.add("hidden");
           document.getElementById("eliminationSection").classList.add("hidden");
+        }
+
+        const votingInstructionEl = document.getElementById("votingInstruction");
+        if (votingInstructionEl) {
+          const qc = roomData.settings && roomData.settings.questionCount
+            ? roomData.settings.questionCount
+            : 1;
+          const word = getQuestionWord(qc);
+          votingInstructionEl.textContent = `Herkes birbirine ${word} soru sorduktan sonra oylamaya başlayınız...`;
         }
 
         // Oylama durumu
