@@ -287,11 +287,27 @@ window.gameLogic = {
       ) {
         return;
       }
+
+      const remaining = data.settings?.guessCount || 0;
       const correct = data.location === guessedLocation;
-      ref.update({
-        guessResult: { guesser: playerName, guessedLocation, correct },
-        status: "finished",
-      });
+
+      if (correct) {
+        ref.update({
+          guessResult: { guesser: playerName, guessedLocation, correct: true },
+          status: "finished",
+        });
+      } else if (remaining > 1) {
+        ref.update({
+          'settings/guessCount': remaining - 1,
+          guessResult: { correct: false },
+        });
+      } else {
+        ref.update({
+          'settings/guessCount': 0,
+          guessResult: { guesser: playerName, guessedLocation, correct: false },
+          status: "finished",
+        });
+      }
     });
   },
 
