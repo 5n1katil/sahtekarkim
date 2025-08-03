@@ -1,3 +1,35 @@
+function getQuestionWord(count) {
+  const words = {
+    1: "birer",
+    2: "ikişer",
+    3: "üçer",
+    4: "dörder",
+    5: "beşer",
+    6: "altışar",
+    7: "yedişer",
+    8: "sekizer",
+    9: "dokuzar",
+    10: "onar",
+  };
+  if (words[count]) return words[count];
+
+  const suffixes = {
+    0: "ar",
+    1: "er",
+    2: "şer",
+    3: "er",
+    4: "er",
+    5: "er",
+    6: "şar",
+    7: "şer",
+    8: "er",
+    9: "ar",
+  };
+  const lastDigit = Math.abs(Number(count)) % 10;
+  const suffix = suffixes[lastDigit] || "er";
+  return `${count}'${suffix}`;
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("beforeunload", () => {
     localStorage.clear();
@@ -10,22 +42,6 @@ window.addEventListener("DOMContentLoaded", () => {
   let lastVoteResult = null;
   let lastGuessResult = null;
   let gameEnded = false;
-
-  function getQuestionWord(count) {
-    const words = {
-      1: "birer",
-      2: "ikişer",
-      3: "üçer",
-      4: "dörder",
-      5: "beşer",
-      6: "altışar",
-      7: "yedişer",
-      8: "sekizer",
-      9: "dokuzar",
-      10: "onar",
-    };
-    return words[count] || `${count}'er`;
-  }
 
   function showResultOverlay(isSpy, name) {
     const overlay = document.getElementById("resultOverlay");
