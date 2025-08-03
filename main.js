@@ -37,8 +37,8 @@ window.addEventListener("DOMContentLoaded", () => {
   function showGuessOverlay(correct, location, guesser) {
     const overlay = document.getElementById("resultOverlay");
     const cls = correct ? "impostor-animation" : "innocent-animation";
-    overlay.textContent = correct
-      ? `${guesser} doğru tahmin etti! Konum ${location}. Sahtekar kazandı!`
+    overlay.innerHTML = correct
+      ? `Sahtekar kazandı! Oyun Bitti...<br><span class="impostor-name">${guesser}</span> konumu ${location} doğru tahmin etti.`
       : `${guesser} yanlış tahmin etti! Konum ${location}. Masumlar kazandı!`;
     overlay.classList.remove(
       "hidden",
@@ -46,12 +46,20 @@ window.addEventListener("DOMContentLoaded", () => {
       "innocent-animation"
     );
     overlay.classList.add(cls);
+    const delay = correct ? 10000 : 3000;
     setTimeout(() => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
-      localStorage.clear();
-      location.reload();
-    }, 3000);
+      if (correct) {
+        window.gameLogic.deleteRoom(currentRoomCode).then(() => {
+          localStorage.clear();
+          location.href = "/";
+        });
+      } else {
+        localStorage.clear();
+        location.reload();
+      }
+    }, delay);
   }
 
   function showGuessWarning(remaining) {
@@ -68,9 +76,14 @@ window.addEventListener("DOMContentLoaded", () => {
     }, 3000);
   }
 
-  function showSpyWinOverlay() {
+  function showSpyWinOverlay(spyNames) {
     const overlay = document.getElementById("resultOverlay");
-    overlay.textContent = "Sahtekar kazandı! Oyun Bitti...";
+    const names = (spyNames || [])
+      .filter((n) => currentPlayers.includes(n))
+      .join(", ");
+    overlay.innerHTML =
+      "Sahtekar kazandı! Oyun Bitti..." +
+      (names ? `<br><span class=\"impostor-name\">${names}</span>` : "");
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
@@ -80,9 +93,11 @@ window.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
-      localStorage.clear();
-      location.reload();
-    }, 3000);
+      window.gameLogic.deleteRoom(currentRoomCode).then(() => {
+        localStorage.clear();
+        location.href = "/";
+      });
+    }, 10000);
   }
 
   /** Sayfa yenilendiğinde oyuncu bilgisini koru */
@@ -397,10 +412,11 @@ window.addEventListener("DOMContentLoaded", () => {
       }
       if (
         roomData &&
+        !roomData.guessResult?.correct &&
         (roomData.spyParityWin ||
           (roomData.status === "finished" && roomData.winner === "spy"))
       ) {
-        showSpyWinOverlay();
+        showSpyWinOverlay(roomData.spies);
         window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
         return;
       }
