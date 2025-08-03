@@ -92,11 +92,15 @@ window.gameLogic = {
         location.reload();
       }
 
-      // Kurucu yoksa odayı kapat
+      // Kurucu ayrıldıysa ve oyun başlamadıysa odayı kapat
       const roomRef = window.db.ref(`rooms/${roomCode}`);
       roomRef.get().then((snap) => {
         const data = snap.val();
-        if (!data || !data.creator || !players.includes(data.creator)) {
+        if (
+          data &&
+          data.status !== "started" &&
+          (!data.creator || !players.includes(data.creator))
+        ) {
           roomRef.remove();
           localStorage.clear();
           location.reload();
@@ -361,20 +365,36 @@ window.gameLogic = {
     ref.get().then((snap) => {
       if (!snap.exists()) return;
       const data = snap.val();
-      if (data.settings && data.settings.canEliminate) {
-        ref.update({ eliminationPending: true });
-      } else {
-        this.nextRound(roomCode);
+      const removals = [];
+      if (data.voteResult && data.voteResult.voted && !data.voteResult.isSpy) {
+        removals.push(
+          ref.child(`eliminations/${data.voteResult.voted}`).set("vote")
+        );
+        removals.push(ref.child(`players/${data.voteResult.voted}`).remove());
+        removals.push(ref.child(`playerRoles/${data.voteResult.voted}`).remove());
       }
+
+      Promise.all(removals).then(() => {
+        if (data.settings && data.settings.canEliminate) {
+          ref.update({ eliminationPending: true, voteResult: null });
+        } else {
+          ref.update({ voteResult: null }).then(() => {
+            this.nextRound(roomCode);
+          });
+        }
+      });
     });
   },
 
   eliminatePlayer: function (roomCode, target) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref
-      .update({ [`eliminations/${target}`]: true, eliminationPending: false })
+      .update({ [`eliminations/${target}`]: "impostor", eliminationPending: false })
       .then(() => {
-        ref.child(`players/${target}`).remove().then(() => {
+        Promise.all([
+          ref.child(`players/${target}`).remove(),
+          ref.child(`playerRoles/${target}`).remove(),
+        ]).then(() => {
           this.nextRound(roomCode);
         });
       });
