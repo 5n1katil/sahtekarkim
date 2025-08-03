@@ -29,7 +29,7 @@ window.addEventListener("DOMContentLoaded", () => {
         localStorage.clear();
         location.reload();
       } else {
-        window.gameLogic.nextRound(currentRoomCode);
+        window.gameLogic.endRound(currentRoomCode);
       }
     }, 3000);
   }
@@ -292,6 +292,14 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  document.getElementById("eliminateBtn").addEventListener("click", () => {
+    const target = document.getElementById("eliminateSelect").value;
+    if (target) {
+      window.gameLogic.eliminatePlayer(currentRoomCode, target);
+      document.getElementById("eliminationSection").classList.add("hidden");
+    }
+  });
+
   // Sonraki tur
   document.getElementById("nextRoundBtn").addEventListener("click", () => {
     window.gameLogic.nextRound(currentRoomCode);
@@ -331,6 +339,28 @@ window.addEventListener("DOMContentLoaded", () => {
       const roomData = snapshot.val();
       const leaveBtn = document.getElementById("leaveRoomBtn");
       const exitBtn = document.getElementById("backToHomeBtn");
+      if (
+        roomData &&
+        roomData.eliminations &&
+        roomData.eliminations[currentPlayerName]
+      ) {
+        const overlay = document.getElementById("resultOverlay");
+        overlay.textContent = "Sahtekar seni eledi!";
+        overlay.classList.remove(
+          "hidden",
+          "impostor-animation",
+          "innocent-animation"
+        );
+        overlay.classList.add("impostor-animation");
+        setTimeout(() => {
+          window.db
+            .ref(`rooms/${currentRoomCode}/eliminations/${currentPlayerName}`)
+            .remove();
+          localStorage.clear();
+          location.reload();
+        }, 3000);
+        return;
+      }
       if (roomData && roomData.guessResult) {
         const key = JSON.stringify(roomData.guessResult);
         if (key !== lastGuessResult) {
@@ -375,11 +405,27 @@ window.addEventListener("DOMContentLoaded", () => {
           guessSelect.innerHTML = myData.allLocations
             .map((loc) => `<option value="${loc}">${loc}</option>`)
             .join("");
+          const elimSection = document.getElementById("eliminationSection");
+          if (
+            roomData.settings &&
+            roomData.settings.canEliminate &&
+            roomData.eliminationPending
+          ) {
+            elimSection.classList.remove("hidden");
+            const elimSelect = document.getElementById("eliminateSelect");
+            elimSelect.innerHTML = currentPlayers
+              .filter((p) => p !== currentPlayerName)
+              .map((p) => `<option value="${p}">${p}</option>`)
+              .join("");
+          } else {
+            elimSection.classList.add("hidden");
+          }
         } else {
           roleMessageEl.innerHTML =
             `📍 Konum: <b>${myData.location}</b><br>` +
             `🎭 Rolün: <b>${myData.role}</b>`;
           document.getElementById("guessSection").classList.add("hidden");
+          document.getElementById("eliminationSection").classList.add("hidden");
         }
 
         // Oylama durumu
