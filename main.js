@@ -28,7 +28,7 @@ window.addEventListener("DOMContentLoaded", () => {
       overlay.classList.remove("impostor-animation", "innocent-animation");
       if (isSpy) {
         localStorage.clear();
-        location.reload();
+        location.href = "https://5n1katil.github.io/detective/";
       } else {
         window.gameLogic.endRound(currentRoomCode);
       }
@@ -55,7 +55,7 @@ window.addEventListener("DOMContentLoaded", () => {
       if (correct) {
         const finish = () => {
           localStorage.clear();
-          location.href = "/";
+          location.href = "https://5n1katil.github.io/detective/";
         };
         if (isCreator) {
           window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
@@ -64,7 +64,7 @@ window.addEventListener("DOMContentLoaded", () => {
         }
       } else {
         localStorage.clear();
-        location.reload();
+        location.href = "https://5n1katil.github.io/detective/";
       }
     }, delay);
   }
@@ -103,7 +103,7 @@ window.addEventListener("DOMContentLoaded", () => {
       overlay.classList.remove("impostor-animation", "innocent-animation");
       const finish = () => {
         localStorage.clear();
-        location.href = "/";
+        location.href = "https://5n1katil.github.io/detective/";
       };
       if (isCreator) {
         window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
