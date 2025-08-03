@@ -54,7 +54,44 @@ window.addEventListener("DOMContentLoaded", () => {
     }, 3000);
   }
 
+  function showGuessWarning(remaining) {
+    const overlay = document.getElementById("resultOverlay");
+    overlay.textContent =
+      "Bir sahtekar konumu tahmin etti ama bulamadı!" +
+      (typeof remaining === "number" ? ` Kalan tahmin hakkı: ${remaining}.` : "");
+    overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
+    overlay.classList.add("innocent-animation");
+    setTimeout(() => {
+      overlay.classList.add("hidden");
+      overlay.classList.remove("innocent-animation");
+      window.db.ref(`rooms/${currentRoomCode}/guessResult`).remove();
+    }, 3000);
+  }
+
   /** Sayfa yenilendiğinde oyuncu bilgisini koru */
+  if (currentRoomCode && currentPlayerName) {
+    const roomRef = window.db.ref("rooms/" + currentRoomCode);
+    roomRef.get().then((roomSnap) => {
+      if (!roomSnap.exists()) {
+        // Oda silinmişse bilgiler geçersizdir
+        localStorage.clear();
+        currentRoomCode = null;
+        currentPlayerName = null;
+        isCreator = false;
+        return;
+      }
+
+      // Her ihtimale karşı oyuncuyu tekrar kaydet
+      const playerRef = window.db.ref(
+        `rooms/${currentRoomCode}/players/${currentPlayerName}`
+      );
+      playerRef.set({ name: currentPlayerName });
+          });
+  }
+
+  /** ------------------------
+   *  SAYFA YENİLENİNCE ODADA KAL
+   * ------------------------ */
   if (currentRoomCode && currentPlayerName) {
     const roomRef = window.db.ref("rooms/" + currentRoomCode);
     roomRef.get().then((roomSnap) => {
@@ -298,11 +335,13 @@ window.addEventListener("DOMContentLoaded", () => {
         const key = JSON.stringify(roomData.guessResult);
         if (key !== lastGuessResult) {
           lastGuessResult = key;
-          showGuessOverlay(
-            roomData.guessResult.correct,
-            roomData.location,
-            roomData.guessResult.guesser
-          );
+          if (roomData.guessResult.correct) {
+            showGuessOverlay(true, roomData.location, roomData.guessResult.guesser);
+          } else if (roomData.guessResult.guesser) {
+            showGuessOverlay(false, roomData.location, roomData.guessResult.guesser);
+          } else {
+            showGuessWarning(roomData.settings && roomData.settings.guessCount);
+          }
         }
       } else {
         lastGuessResult = null;
