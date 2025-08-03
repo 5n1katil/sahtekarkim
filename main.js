@@ -344,8 +344,10 @@ window.addEventListener("DOMContentLoaded", () => {
         roomData.eliminations &&
         roomData.eliminations[currentPlayerName]
       ) {
+        const reason = roomData.eliminations[currentPlayerName];
         const overlay = document.getElementById("resultOverlay");
-        overlay.textContent = "Sahtekar seni eledi!";
+        overlay.textContent =
+          reason === "vote" ? "Oylama sonucu elendin!" : "Sahtekar seni eledi!";
         overlay.classList.remove(
           "hidden",
           "impostor-animation",
