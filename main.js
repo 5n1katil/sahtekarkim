@@ -9,6 +9,7 @@ window.addEventListener("DOMContentLoaded", () => {
   let currentPlayers = [];
   let lastVoteResult = null;
   let lastGuessResult = null;
+  let gameEnded = false;
 
   function showResultOverlay(isSpy, name) {
     const overlay = document.getElementById("resultOverlay");
@@ -37,6 +38,7 @@ window.addEventListener("DOMContentLoaded", () => {
   function showGuessOverlay(correct, location, guesser) {
     const overlay = document.getElementById("resultOverlay");
     const cls = correct ? "impostor-animation" : "innocent-animation";
+    if (correct) gameEnded = true;
     overlay.innerHTML = correct
       ? `Sahtekar kazandı! Oyun Bitti...<br><span class="impostor-name">${guesser}</span> konumu ${location} doğru tahmin etti.`
       : `${guesser} yanlış tahmin etti! Konum ${location}. Masumlar kazandı!`;
@@ -51,10 +53,15 @@ window.addEventListener("DOMContentLoaded", () => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
       if (correct) {
-        window.gameLogic.deleteRoom(currentRoomCode).then(() => {
+        const finish = () => {
           localStorage.clear();
           location.href = "/";
-        });
+        };
+        if (isCreator) {
+          window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
+        } else {
+          finish();
+        }
       } else {
         localStorage.clear();
         location.reload();
@@ -81,6 +88,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const names = (spyNames || [])
       .filter((n) => currentPlayers.includes(n))
       .join(", ");
+    gameEnded = true;
     overlay.innerHTML =
       "Sahtekar kazandı! Oyun Bitti..." +
       (names ? `<br><span class=\"impostor-name\">${names}</span>` : "");
@@ -93,10 +101,15 @@ window.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
-      window.gameLogic.deleteRoom(currentRoomCode).then(() => {
+      const finish = () => {
         localStorage.clear();
         location.href = "/";
-      });
+      };
+      if (isCreator) {
+        window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
+      } else {
+        finish();
+      }
     }, 10000);
   }
 
@@ -358,9 +371,9 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Oda silinirse herkesi at
+    // Oda silinirse herkesi at (oyun bitmediyse)
     window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
-      if (!snapshot.exists()) {
+      if (!snapshot.exists() && !gameEnded) {
         localStorage.clear();
         location.reload();
       }
