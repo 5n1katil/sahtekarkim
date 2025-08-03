@@ -418,7 +418,7 @@ window.gameLogic = {
       const activeSpies = (data.spies || []).filter((s) => players.includes(s));
       const innocentCount = players.length - activeSpies.length;
       if (innocentCount <= 1) {
-        ref.update({ status: "finished", winner: "spy" });
+        ref.update({ status: "finished", winner: "spy", spyParityWin: true });
         return true;
       }
       return false;
