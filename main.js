@@ -395,8 +395,13 @@ window.addEventListener("DOMContentLoaded", () => {
       } else {
         lastGuessResult = null;
       }
-      if (roomData && roomData.status === "finished" && roomData.winner === "spy") {
+      if (
+        roomData &&
+        (roomData.spyParityWin ||
+          (roomData.status === "finished" && roomData.winner === "spy"))
+      ) {
         showSpyWinOverlay();
+        window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
         return;
       }
       if (!roomData || roomData.status !== "started") {
