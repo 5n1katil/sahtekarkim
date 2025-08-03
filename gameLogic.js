@@ -356,6 +356,30 @@ window.gameLogic = {
     });
   },
 
+  endRound: function (roomCode) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref.get().then((snap) => {
+      if (!snap.exists()) return;
+      const data = snap.val();
+      if (data.settings && data.settings.canEliminate) {
+        ref.update({ eliminationPending: true });
+      } else {
+        this.nextRound(roomCode);
+      }
+    });
+  },
+
+  eliminatePlayer: function (roomCode, target) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref
+      .update({ [`eliminations/${target}`]: true, eliminationPending: false })
+      .then(() => {
+        ref.child(`players/${target}`).remove().then(() => {
+          this.nextRound(roomCode);
+        });
+      });
+  },
+
   nextRound: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref.get().then((snap) => {
@@ -368,6 +392,7 @@ window.gameLogic = {
         voteResult: null,
         votingStarted: false,
         voteRequests: null,
+        eliminationPending: false,
       });
     });
   },
