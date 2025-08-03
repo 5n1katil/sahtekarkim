@@ -68,6 +68,23 @@ window.addEventListener("DOMContentLoaded", () => {
     }, 3000);
   }
 
+  function showSpyWinOverlay() {
+    const overlay = document.getElementById("resultOverlay");
+    overlay.textContent = "Sahtekar kazandı! Oyun Bitti...";
+    overlay.classList.remove(
+      "hidden",
+      "impostor-animation",
+      "innocent-animation"
+    );
+    overlay.classList.add("impostor-animation");
+    setTimeout(() => {
+      overlay.classList.add("hidden");
+      overlay.classList.remove("impostor-animation", "innocent-animation");
+      localStorage.clear();
+      location.reload();
+    }, 3000);
+  }
+
   /** Sayfa yenilendiğinde oyuncu bilgisini koru */
   if (currentRoomCode && currentPlayerName) {
     const roomRef = window.db.ref("rooms/" + currentRoomCode);
@@ -377,6 +394,10 @@ window.addEventListener("DOMContentLoaded", () => {
         }
       } else {
         lastGuessResult = null;
+      }
+      if (roomData && roomData.status === "finished" && roomData.winner === "spy") {
+        showSpyWinOverlay();
+        return;
       }
       if (!roomData || roomData.status !== "started") {
         document.getElementById("gameActions").classList.add("hidden");
