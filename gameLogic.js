@@ -151,7 +151,7 @@ window.gameLogic = {
       const players = Object.keys(roomData.players || {});
 
       if (players.length < 4) {
-        alert("Oyun başlamak için en az 4 oyuncu olmalı!");
+        alert("Oyuna başlamak için en az 4 oyuncu olmalıdır!");
         return;
       }
 
