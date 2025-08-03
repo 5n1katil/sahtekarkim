@@ -150,8 +150,8 @@ window.gameLogic = {
       const roomData = snapshot.val();
       const players = Object.keys(roomData.players || {});
 
-      if (players.length < 2) {
-        alert("Oyun başlamak için en az 2 oyuncu olmalı!");
+      if (players.length < 4) {
+        alert("Oyun başlamak için en az 4 oyuncu olmalı!");
         return;
       }
 
