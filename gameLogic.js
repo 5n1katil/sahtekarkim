@@ -1,17 +1,19 @@
-async function getUid() {
-  const user = window.auth && window.auth.currentUser;
-  if (user && user.uid) return user.uid;
-  return new Promise((resolve) => {
-    const unsubscribe = window.auth.onAuthStateChanged((u) => {
-      if (u && u.uid) {
-        unsubscribe();
-        resolve(u.uid);
-      }
-    });
-  });
-}
-
 window.gameLogic = {
+  getUid: async function () {
+    if (window.auth && window.auth.currentUser && window.auth.currentUser.uid) {
+      return window.auth.currentUser.uid;
+    }
+    if (window.myUid) return window.myUid;
+    if (window.auth) {
+      return new Promise((resolve) => {
+        const unsubscribe = window.auth.onAuthStateChanged((user) => {
+          unsubscribe();
+          resolve(user ? user.uid : null);
+        });
+      });
+    }
+    return null;
+  },
   /** Oda oluştur */
   createRoom: async function (
     creatorName,
@@ -25,7 +27,11 @@ window.gameLogic = {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = window.db.ref("rooms/" + roomCode);
 
-    const uid = await getUid();
+    const uid = await this.getUid();
+    if (!uid) {
+      alert("Kimlik doğrulaması tamamlanamadı. Lütfen tekrar deneyin.");
+      return null;
+    }
 
     const roomData = {
       creator: creatorName,
@@ -57,30 +63,37 @@ window.gameLogic = {
   },
 
   /** Odaya katıl */
-  joinRoom: async function (playerName, roomCode) {
+  joinRoom: function (playerName, roomCode, callback) {
     const roomRef = window.db.ref("rooms/" + roomCode);
-    const snapshot = await roomRef.get();
-    if (!snapshot.exists()) {
-      throw new Error("Oda bulunamadı!");
-    }
 
-    const roomData = snapshot.val();
-    const players = roomData.players || {};
+    roomRef.get().then(async (snapshot) => {
+      if (!snapshot.exists()) {
+        callback?.("Oda bulunamadı!", null);
+        return;
+      }
 
-    if (Object.keys(players).length >= roomData.settings.playerCount) {
-      throw new Error("Oda dolu!");
-    }
+      const roomData = snapshot.val();
+      const players = roomData.players || {};
 
-    const uid = await getUid();
-    const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
-    await playerRef.set({ name: playerName, isCreator: false });
+      if (Object.keys(players).length >= roomData.settings.playerCount) {
+        callback?.("Oda dolu!", null);
+        return;
+      }
+      const uid = await this.getUid();
+      if (!uid) {
+        callback?.("Kimlik doğrulanamadı", null);
+        return;
+      }
+      const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
+      await playerRef.set({ name: playerName, isCreator: false });
 
-    localStorage.setItem("roomCode", roomCode);
-    localStorage.setItem("playerName", playerName);
-    localStorage.setItem("isCreator", "false");
+      localStorage.setItem("roomCode", roomCode);
+      localStorage.setItem("playerName", playerName);
+      localStorage.setItem("isCreator", "false");
 
-    const playerNames = Object.values(players).map((p) => p.name);
-    return playerNames.concat(playerName);
+      const playerNames = Object.values(players).map((p) => p.name);
+      callback?.(null, playerNames.concat(playerName));
+    });
   },
 
   /** Odayı sil */
@@ -90,7 +103,8 @@ window.gameLogic = {
 
   /** Odadan çık */
   leaveRoom: async function (roomCode) {
-    const uid = await getUid();
+    const uid = await this.getUid();
+    if (!uid) return Promise.resolve();
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
     localStorage.clear();
     return playerRef.remove();
@@ -135,7 +149,7 @@ window.gameLogic = {
   listenRoom: function (roomCode) {
     const roomRef = window.db.ref("rooms/" + roomCode);
 
-    roomRef.on("value", (snapshot) => {
+    roomRef.on("value", async (snapshot) => {
       const roomData = snapshot.val();
       if (!roomData) return;
 
@@ -149,7 +163,7 @@ window.gameLogic = {
 
       // Oyun başladıysa rol göster
       if (roomData.status === "started") {
-        const uid = window.auth.currentUser.uid;
+        const uid = await this.getUid();
         if (uid && roomData.playerRoles && roomData.playerRoles[uid]) {
           const myRole = roomData.playerRoles[uid];
 
