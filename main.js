@@ -238,37 +238,34 @@ window.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    try {
-      const roomCode = await window.gameLogic.createRoom(
-        creatorName,
-        playerCount,
-        spyCount,
-        useRoles,
-        questionCount,
-        guessCount,
-        canEliminate
-      );
+    const roomCode = await window.gameLogic.createRoom(
+      creatorName,
+      playerCount,
+      spyCount,
+      useRoles,
+      questionCount,
+      guessCount,
+      canEliminate
+    );
+    if (!roomCode) return;
 
-      currentRoomCode = roomCode;
-      currentPlayerName = creatorName;
-      isCreator = true;
+    currentRoomCode = roomCode;
+    currentPlayerName = creatorName;
+    isCreator = true;
 
-      // LocalStorage güncelle
-      localStorage.setItem("roomCode", currentRoomCode);
-      localStorage.setItem("playerName", currentPlayerName);
-      localStorage.setItem("isCreator", "true");
+    // LocalStorage güncelle
+    localStorage.setItem("roomCode", currentRoomCode);
+    localStorage.setItem("playerName", currentPlayerName);
+    localStorage.setItem("isCreator", "true");
 
-      showRoomUI(roomCode, creatorName, true);
-      listenPlayersAndRoom(roomCode);
-    } catch (err) {
-      alert(err.message || err);
-    }
+    showRoomUI(roomCode, creatorName, true);
+    listenPlayersAndRoom(roomCode);
   });
 
   /** ------------------------
    *  ODAYA KATIL
    * ------------------------ */
-  document.getElementById("joinRoomBtn").addEventListener("click", async () => {
+  document.getElementById("joinRoomBtn").addEventListener("click", () => {
     const joinName = document.getElementById("joinName").value.trim();
     const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
 
