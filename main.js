@@ -594,3 +594,20 @@ window.addEventListener("DOMContentLoaded", () => {
   /** ------------------------
    *  ODA UI GÖSTER
    * ------------------------ */
+  function showRoomUI(roomCode, playerName, isCreator) {
+    document.getElementById("setup").classList.add("hidden");
+    document.getElementById("playerJoin").classList.add("hidden");
+    document.getElementById("roomInfo").classList.remove("hidden");
+
+    document.getElementById("roomCode").textContent = roomCode;
+    document.getElementById("roomTitle").textContent = isCreator
+      ? "Oda başarıyla oluşturuldu!"
+      : "Oyun odasına hoş geldiniz!";
+    document.getElementById("roomInstructions").textContent = isCreator
+      ? "Diğer oyuncular bu kodla giriş yapabilir."
+      : "Oda kurucusunun oyunu başlatmasını bekleyin.";
+
+    document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
+    document.getElementById("leaveRoomBtn").classList.remove("hidden");
+  }
+});
