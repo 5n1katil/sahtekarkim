@@ -1,18 +1,9 @@
 // firebase.js
 // -------------------------
-// Modular Firebase v10+ setup for browser (ESM)
+// Firebase compat setup (no modules)
 // -------------------------
 
-// 1. Import the SDKs you need
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {
-  getAuth,
-  signInAnonymously,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getDatabase } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
-// 2. Your web app's Firebase configuration
+// 1. Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
   authDomain: "detektif-c17bb.firebaseapp.com",
@@ -20,40 +11,34 @@ const firebaseConfig = {
   projectId: "detektif-c17bb",
   storageBucket: "detektif-c17bb.appspot.com",
   messagingSenderId: "422256375848",
-  appId: "1:422256375848:web:873b0a6372c992accf9d1d"
+  appId: "1:422256375848:web:873b0a6372c992accf9d1d",
 };
 
-// 3. Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// 2. Initialize Firebase
+firebase.initializeApp(firebaseConfig);
 
-// 4. Initialize and expose Auth & Database
-const auth = getAuth(app);
-const db   = getDatabase(app);
+// 3. Initialize and expose Auth & Database
+const auth = firebase.auth();
+const db = firebase.database();
 
 window.auth = auth;
-window.db   = db;
+window.db = db;
 
-// 5. Sign in anonymously on load
-signInAnonymously(auth)
+// 4. Sign in anonymously on load
+auth
+  .signInAnonymously()
   .then((userCredential) => {
-    const user = userCredential.user;
-    console.log("Anonim giriş başarılı. UID:", user.uid);
-    window.myUid = user.uid;
+    console.log("Anonim giriş başarılı. UID:", userCredential.user.uid);
   })
   .catch((err) => {
     console.error("Anonim giriş hatası:", err.code, err.message);
-    window.myUid = null;
   });
 
-// 6. Listen for auth state changes (e.g. page reloads)
-onAuthStateChanged(auth, (user) => {
+// 5. Listen for auth state changes
+auth.onAuthStateChanged((user) => {
   if (user) {
-    if (window.myUid !== user.uid) {
-      console.log("Auth state değişti, yeni UID:", user.uid);
-      window.myUid = user.uid;
-    }
+    window.myUid = user.uid;
   } else {
-    console.warn("Kullanıcı oturumu kapattı veya hiç açılmadı.");
     window.myUid = null;
   }
 });
