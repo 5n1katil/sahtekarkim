@@ -32,16 +32,11 @@ function getQuestionWord(count) {
 
 window.addEventListener("DOMContentLoaded", () => {
   // Preserve game info on refresh but reset when opening a new session
-  const isReload = sessionStorage.getItem("isReload");
-  if (isReload) {
-    sessionStorage.removeItem("isReload");
-  } else {
+  const nav = performance.getEntriesByType("navigation")[0];
+  const isReload = nav ? nav.type === "reload" : performance.navigation.type === 1;
+  if (!isReload) {
     localStorage.clear();
   }
-
-  window.addEventListener("beforeunload", () => {
-    sessionStorage.setItem("isReload", "true");
-  });
 
   let currentRoomCode = localStorage.getItem("roomCode") || null;
   let currentPlayerName = localStorage.getItem("playerName") || null;
