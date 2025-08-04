@@ -303,7 +303,7 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("leaveRoomBtn").addEventListener("click", () => {
     const action = isCreator
       ? window.gameLogic.deleteRoom(currentRoomCode)
-      : window.gameLogic.leaveRoom(currentRoomCode, currentPlayerName);
+      : window.gameLogic.leaveRoom(currentRoomCode);
 
     Promise.resolve(action).then(() => {
       localStorage.clear();
@@ -331,14 +331,14 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("guessBtn").addEventListener("click", () => {
     const loc = document.getElementById("guessSelect").value;
     if (loc) {
-      window.gameLogic.guessLocation(currentRoomCode, currentPlayerName, loc);
+      window.gameLogic.guessLocation(currentRoomCode, currentUid, loc);
       document.getElementById("guessSection").classList.add("hidden");
     }
   });
 
   // Oylamayı başlatma isteği
   document.getElementById("startVotingBtn").addEventListener("click", () => {
-    window.gameLogic.requestVotingStart(currentRoomCode, currentPlayerName);
+    window.gameLogic.requestVotingStart(currentRoomCode, currentUid);
     document
       .getElementById("waitingVoteStart")
       .classList.remove("hidden");
@@ -348,7 +348,7 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("submitVoteBtn").addEventListener("click", () => {
     const target = document.getElementById("voteSelect").value;
     if (target) {
-      window.gameLogic.submitVote(currentRoomCode, currentPlayerName, target);
+      window.gameLogic.submitVote(currentRoomCode, currentUid, target);
       document.getElementById("votingSection").classList.add("hidden");
     }
   });
@@ -371,18 +371,20 @@ window.addEventListener("DOMContentLoaded", () => {
    * ------------------------ */
   function listenPlayersAndRoom(roomCode) {
     // Oyuncu listesi
-    window.gameLogic.listenPlayers(roomCode, (players) => {
+    window.gameLogic.listenPlayers(roomCode, (players, playersObj) => {
       // Update player list in UI and player count
       window.updatePlayerList?.(players);
 
-      // Maintain a filtered array of current players
+      playerUidMap = playersObj || {};
+
+      // Maintain a filtered array of current players (names)
       currentPlayers = (players || []).filter((p) => p && p.trim() !== "");
 
       const selectEl = document.getElementById("voteSelect");
       if (selectEl) {
-        selectEl.innerHTML = currentPlayers
-          .filter((p) => p !== currentPlayerName)
-          .map((p) => `<option value="${p}">${p}</option>`)
+        selectEl.innerHTML = Object.entries(playerUidMap)
+          .filter(([uid]) => uid !== currentUid)
+          .map(([uid, p]) => `<option value="${uid}">${p.name}</option>`)
           .join("");
       }
     });
@@ -403,9 +405,9 @@ window.addEventListener("DOMContentLoaded", () => {
       if (
         roomData &&
         roomData.eliminations &&
-        roomData.eliminations[currentPlayerName]
+        roomData.eliminations[currentUid]
       ) {
-        const reason = roomData.eliminations[currentPlayerName];
+        const reason = roomData.eliminations[currentUid];
         const overlay = document.getElementById("resultOverlay");
         overlay.textContent =
           reason === "vote" ? "Oylama sonucu elendin!" : "Sahtekar seni eledi!";
@@ -417,7 +419,7 @@ window.addEventListener("DOMContentLoaded", () => {
         overlay.classList.add("impostor-animation");
         setTimeout(() => {
           window.db
-            .ref(`rooms/${currentRoomCode}/eliminations/${currentPlayerName}`)
+            .ref(`rooms/${currentRoomCode}/eliminations/${currentUid}`)
             .remove();
           localStorage.clear();
           location.reload();
@@ -429,9 +431,15 @@ window.addEventListener("DOMContentLoaded", () => {
         if (key !== lastGuessResult) {
           lastGuessResult = key;
           if (roomData.guessResult.correct) {
-            showGuessOverlay(true, roomData.location, roomData.guessResult.guesser);
+            const g =
+              playerUidMap[roomData.guessResult.guesser]?.name ||
+              roomData.guessResult.guesser;
+            showGuessOverlay(true, roomData.location, g);
           } else if (roomData.guessResult.guesser) {
-            showGuessOverlay(false, roomData.location, roomData.guessResult.guesser);
+            const g =
+              playerUidMap[roomData.guessResult.guesser]?.name ||
+              roomData.guessResult.guesser;
+            showGuessOverlay(false, roomData.location, g);
           } else {
             showGuessWarning(roomData.settings && roomData.settings.guessCount);
           }
@@ -458,8 +466,8 @@ window.addEventListener("DOMContentLoaded", () => {
       leaveBtn?.classList.add("hidden");
       exitBtn?.classList.remove("hidden");
 
-      if (roomData.playerRoles && roomData.playerRoles[currentPlayerName]) {
-        const myData = roomData.playerRoles[currentPlayerName];
+      if (roomData.playerRoles && roomData.playerRoles[currentUid]) {
+        const myData = roomData.playerRoles[currentUid];
         const roleMessageEl = document.getElementById("roleMessage");
 
         document.getElementById("roomInfo").classList.add("hidden");
@@ -486,9 +494,9 @@ window.addEventListener("DOMContentLoaded", () => {
           ) {
             elimSection.classList.remove("hidden");
             const elimSelect = document.getElementById("eliminateSelect");
-            elimSelect.innerHTML = currentPlayers
-              .filter((p) => p !== currentPlayerName)
-              .map((p) => `<option value="${p}">${p}</option>`)
+            elimSelect.innerHTML = Object.entries(playerUidMap)
+              .filter(([uid]) => uid !== currentUid)
+              .map(([uid, p]) => `<option value="${uid}">${p.name}</option>`)
               .join("");
           } else {
             elimSection.classList.add("hidden");
@@ -512,7 +520,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         // Oylama durumu
         const hasRequested =
-          roomData.voteRequests && roomData.voteRequests[currentPlayerName];
+          roomData.voteRequests && roomData.voteRequests[currentUid];
         document
           .getElementById("startVotingBtn")
           .classList.toggle("hidden", !!roomData.votingStarted);
@@ -523,7 +531,7 @@ window.addEventListener("DOMContentLoaded", () => {
             !(hasRequested && !roomData.votingStarted)
           );
         const hasVoted =
-          roomData.votes && roomData.votes[currentPlayerName] ? true : false;
+          roomData.votes && roomData.votes[currentUid] ? true : false;
         document
           .getElementById("votingSection")
           .classList.toggle("hidden", !roomData.votingStarted || hasVoted);
@@ -537,8 +545,8 @@ window.addEventListener("DOMContentLoaded", () => {
           Object.values(votes).forEach((t) => {
             counts[t] = (counts[t] || 0) + 1;
           });
-          voteCountListEl.innerHTML = currentPlayers
-            .map((p) => `<li>${p}: ${counts[p] || 0}</li>`)
+          voteCountListEl.innerHTML = Object.entries(playerUidMap)
+            .map(([uid, p]) => `<li>${p.name}: ${counts[uid] || 0}</li>`)
             .join("");
         } else {
           liveCountsEl.classList.add("hidden");
@@ -554,9 +562,12 @@ window.addEventListener("DOMContentLoaded", () => {
             const key = JSON.stringify(roomData.voteResult);
             if (key !== lastVoteResult) {
               lastVoteResult = key;
+              const votedName =
+                playerUidMap[roomData.voteResult.voted]?.name ||
+                roomData.voteResult.voted;
               showResultOverlay(
                 roomData.voteResult.isSpy,
-                roomData.voteResult.voted
+                votedName
               );
             }
             resultEl.classList.add("hidden");
@@ -582,20 +593,3 @@ window.addEventListener("DOMContentLoaded", () => {
   /** ------------------------
    *  ODA UI GÖSTER
    * ------------------------ */
-  function showRoomUI(roomCode, playerName, isCreator) {
-    document.getElementById("setup").classList.add("hidden");
-    document.getElementById("playerJoin").classList.add("hidden");
-    document.getElementById("roomInfo").classList.remove("hidden");
-
-    document.getElementById("roomCode").textContent = roomCode;
-    document.getElementById("roomTitle").textContent = isCreator
-      ? "Oda başarıyla oluşturuldu!"
-      : "Oyun odasına hoş geldiniz!";
-    document.getElementById("roomInstructions").textContent = isCreator
-      ? "Diğer oyuncular bu kodla giriş yapabilir."
-      : "Oda kurucusunun oyunu başlatmasını bekleyin.";
-
-    document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
-    document.getElementById("leaveRoomBtn").classList.remove("hidden");
-  }
-});
