@@ -281,21 +281,21 @@ window.addEventListener("DOMContentLoaded", () => {
 
     try {
       const players = await window.gameLogic.joinRoom(joinName, joinCode);
+
+      currentRoomCode = joinCode;
+      currentPlayerName = joinName;
+      isCreator = false;
+
+      localStorage.setItem("roomCode", currentRoomCode);
+      localStorage.setItem("playerName", currentPlayerName);
+      localStorage.setItem("isCreator", "false");
+
+      showRoomUI(joinCode, joinName, false);
+      listenPlayersAndRoom(joinCode);
     } catch (err) {
-      alert(err);
+      alert(err.message);
       return;
     }
-
-    currentRoomCode = joinCode;
-    currentPlayerName = joinName;
-    isCreator = false;
-
-    localStorage.setItem("roomCode", currentRoomCode);
-    localStorage.setItem("playerName", currentPlayerName);
-    localStorage.setItem("isCreator", "false");
-
-    showRoomUI(joinCode, joinName, false);
-    listenPlayersAndRoom(joinCode);
   });
 
   /** ------------------------
