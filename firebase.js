@@ -1,37 +1,60 @@
-/**
- * Firebase configuration
- */
+// firebase.js
+// -------------------------
+// Modular Firebase v10+ setup for browser (ESM)
+// -------------------------
+
+// 1. Import the SDKs you need
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getAuth,
+  signInAnonymously,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getDatabase } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// 2. Your web app's Firebase configuration
+//    → Replace apiKey with the one from Firebase Console → Project Settings → General → Web API Key
 const firebaseConfig = {
-  apiKey: "AIzaSyBx_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
+  apiKey: "YOUR_REAL_API_KEY_HERE",
   authDomain: "detektif-c17bb.firebaseapp.com",
   databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com",
   projectId: "detektif-c17bb",
   storageBucket: "detektif-c17bb.appspot.com",
   messagingSenderId: "422256375848",
-  appId: "1:422256375848:web:873b0a6372c992accf9d1d",
+  appId: "1:422256375848:web:873b0a6372c992accf9d1d"
 };
 
-/**
- * Initialize Firebase
- */
-firebase.initializeApp(firebaseConfig);
+// 3. Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
-/**
- * Expose database and auth for other scripts
- */
-window.db = firebase.database();
-window.auth = firebase.auth();
+// 4. Initialize and expose Auth & Database
+const auth = getAuth(app);
+const db   = getDatabase(app);
 
-/**
- * Automatically sign in anonymously and store UID
- */
-window.auth
-  .signInAnonymously()
-  .catch(err => console.error("Anonymous sign-in error:", err));
+window.auth = auth;
+window.db   = db;
 
-window.auth.onAuthStateChanged(user => {
-  if (user) {
+// 5. Sign in anonymously on load
+signInAnonymously(auth)
+  .then((userCredential) => {
+    const user = userCredential.user;
+    console.log("Anonim giriş başarılı. UID:", user.uid);
     window.myUid = user.uid;
-    console.log("Signed in anonymously. UID:", window.myUid);
+  })
+  .catch((err) => {
+    console.error("Anonim giriş hatası:", err.code, err.message);
+    window.myUid = null;
+  });
+
+// 6. Listen for auth state changes (e.g. page reloads)
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    if (window.myUid !== user.uid) {
+      console.log("Auth state değişti, yeni UID:", user.uid);
+      window.myUid = user.uid;
+    }
+  } else {
+    console.warn("Kullanıcı oturumu kapattı veya hiç açılmadı.");
+    window.myUid = null;
   }
 });
