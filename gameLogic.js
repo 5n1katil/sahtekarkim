@@ -1,6 +1,19 @@
+async function getUid() {
+  const user = window.auth && window.auth.currentUser;
+  if (user && user.uid) return user.uid;
+  return new Promise((resolve) => {
+    const unsubscribe = window.auth.onAuthStateChanged((u) => {
+      if (u && u.uid) {
+        unsubscribe();
+        resolve(u.uid);
+      }
+    });
+  });
+}
+
 window.gameLogic = {
   /** Oda oluştur */
-  createRoom: function (
+  createRoom: async function (
     creatorName,
     playerCount,
     spyCount,
@@ -12,7 +25,7 @@ window.gameLogic = {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = window.db.ref("rooms/" + roomCode);
 
-    const uid = window.auth.currentUser.uid;
+    const uid = await getUid();
 
     const roomData = {
       creator: creatorName,
@@ -30,11 +43,11 @@ window.gameLogic = {
     };
 
     // Save basic room data first
-    roomRef.set(roomData);
+    await roomRef.set(roomData);
 
     // Add the creator as the first player under their UID
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
-    playerRef.set({ name: creatorName, isCreator: true });
+    await playerRef.set({ name: creatorName, isCreator: true });
 
     localStorage.setItem("roomCode", roomCode);
     localStorage.setItem("playerName", creatorName);
@@ -44,34 +57,30 @@ window.gameLogic = {
   },
 
   /** Odaya katıl */
-  joinRoom: function (playerName, roomCode, callback) {
+  joinRoom: async function (playerName, roomCode) {
     const roomRef = window.db.ref("rooms/" + roomCode);
+    const snapshot = await roomRef.get();
+    if (!snapshot.exists()) {
+      throw new Error("Oda bulunamadı!");
+    }
 
-    roomRef.get().then((snapshot) => {
-      if (!snapshot.exists()) {
-        callback?.("Oda bulunamadı!", null);
-        return;
-      }
+    const roomData = snapshot.val();
+    const players = roomData.players || {};
 
-      const roomData = snapshot.val();
-      const players = roomData.players || {};
+    if (Object.keys(players).length >= roomData.settings.playerCount) {
+      throw new Error("Oda dolu!");
+    }
 
-      if (Object.keys(players).length >= roomData.settings.playerCount) {
-        callback?.("Oda dolu!", null);
-        return;
-      }
+    const uid = await getUid();
+    const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
+    await playerRef.set({ name: playerName, isCreator: false });
 
-      const uid = window.auth.currentUser.uid;
-      const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
-      playerRef.set({ name: playerName, isCreator: false });
+    localStorage.setItem("roomCode", roomCode);
+    localStorage.setItem("playerName", playerName);
+    localStorage.setItem("isCreator", "false");
 
-      localStorage.setItem("roomCode", roomCode);
-      localStorage.setItem("playerName", playerName);
-      localStorage.setItem("isCreator", "false");
-
-      const playerNames = Object.values(players).map((p) => p.name);
-      callback?.(null, playerNames.concat(playerName));
-    });
+    const playerNames = Object.values(players).map((p) => p.name);
+    return playerNames.concat(playerName);
   },
 
   /** Odayı sil */
@@ -80,8 +89,8 @@ window.gameLogic = {
   },
 
   /** Odadan çık */
-  leaveRoom: function (roomCode) {
-    const uid = window.auth.currentUser.uid;
+  leaveRoom: async function (roomCode) {
+    const uid = await getUid();
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
     localStorage.clear();
     return playerRef.remove();
