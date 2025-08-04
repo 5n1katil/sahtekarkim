@@ -31,8 +31,16 @@ function getQuestionWord(count) {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-  window.addEventListener("beforeunload", () => {
+  // Preserve game info on refresh but reset when opening a new session
+  const isReload = sessionStorage.getItem("isReload");
+  if (isReload) {
+    sessionStorage.removeItem("isReload");
+  } else {
     localStorage.clear();
+  }
+
+  window.addEventListener("beforeunload", () => {
+    sessionStorage.setItem("isReload", "true");
   });
 
   let currentRoomCode = localStorage.getItem("roomCode") || null;
