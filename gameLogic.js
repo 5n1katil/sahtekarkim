@@ -27,7 +27,7 @@ window.gameLogic = {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = window.db.ref("rooms/" + roomCode);
 
-    const uid = await this.getUid();
+    const uid = window.myUid;
     if (!uid) {
       alert("Kimlik doğrulaması tamamlanamadı. Lütfen tekrar deneyin.");
       return null;
@@ -79,7 +79,8 @@ window.gameLogic = {
         callback?.("Oda dolu!", null);
         return;
       }
-      const uid = await this.getUid();
+
+      const uid = window.myUid;
       if (!uid) {
         callback?.("Kimlik doğrulanamadı", null);
         return;
