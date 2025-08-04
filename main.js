@@ -265,7 +265,7 @@ window.addEventListener("DOMContentLoaded", () => {
   /** ------------------------
    *  ODAYA KATIL
    * ------------------------ */
-  document.getElementById("joinRoomBtn").addEventListener("click", () => {
+  document.getElementById("joinRoomBtn").addEventListener("click", async () => {
     const joinName = document.getElementById("joinName").value.trim();
     const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
 
@@ -280,9 +280,9 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      await window.gameLogic.joinRoom(joinName, joinCode);
+      const players = await window.gameLogic.joinRoom(joinName, joinCode);
     } catch (err) {
-      alert(err.message || err);
+      alert(err);
       return;
     }
 
