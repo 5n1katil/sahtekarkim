@@ -62,38 +62,33 @@ window.gameLogic = {
   },
 
   /** Odaya katıl */
-  joinRoom: function (playerName, roomCode, callback) {
+  joinRoom: async function (playerName, roomCode) {
     const roomRef = window.db.ref("rooms/" + roomCode);
+    const snapshot = await roomRef.get();
+    if (!snapshot.exists()) {
+      throw new Error("Oda bulunamadı!");
+    }
 
-    roomRef.get().then(async (snapshot) => {
-      if (!snapshot.exists()) {
-        callback?.("Oda bulunamadı!", null);
-        return;
-      }
+    const roomData = snapshot.val();
+    const players = roomData.players || {};
 
-      const roomData = snapshot.val();
-      const players = roomData.players || {};
+    if (Object.keys(players).length >= roomData.settings.playerCount) {
+      throw new Error("Oda dolu!");
+    }
 
-      if (Object.keys(players).length >= roomData.settings.playerCount) {
-        callback?.("Oda dolu!", null);
-        return;
-      }
+    const uid = await this.getUid();
+    if (!uid) {
+      throw new Error("Kimlik doğrulanamadı");
+    }
+    const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
+    await playerRef.set({ name: playerName, isCreator: false });
 
-      const uid = await this.getUid();
-      if (!uid) {
-        callback?.("Kimlik doğrulanamadı", null);
-        return;
-      }
-      const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
-      await playerRef.set({ name: playerName, isCreator: false });
+    const updatedPlayers = {
+      ...players,
+      [uid]: { name: playerName, isCreator: false },
+    };
 
-      localStorage.setItem("roomCode", roomCode);
-      localStorage.setItem("playerName", playerName);
-      localStorage.setItem("isCreator", "false");
-
-      const playerNames = Object.values(players).map((p) => p.name);
-      callback?.(null, playerNames.concat(playerName));
-    });
+    return Object.values(updatedPlayers).map((p) => p.name);
   },
 
   /** Odayı sil */
