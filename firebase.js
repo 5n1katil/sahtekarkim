@@ -1,48 +1,37 @@
-/***********************
- * Firebase Config
- ***********************/
+/**
+ * Firebase configuration
+ */
 const firebaseConfig = {
   apiKey: "AIzaSyBx_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
   authDomain: "detektif-c17bb.firebaseapp.com",
   databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com",
   projectId: "detektif-c17bb",
-  storageBucket: "detektif-c17bb.appspot.com",  // Düzeltilmiş!
+  storageBucket: "detektif-c17bb.appspot.com",
   messagingSenderId: "422256375848",
-  appId: "1:422256375848:web:873b0a6372c992accf9d1d"
+  appId: "1:422256375848:web:873b0a6372c992accf9d1d",
 };
 
-/***********************
- * Firebase Başlat
- ***********************/
+/**
+ * Initialize Firebase
+ */
 firebase.initializeApp(firebaseConfig);
 
-/***********************
- * Realtime Database Referansı
- ***********************/
+/**
+ * Expose database and auth for other scripts
+ */
 window.db = firebase.database();
+window.auth = firebase.auth();
 
-/***********************
- * Anonim Kimlik Doğrulama
- * - Kullanıcıyı otomatik olarak anonim giriş yaptırır
- * - UID ile kullanıcıyı tanıyabiliriz
- ***********************/
-if (firebase.auth) {
-  window.auth = firebase.auth();
+/**
+ * Automatically sign in anonymously and store UID
+ */
+window.auth
+  .signInAnonymously()
+  .catch(err => console.error("Anonymous sign-in error:", err));
 
-  // Anonim giriş
-  window.auth.signInAnonymously()
-    .then(() => {
-      console.log("Anonim giriş başarılı. UID:", window.auth.currentUser.uid);
-    })
-    .catch(err => console.error("Anonim giriş hatası:", err));
-
-  // Kullanıcı değişimini dinle
-  window.auth.onAuthStateChanged(user => {
-    if (user) {
-      console.log("Aktif UID:", user.uid);
-      window.myUid = user.uid;
-    } else {
-      console.log("Çıkış yapıldı.");
-    }
-  });
-}
+window.auth.onAuthStateChanged(user => {
+  if (user) {
+    window.myUid = user.uid;
+    console.log("Signed in anonymously. UID:", window.myUid);
+  }
+});
