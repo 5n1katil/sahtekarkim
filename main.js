@@ -48,9 +48,79 @@ window.addEventListener("DOMContentLoaded", () => {
   let isCreator = localStorage.getItem("isCreator") === "true";
   let currentPlayers = [];
   let playerUidMap = {};
-  let currentUid = window.auth.currentUser ? window.auth.currentUser.uid : null;
-  window.auth?.onAuthStateChanged((u) => {
-    currentUid = u ? u.uid : null;
+  let currentUid = null;
+  window.auth.onAuthStateChanged(async (user) => {
+    currentUid = user ? user.uid : null;
+    if (user) {
+      currentRoomCode = localStorage.getItem("roomCode") || null;
+      currentPlayerName = localStorage.getItem("playerName") || null;
+      isCreator = localStorage.getItem("isCreator") === "true";
+
+      if (currentRoomCode && currentPlayerName) {
+        const roomRef = window.db.ref("rooms/" + currentRoomCode);
+        roomRef.get().then((roomSnap) => {
+          if (!roomSnap.exists()) {
+            localStorage.clear();
+            currentRoomCode = null;
+            currentPlayerName = null;
+            isCreator = false;
+            showSetupJoin();
+            return;
+          }
+
+          const uid = user.uid;
+          const playerRef = window.db.ref(
+            `rooms/${currentRoomCode}/players/${uid}`
+          );
+          playerRef.set({ name: currentPlayerName, isCreator });
+
+          showRoomUI(currentRoomCode, currentPlayerName, isCreator);
+          listenPlayersAndRoom(currentRoomCode);
+          window.gameLogic.listenRoom(currentRoomCode);
+
+          window.db
+            .ref("rooms/" + currentRoomCode)
+            .once("value", (snapshot) => {
+              const roomData = snapshot.val();
+              if (
+                roomData &&
+                roomData.status === "started" &&
+                roomData.playerRoles &&
+                roomData.playerRoles[currentUid]
+              ) {
+                document
+                  .getElementById("leaveRoomBtn")
+                  ?.classList.add("hidden");
+                document
+                  .getElementById("backToHomeBtn")
+                  ?.classList.remove("hidden");
+                const myData = roomData.playerRoles[currentUid];
+                document
+                  .getElementById("roomInfo")
+                  .classList.add("hidden");
+                document
+                  .getElementById("playerRoleInfo")
+                  .classList.remove("hidden");
+
+                const roleMessageEl = document.getElementById("roleMessage");
+                if (myData.role.includes("Sahtekar")) {
+                  roleMessageEl.innerHTML =
+                    `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
+                    `Olası konumlar: ${myData.allLocations.join(", ")}`;
+                } else {
+                  roleMessageEl.innerHTML =
+                    `📍 Konum: <b>${myData.location}</b><br>` +
+                    `🎭 Rolün: <b>${myData.role}</b>`;
+                }
+              }
+            });
+        });
+      } else {
+        showSetupJoin();
+      }
+    } else {
+      showSetupJoin();
+    }
   });
   let lastVoteResult = null;
   let lastGuessResult = null;
@@ -159,64 +229,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }, 10000);
   }
 
-  /** Sayfa yenilendiğinde oyuncu bilgisini koru */
-  if (currentRoomCode && currentPlayerName && currentUid) {
-    const roomRef = window.db.ref("rooms/" + currentRoomCode);
-    roomRef.get().then((roomSnap) => {
-      if (!roomSnap.exists()) {
-        // Oda silinmişse bilgiler geçersizdir
-        localStorage.clear();
-        currentRoomCode = null;
-        currentPlayerName = null;
-        isCreator = false;
-        return;
-      }
-
-      // Her ihtimale karşı oyuncuyu tekrar kaydet
-      const uid = currentUid;
-      const playerRef = window.db.ref(
-        `rooms/${currentRoomCode}/players/${uid}`
-      );
-      playerRef.set({ name: currentPlayerName, isCreator });
-    });
-  }
-
-  /** ------------------------
-   *  SAYFA YENİLENİNCE ODADA KAL
-   * ------------------------ */
-  if (currentRoomCode && currentPlayerName && currentUid) {
-    showRoomUI(currentRoomCode, currentPlayerName, isCreator);
-    listenPlayersAndRoom(currentRoomCode);
-
-    // Oyun başlamışsa rolü geri yükle
-    window.db.ref("rooms/" + currentRoomCode).once("value", (snapshot) => {
-      const roomData = snapshot.val();
-      if (
-        roomData &&
-        roomData.status === "started" &&
-        roomData.playerRoles &&
-        roomData.playerRoles[currentUid]
-      ) {
-        document.getElementById("leaveRoomBtn")?.classList.add("hidden");
-        document.getElementById("backToHomeBtn")?.classList.remove("hidden");
-        const myData = roomData.playerRoles[currentUid];
-        document.getElementById("roomInfo").classList.add("hidden");
-        document.getElementById("playerRoleInfo").classList.remove("hidden");
-
-        const roleMessageEl = document.getElementById("roleMessage");
-        if (myData.role.includes("Sahtekar")) {
-          roleMessageEl.innerHTML =
-            `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
-            `Olası konumlar: ${myData.allLocations.join(", ")}`;
-        } else {
-          roleMessageEl.innerHTML =
-            `📍 Konum: <b>${myData.location}</b><br>` +
-            `🎭 Rolün: <b>${myData.role}</b>`;
-        }
-      }
-    });
-  } else {
-    // İlk giriş ekranı
+  function showSetupJoin() {
     document.getElementById("setup").classList.remove("hidden");
     document.getElementById("playerJoin").classList.remove("hidden");
     document.getElementById("roomInfo").classList.add("hidden");
