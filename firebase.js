@@ -15,7 +15,7 @@ import { getDatabase } from "https://www.gstatic.com/firebasejs/10.12.0/firebase
 // 2. Your web app's Firebase configuration
 //    → Replace apiKey with the one from Firebase Console → Project Settings → General → Web API Key
 const firebaseConfig = {
-  apiKey: "YOUR_REAL_API_KEY_HERE",
+  apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
   authDomain: "detektif-c17bb.firebaseapp.com",
   databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com",
   projectId: "detektif-c17bb",
