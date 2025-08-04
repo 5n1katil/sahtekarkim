@@ -12,9 +12,11 @@ window.gameLogic = {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = window.db.ref("rooms/" + roomCode);
 
+    const uid = window.auth.currentUser.uid;
+
     const roomData = {
       creator: creatorName,
-      players: { [creatorName]: { name: creatorName } },
+      players: { [uid]: { name: creatorName, isCreator: true } },
       settings: {
         playerCount: Number(playerCount),
         spyCount: Number(spyCount),
@@ -22,6 +24,7 @@ window.gameLogic = {
         questionCount: Number(questionCount),
         guessCount: Number(guessCount),
         canEliminate,
+        creatorUid: uid,
       },
       status: "waiting",
       createdAt: Date.now(),
@@ -54,14 +57,16 @@ window.gameLogic = {
         return;
       }
 
-      const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
-      playerRef.set({ name: playerName });
+      const uid = window.auth.currentUser.uid;
+      const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
+      playerRef.set({ name: playerName, isCreator: false });
 
       localStorage.setItem("roomCode", roomCode);
       localStorage.setItem("playerName", playerName);
       localStorage.setItem("isCreator", "false");
 
-      callback?.(null, Object.keys(players).concat(playerName));
+      const playerNames = Object.values(players).map((p) => p.name);
+      callback?.(null, playerNames.concat(playerName));
     });
   },
 
@@ -71,8 +76,9 @@ window.gameLogic = {
   },
 
   /** Odadan çık */
-  leaveRoom: function (roomCode, playerName) {
-    const playerRef = window.db.ref(`rooms/${roomCode}/players/${playerName}`);
+  leaveRoom: function (roomCode) {
+    const uid = window.auth.currentUser.uid;
+    const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
     localStorage.clear();
     return playerRef.remove();
   },
@@ -82,11 +88,13 @@ window.gameLogic = {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     playersRef.on("value", (snapshot) => {
       const playersObj = snapshot.val() || {};
-      const players = Object.keys(playersObj);
-      callback(players);
+      const playerNames = Object.values(playersObj).map((p) => p.name);
+      callback(playerNames, playersObj);
+
+      const uids = Object.keys(playersObj);
 
       // Oda tamamen boşaldıysa kapat
-      if (players.length === 0) {
+      if (uids.length === 0) {
         window.db.ref("rooms/" + roomCode).remove();
         localStorage.clear();
         location.reload();
@@ -96,10 +104,11 @@ window.gameLogic = {
       const roomRef = window.db.ref(`rooms/${roomCode}`);
       roomRef.get().then((snap) => {
         const data = snap.val();
+        const creatorUid = data?.settings?.creatorUid;
         if (
           data &&
           data.status !== "started" &&
-          (!data.creator || !players.includes(data.creator))
+          (!creatorUid || !uids.includes(creatorUid))
         ) {
           roomRef.remove();
           localStorage.clear();
@@ -118,7 +127,8 @@ window.gameLogic = {
       if (!roomData) return;
 
       // Oyuncu listesi güncelle
-      const players = Object.keys(roomData.players || {});
+      const playersObj = roomData.players || {};
+      const players = Object.values(playersObj).map((p) => p.name);
       const playerListEl = document.getElementById("playerList");
       if (playerListEl) {
         playerListEl.innerHTML = players.map((p) => `<li>${p}</li>`).join("");
@@ -126,9 +136,9 @@ window.gameLogic = {
 
       // Oyun başladıysa rol göster
       if (roomData.status === "started") {
-        const myName = localStorage.getItem("playerName");
-        if (myName && roomData.playerRoles && roomData.playerRoles[myName]) {
-          const myRole = roomData.playerRoles[myName];
+        const uid = window.auth.currentUser.uid;
+        if (uid && roomData.playerRoles && roomData.playerRoles[uid]) {
+          const myRole = roomData.playerRoles[uid];
 
           document.getElementById("roomInfo")?.classList.add("hidden");
           document.getElementById("playerRoleInfo")?.classList.remove("hidden");
@@ -255,9 +265,9 @@ window.gameLogic = {
    * Bir oyuncu oylamayı başlatma isteği gönderdiğinde çağrılır.
    * Tüm oyuncular isteği gönderdiğinde oylama otomatik başlar.
    */
-  requestVotingStart: function (roomCode, playerName) {
+  requestVotingStart: function (roomCode, playerUid) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.child(`voteRequests/${playerName}`).set(true).then(() => {
+    ref.child(`voteRequests/${playerUid}`).set(true).then(() => {
       ref.get().then((snap) => {
         if (!snap.exists()) return;
         const data = snap.val();
@@ -277,7 +287,7 @@ window.gameLogic = {
     ref.update({ votingStarted: true, votes: null, voteResult: null });
   },
 
-  guessLocation: function (roomCode, playerName, guessedLocation) {
+  guessLocation: function (roomCode, playerUid, guessedLocation) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref.get().then((snap) => {
       if (!snap.exists()) return;
@@ -285,7 +295,7 @@ window.gameLogic = {
       if (
         data.status !== "started" ||
         !data.spies ||
-        !data.spies.includes(playerName) ||
+        !data.spies.includes(playerUid) ||
         (data.settings && data.settings.guessCount <= 0) ||
         data.guessResult
       ) {
@@ -297,7 +307,7 @@ window.gameLogic = {
 
       if (correct) {
         ref.update({
-          guessResult: { guesser: playerName, guessedLocation, correct: true },
+          guessResult: { guesser: playerUid, guessedLocation, correct: true },
           status: "finished",
         });
       } else if (remaining > 1) {
@@ -308,7 +318,7 @@ window.gameLogic = {
       } else {
         ref.update({
           'settings/guessCount': 0,
-          guessResult: { guesser: playerName, guessedLocation, correct: false },
+          guessResult: { guesser: playerUid, guessedLocation, correct: false },
           status: "finished",
         });
       }
