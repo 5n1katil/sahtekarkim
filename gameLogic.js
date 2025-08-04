@@ -3,7 +3,6 @@ window.gameLogic = {
     if (window.auth && window.auth.currentUser && window.auth.currentUser.uid) {
       return window.auth.currentUser.uid;
     }
-    if (window.myUid) return window.myUid;
     if (window.auth) {
       return new Promise((resolve) => {
         const unsubscribe = window.auth.onAuthStateChanged((user) => {
@@ -27,7 +26,7 @@ window.gameLogic = {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = window.db.ref("rooms/" + roomCode);
 
-    const uid = window.myUid;
+    const uid = await this.getUid();
     if (!uid) {
       alert("Kimlik doğrulaması tamamlanamadı. Lütfen tekrar deneyin.");
       return null;
@@ -80,7 +79,7 @@ window.gameLogic = {
         return;
       }
 
-      const uid = window.myUid;
+      const uid = await this.getUid();
       if (!uid) {
         callback?.("Kimlik doğrulanamadı", null);
         return;
