@@ -16,7 +16,6 @@ window.gameLogic = {
 
     const roomData = {
       creator: creatorName,
-      players: { [uid]: { name: creatorName, isCreator: true } },
       settings: {
         playerCount: Number(playerCount),
         spyCount: Number(spyCount),
@@ -30,7 +29,12 @@ window.gameLogic = {
       createdAt: Date.now(),
     };
 
+    // Save basic room data first
     roomRef.set(roomData);
+
+    // Add the creator as the first player under their UID
+    const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
+    playerRef.set({ name: creatorName, isCreator: true });
 
     localStorage.setItem("roomCode", roomCode);
     localStorage.setItem("playerName", creatorName);
