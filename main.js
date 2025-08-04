@@ -39,6 +39,11 @@ window.addEventListener("DOMContentLoaded", () => {
   let currentPlayerName = localStorage.getItem("playerName") || null;
   let isCreator = localStorage.getItem("isCreator") === "true";
   let currentPlayers = [];
+  let playerUidMap = {};
+  let currentUid = window.auth.currentUser ? window.auth.currentUser.uid : null;
+  window.auth?.onAuthStateChanged((u) => {
+    currentUid = u ? u.uid : null;
+  });
   let lastVoteResult = null;
   let lastGuessResult = null;
   let gameEnded = false;
@@ -115,10 +120,11 @@ window.addEventListener("DOMContentLoaded", () => {
     }, 3000);
   }
 
-  function showSpyWinOverlay(spyNames) {
+  function showSpyWinOverlay(spyIds) {
     const overlay = document.getElementById("resultOverlay");
-    const names = (spyNames || [])
-      .filter((n) => currentPlayers.includes(n))
+    const names = (spyIds || [])
+      .map((id) => playerUidMap[id]?.name)
+      .filter((n) => n && currentPlayers.includes(n))
       .join(", ");
     gameEnded = true;
     overlay.innerHTML =
@@ -146,7 +152,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   /** Sayfa yenilendiğinde oyuncu bilgisini koru */
-  if (currentRoomCode && currentPlayerName) {
+  if (currentRoomCode && currentPlayerName && currentUid) {
     const roomRef = window.db.ref("rooms/" + currentRoomCode);
     roomRef.get().then((roomSnap) => {
       if (!roomSnap.exists()) {
@@ -159,40 +165,18 @@ window.addEventListener("DOMContentLoaded", () => {
       }
 
       // Her ihtimale karşı oyuncuyu tekrar kaydet
+      const uid = currentUid;
       const playerRef = window.db.ref(
-        `rooms/${currentRoomCode}/players/${currentPlayerName}`
+        `rooms/${currentRoomCode}/players/${uid}`
       );
-      playerRef.set({ name: currentPlayerName });
-          });
+      playerRef.set({ name: currentPlayerName, isCreator });
+    });
   }
 
   /** ------------------------
    *  SAYFA YENİLENİNCE ODADA KAL
    * ------------------------ */
-  if (currentRoomCode && currentPlayerName) {
-    const roomRef = window.db.ref("rooms/" + currentRoomCode);
-    roomRef.get().then((roomSnap) => {
-      if (!roomSnap.exists()) {
-        // Oda silinmişse bilgiler geçersizdir
-        localStorage.clear();
-        currentRoomCode = null;
-        currentPlayerName = null;
-        isCreator = false;
-        return;
-      }
-
-      // Her ihtimale karşı oyuncuyu tekrar kaydet
-      const playerRef = window.db.ref(
-        `rooms/${currentRoomCode}/players/${currentPlayerName}`
-      );
-      playerRef.set({ name: currentPlayerName });
-          });
-  }
-
-  /** ------------------------
-   *  SAYFA YENİLENİNCE ODADA KAL
-   * ------------------------ */
-  if (currentRoomCode && currentPlayerName) {
+  if (currentRoomCode && currentPlayerName && currentUid) {
     showRoomUI(currentRoomCode, currentPlayerName, isCreator);
     listenPlayersAndRoom(currentRoomCode);
 
@@ -203,11 +187,11 @@ window.addEventListener("DOMContentLoaded", () => {
         roomData &&
         roomData.status === "started" &&
         roomData.playerRoles &&
-        roomData.playerRoles[currentPlayerName]
+        roomData.playerRoles[currentUid]
       ) {
         document.getElementById("leaveRoomBtn")?.classList.add("hidden");
         document.getElementById("backToHomeBtn")?.classList.remove("hidden");
-        const myData = roomData.playerRoles[currentPlayerName];
+        const myData = roomData.playerRoles[currentUid];
         document.getElementById("roomInfo").classList.add("hidden");
         document.getElementById("playerRoleInfo").classList.remove("hidden");
 
