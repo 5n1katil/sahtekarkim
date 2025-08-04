@@ -220,7 +220,7 @@ window.addEventListener("DOMContentLoaded", () => {
    * ------------------------ */
   const hasInvalidChars = (name) => /[.#$\[\]\/]/.test(name);
 
-  document.getElementById("createRoomBtn").addEventListener("click", () => {
+  document.getElementById("createRoomBtn").addEventListener("click", async () => {
     const creatorName = document.getElementById("creatorName").value.trim();
     if (hasInvalidChars(creatorName)) {
       alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
@@ -238,33 +238,37 @@ window.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const roomCode = window.gameLogic.createRoom(
-      creatorName,
-      playerCount,
-      spyCount,
-      useRoles,
-      questionCount,
-      guessCount,
-      canEliminate
-    );
+    try {
+      const roomCode = await window.gameLogic.createRoom(
+        creatorName,
+        playerCount,
+        spyCount,
+        useRoles,
+        questionCount,
+        guessCount,
+        canEliminate
+      );
 
-    currentRoomCode = roomCode;
-    currentPlayerName = creatorName;
-    isCreator = true;
+      currentRoomCode = roomCode;
+      currentPlayerName = creatorName;
+      isCreator = true;
 
-    // LocalStorage güncelle
-    localStorage.setItem("roomCode", currentRoomCode);
-    localStorage.setItem("playerName", currentPlayerName);
-    localStorage.setItem("isCreator", "true");
+      // LocalStorage güncelle
+      localStorage.setItem("roomCode", currentRoomCode);
+      localStorage.setItem("playerName", currentPlayerName);
+      localStorage.setItem("isCreator", "true");
 
-    showRoomUI(roomCode, creatorName, true);
-    listenPlayersAndRoom(roomCode);
+      showRoomUI(roomCode, creatorName, true);
+      listenPlayersAndRoom(roomCode);
+    } catch (err) {
+      alert(err.message || err);
+    }
   });
 
   /** ------------------------
    *  ODAYA KATIL
    * ------------------------ */
-  document.getElementById("joinRoomBtn").addEventListener("click", () => {
+  document.getElementById("joinRoomBtn").addEventListener("click", async () => {
     const joinName = document.getElementById("joinName").value.trim();
     const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
 
@@ -278,23 +282,23 @@ window.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    window.gameLogic.joinRoom(joinName, joinCode, (err, players) => {
-      if (err) {
-        alert(err);
-        return;
-      }
+    try {
+      await window.gameLogic.joinRoom(joinName, joinCode);
+    } catch (err) {
+      alert(err.message || err);
+      return;
+    }
 
-      currentRoomCode = joinCode;
-      currentPlayerName = joinName;
-      isCreator = false;
+    currentRoomCode = joinCode;
+    currentPlayerName = joinName;
+    isCreator = false;
 
-      localStorage.setItem("roomCode", currentRoomCode);
-      localStorage.setItem("playerName", currentPlayerName);
-      localStorage.setItem("isCreator", "false");
+    localStorage.setItem("roomCode", currentRoomCode);
+    localStorage.setItem("playerName", currentPlayerName);
+    localStorage.setItem("isCreator", "false");
 
-      showRoomUI(joinCode, joinName, false);
-      listenPlayersAndRoom(joinCode);
-    });
+    showRoomUI(joinCode, joinName, false);
+    listenPlayersAndRoom(joinCode);
   });
 
   /** ------------------------
