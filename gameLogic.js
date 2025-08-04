@@ -3,15 +3,23 @@ window.gameLogic = {
     if (window.auth && window.auth.currentUser && window.auth.currentUser.uid) {
       return window.auth.currentUser.uid;
     }
-    if (window.auth) {
-      return new Promise((resolve) => {
-        const unsubscribe = window.auth.onAuthStateChanged((user) => {
+    if (!window.auth) return null;
+
+    return new Promise((resolve) => {
+      const unsubscribe = window.auth.onAuthStateChanged((user) => {
+        if (user && user.uid) {
           unsubscribe();
-          resolve(user ? user.uid : null);
-        });
+          resolve(user.uid);
+        }
       });
-    }
-    return null;
+      window.auth
+        .signInAnonymously()
+        .catch((err) => {
+          console.error("Anonymous sign-in error:", err);
+          unsubscribe();
+          resolve(null);
+        });
+    });
   },
   /** Oda oluştur */
   createRoom: async function (
