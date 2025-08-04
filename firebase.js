@@ -13,7 +13,6 @@ import {
 import { getDatabase } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // 2. Your web app's Firebase configuration
-//    → Replace apiKey with the one from Firebase Console → Project Settings → General → Web API Key
 const firebaseConfig = {
   apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
   authDomain: "detektif-c17bb.firebaseapp.com",
