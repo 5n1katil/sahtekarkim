@@ -162,10 +162,7 @@ window.auth.onAuthStateChanged(async (user) => {
     const cls = correct ? "impostor-animation" : "innocent-animation";
     if (correct) gameEnded = true;
     overlay.innerHTML = correct
-    ? `Sahtekar kazandı!<br>
-       <span class="impostor-name">${guesser}</span> konumu<br>
-       '<strong>${location}</strong>' olarak<br>
-       doğru tahmin etti.`
+    ? `Sahtekar kazandı! <span class="impostor-name">${guesser}</span> konumu '<strong>${location}</strong>' olarak<br> doğru tahmin etti.`
     : `${guesser} yanlış tahmin etti!<br>
        Konum '<strong>${location}</strong>'.<br>
        Masumlar kazandı!`;
@@ -218,8 +215,7 @@ window.auth.onAuthStateChanged(async (user) => {
       .join(", ");
     gameEnded = true;
     overlay.innerHTML =
-      "Sahtekar kazandı! Oyun Bitti..." +
-      (names ? `<br><span class=\"impostor-name\">${names}</span>` : "");
+      "Sahtekar (names ? `<br><span class=\"impostor-name\">${names}</span>` : ""); kazandı! Oyun Bitti..." +
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
