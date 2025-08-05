@@ -1,7 +1,12 @@
-import gameLogic from "./gameLogic.js";
+// gameLogic is loaded globally before this script
+const gameLogic = window.gameLogic;
 
-// Expose for any other scripts that rely on a global reference
-window.gameLogic = gameLogic;
+// Ensure the user is authenticated anonymously
+if (window.auth && !window.auth.currentUser) {
+  window.auth.signInAnonymously().catch((err) => {
+    console.error("Anonymous sign-in error:", err);
+  });
+}
 
 function getQuestionWord(count) {
   const words = {
