@@ -60,16 +60,16 @@ const gameLogic = {
       },
       status: "waiting",
       createdAt: Date.now(),
+      players: {
+        [uid]: {
+          name: creatorName,
+          isCreator: true,
+        },
+      },
     };
 
-    // Save room data and creator player in a single update call
-    await window.db.ref().update({
-      [`rooms/${roomCode}`]: roomData,
-      [`rooms/${roomCode}/players/${uid}`]: {
-        name: creatorName,
-        isCreator: true,
-      },
-    });
+    // Save room data with creator player in a single set call
+    await window.db.ref(`rooms/${roomCode}`).set(roomData);
 
     localStorage.setItem("roomCode", roomCode);
     localStorage.setItem("playerName", creatorName);
