@@ -1,5 +1,4 @@
-// gameLogic is loaded globally before this script
-const gameLogic = window.gameLogic;
+// window.gameLogic is loaded globally before this script
 
 // Ensure the user is authenticated anonymously
 if (window.auth && !window.auth.currentUser) {
@@ -83,7 +82,7 @@ window.auth.onAuthStateChanged(async (user) => {
 
           showRoomUI(currentRoomCode, currentPlayerName, isCreator);
           listenPlayersAndRoom(currentRoomCode);
-          gameLogic.listenRoom(currentRoomCode);
+          window.gameLogic.listenRoom(currentRoomCode);
 
           window.db
             .ref("rooms/" + currentRoomCode)
@@ -152,7 +151,7 @@ window.auth.onAuthStateChanged(async (user) => {
         localStorage.clear();
         location.href = "https://5n1katil.github.io/detective/";
       } else {
-          gameLogic.endRound(currentRoomCode);
+          window.gameLogic.endRound(currentRoomCode);
       }
     }, 3000);
   }
@@ -180,7 +179,7 @@ window.auth.onAuthStateChanged(async (user) => {
           location.href = "https://5n1katil.github.io/detective/";
         };
         if (isCreator) {
-          gameLogic.deleteRoom(currentRoomCode).finally(finish);
+          window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
         } else {
           finish();
         }
@@ -229,7 +228,7 @@ window.auth.onAuthStateChanged(async (user) => {
         location.href = "https://5n1katil.github.io/detective/";
       };
       if (isCreator) {
-        gameLogic.deleteRoom(currentRoomCode).finally(finish);
+        window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
       } else {
         finish();
       }
@@ -266,7 +265,7 @@ window.auth.onAuthStateChanged(async (user) => {
     }
 
     try {
-      const players = await gameLogic.joinRoom(joinName, joinCode);
+      const players = await window.gameLogic.joinRoom(joinName, joinCode);
 
       currentRoomCode = joinCode;
       currentPlayerName = joinName;
@@ -278,7 +277,7 @@ window.auth.onAuthStateChanged(async (user) => {
 
       showRoomUI(joinCode, joinName, false);
       listenPlayersAndRoom(joinCode);
-      gameLogic.listenRoom(joinCode);
+      window.gameLogic.listenRoom(joinCode);
     } catch (err) {
       alert(err.message);
       return;
@@ -290,8 +289,8 @@ window.auth.onAuthStateChanged(async (user) => {
    * ------------------------ */
   document.getElementById("leaveRoomBtn").addEventListener("click", () => {
     const action = isCreator
-      ? gameLogic.deleteRoom(currentRoomCode)
-      : gameLogic.leaveRoom(currentRoomCode);
+      ? window.gameLogic.deleteRoom(currentRoomCode)
+      : window.gameLogic.leaveRoom(currentRoomCode);
 
     Promise.resolve(action).then(() => {
       localStorage.clear();
@@ -314,19 +313,19 @@ window.auth.onAuthStateChanged(async (user) => {
       roles: ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"]
     };
 
-   gameLogic.startGame(currentRoomCode, settings);
+   window.gameLogic.startGame(currentRoomCode, settings);
   });
   document.getElementById("guessBtn").addEventListener("click", () => {
     const loc = document.getElementById("guessSelect").value;
     if (loc) {
-      gameLogic.guessLocation(currentRoomCode, currentUid, loc);
+      window.gameLogic.guessLocation(currentRoomCode, currentUid, loc);
       document.getElementById("guessSection").classList.add("hidden");
     }
   });
 
   // Oylamayı başlatma isteği
   document.getElementById("startVotingBtn").addEventListener("click", () => {
-    gameLogic.requestVotingStart(currentRoomCode, currentUid);
+    window.gameLogic.requestVotingStart(currentRoomCode, currentUid);
     document
       .getElementById("waitingVoteStart")
       .classList.remove("hidden");
@@ -336,7 +335,7 @@ window.auth.onAuthStateChanged(async (user) => {
   document.getElementById("submitVoteBtn").addEventListener("click", () => {
     const target = document.getElementById("voteSelect").value;
     if (target) {
-      gameLogic.submitVote(currentRoomCode, currentUid, target);
+      window.gameLogic.submitVote(currentRoomCode, currentUid, target);
       document.getElementById("votingSection").classList.add("hidden");
     }
   });
@@ -344,14 +343,14 @@ window.auth.onAuthStateChanged(async (user) => {
   document.getElementById("eliminateBtn").addEventListener("click", () => {
     const target = document.getElementById("eliminateSelect").value;
     if (target) {
-      gameLogic.eliminatePlayer(currentRoomCode, target);
+      window.gameLogic.eliminatePlayer(currentRoomCode, target);
       document.getElementById("eliminationSection").classList.add("hidden");
     }
   });
 
   // Sonraki tur
   document.getElementById("nextRoundBtn").addEventListener("click", () => {
-    gameLogic.nextRound(currentRoomCode);
+    window.gameLogic.nextRound(currentRoomCode);
   });
 
   // Rol bilgisini kopyalama
@@ -370,9 +369,9 @@ window.auth.onAuthStateChanged(async (user) => {
 
     if (roomCode) {
       const action = isCreator
-        ? gameLogic.deleteRoom(roomCode)
+        ? window.gameLogic.deleteRoom(roomCode)
         : playerName
-        ? gameLogic.leaveRoom(roomCode)
+        ? window.gameLogic.leaveRoom(roomCode)
         : Promise.resolve();
 
       Promise.resolve(action).then(() => {
@@ -400,7 +399,7 @@ window.auth.onAuthStateChanged(async (user) => {
    * ------------------------ */
   function listenPlayersAndRoom(roomCode) {
     // Oyuncu listesi
-    gameLogic.listenPlayers(roomCode, (players, playersObj) => {
+    window.gameLogic.listenPlayers(roomCode, (players, playersObj) => {
       // Update player list in UI and player count
       updatePlayerList(players);
 
@@ -613,7 +612,7 @@ window.auth.onAuthStateChanged(async (user) => {
           Object.keys(roomData.votes).length === currentPlayers.length &&
           !roomData.voteResult
         ) {
-          gameLogic.tallyVotes(currentRoomCode);
+          window.gameLogic.tallyVotes(currentRoomCode);
         }
       }
     });
@@ -663,7 +662,7 @@ createRoomBtn.addEventListener("click", async () => {
   createRoomBtn.disabled = true;
   createRoomLoading.classList.remove("hidden");
   try {
-    const roomCode = await gameLogic.createRoom(
+    const roomCode = await window.gameLogic.createRoom(
       creatorName,
       playerCount,
       spyCount,
@@ -685,7 +684,7 @@ createRoomBtn.addEventListener("click", async () => {
 
     showRoomUI(roomCode, creatorName, true);
     listenPlayersAndRoom(roomCode);
-    gameLogic.listenRoom(roomCode);
+    window.gameLogic.listenRoom(roomCode);
   } catch (err) {
     alert(err.message || err);
   } finally {
