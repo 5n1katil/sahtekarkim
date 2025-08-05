@@ -131,7 +131,10 @@ const gameLogic = {
         uid,
         ...p,
       }));
-      callback(playersArr);
+      callback(
+        playersArr.map((p) => p.name),
+        playersObj
+      );
 
       const uids = Object.keys(playersObj);
 
