@@ -1,3 +1,8 @@
+import gameLogic from "./gameLogic.js";
+
+// Expose for any other scripts that rely on a global reference
+window.gameLogic = gameLogic;
+
 function getQuestionWord(count) {
   const words = {
     1: "birer",
@@ -71,7 +76,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
           showRoomUI(currentRoomCode, currentPlayerName, isCreator);
           listenPlayersAndRoom(currentRoomCode);
-          window.gameLogic.listenRoom(currentRoomCode);
+          gameLogic.listenRoom(currentRoomCode);
 
           window.db
             .ref("rooms/" + currentRoomCode)
@@ -96,7 +101,7 @@ window.addEventListener("DOMContentLoaded", () => {
                 document
                   .getElementById("playerRoleInfo")
                   .classList.remove("hidden");
-
+                
                 const roleMessageEl = document.getElementById("roleMessage");
                 if (myData.role.includes("Sahtekar")) {
                   roleMessageEl.innerHTML =
@@ -140,7 +145,7 @@ window.addEventListener("DOMContentLoaded", () => {
         localStorage.clear();
         location.href = "https://5n1katil.github.io/detective/";
       } else {
-        window.gameLogic.endRound(currentRoomCode);
+          gameLogic.endRound(currentRoomCode);
       }
     }, 3000);
   }
@@ -168,7 +173,7 @@ window.addEventListener("DOMContentLoaded", () => {
           location.href = "https://5n1katil.github.io/detective/";
         };
         if (isCreator) {
-          window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
+          gameLogic.deleteRoom(currentRoomCode).finally(finish);
         } else {
           finish();
         }
@@ -217,7 +222,7 @@ window.addEventListener("DOMContentLoaded", () => {
         location.href = "https://5n1katil.github.io/detective/";
       };
       if (isCreator) {
-        window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
+        gameLogic.deleteRoom(currentRoomCode).finally(finish);
       } else {
         finish();
       }
@@ -259,7 +264,7 @@ window.addEventListener("DOMContentLoaded", () => {
     createRoomBtn.disabled = true;
     createRoomLoading.classList.remove("hidden");
     try {
-      const roomCode = await window.gameLogic.createRoom(
+        const roomCode = await gameLogic.createRoom(
         creatorName,
         playerCount,
         spyCount,
@@ -307,7 +312,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      const players = await window.gameLogic.joinRoom(joinName, joinCode);
+      const players = await gameLogic.joinRoom(joinName, joinCode);
 
       currentRoomCode = joinCode;
       currentPlayerName = joinName;
@@ -330,8 +335,8 @@ window.addEventListener("DOMContentLoaded", () => {
    * ------------------------ */
   document.getElementById("leaveRoomBtn").addEventListener("click", () => {
     const action = isCreator
-      ? window.gameLogic.deleteRoom(currentRoomCode)
-      : window.gameLogic.leaveRoom(currentRoomCode);
+      ? gameLogic.deleteRoom(currentRoomCode)
+      : gameLogic.leaveRoom(currentRoomCode);
 
     Promise.resolve(action).then(() => {
       localStorage.clear();
@@ -354,19 +359,19 @@ window.addEventListener("DOMContentLoaded", () => {
       roles: ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"]
     };
 
-   window.gameLogic.startGame(currentRoomCode, settings);
+   gameLogic.startGame(currentRoomCode, settings);
   });
   document.getElementById("guessBtn").addEventListener("click", () => {
     const loc = document.getElementById("guessSelect").value;
     if (loc) {
-      window.gameLogic.guessLocation(currentRoomCode, currentUid, loc);
+      gameLogic.guessLocation(currentRoomCode, currentUid, loc);
       document.getElementById("guessSection").classList.add("hidden");
     }
   });
 
   // Oylamayı başlatma isteği
   document.getElementById("startVotingBtn").addEventListener("click", () => {
-    window.gameLogic.requestVotingStart(currentRoomCode, currentUid);
+    gameLogic.requestVotingStart(currentRoomCode, currentUid);
     document
       .getElementById("waitingVoteStart")
       .classList.remove("hidden");
@@ -376,7 +381,7 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("submitVoteBtn").addEventListener("click", () => {
     const target = document.getElementById("voteSelect").value;
     if (target) {
-      window.gameLogic.submitVote(currentRoomCode, currentUid, target);
+      gameLogic.submitVote(currentRoomCode, currentUid, target);
       document.getElementById("votingSection").classList.add("hidden");
     }
   });
@@ -384,24 +389,65 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("eliminateBtn").addEventListener("click", () => {
     const target = document.getElementById("eliminateSelect").value;
     if (target) {
-      window.gameLogic.eliminatePlayer(currentRoomCode, target);
+      gameLogic.eliminatePlayer(currentRoomCode, target);
       document.getElementById("eliminationSection").classList.add("hidden");
     }
   });
 
   // Sonraki tur
   document.getElementById("nextRoundBtn").addEventListener("click", () => {
-    window.gameLogic.nextRound(currentRoomCode);
+    gameLogic.nextRound(currentRoomCode);
   });
+
+  // Rol bilgisini kopyalama
+  document.getElementById("copyRoleBtn").addEventListener("click", () => {
+    const text = document.getElementById("roleMessage").innerText;
+    navigator.clipboard
+      .writeText(text)
+      .then(() => alert("Rolünüz kopyalandı!"));
+  });
+
+  // Oyundan çık (ana ekrana dön)
+  document.getElementById("backToHomeBtn").addEventListener("click", () => {
+    const roomCode = localStorage.getItem("roomCode");
+    const playerName = localStorage.getItem("playerName");
+    const isCreator = localStorage.getItem("isCreator") === "true";
+
+    if (roomCode) {
+      const action = isCreator
+        ? gameLogic.deleteRoom(roomCode)
+        : playerName
+        ? gameLogic.leaveRoom(roomCode)
+        : Promise.resolve();
+
+      Promise.resolve(action).then(() => {
+        localStorage.clear();
+        location.reload();
+      });
+    } else {
+      localStorage.clear();
+      location.reload();
+    }
+  });
+
+  function updatePlayerList(players) {
+    const listEl = document.getElementById("playerList");
+    const countEl = document.getElementById("playerCountDisplay");
+    if (!listEl || !countEl) return;
+
+    const validPlayers = (players || []).filter((p) => p && p.trim() !== "");
+    listEl.innerHTML = validPlayers.map((p) => `<li>${p}</li>`).join("");
+    countEl.textContent = validPlayers.length;
+  }
 
   /** ------------------------
    *  ODA & OYUNCULARI DİNLE
    * ------------------------ */
   function listenPlayersAndRoom(roomCode) {
     // Oyuncu listesi
-    window.gameLogic.listenPlayers(roomCode, (players, playersObj) => {
+    gameLogic.listenPlayers(roomCode, (players, playersObj) => {
       // Update player list in UI and player count
-      window.updatePlayerList?.(players);
+      updatePlayerList(players);
 
       playerUidMap = playersObj || {};
 
@@ -612,7 +658,7 @@ window.addEventListener("DOMContentLoaded", () => {
           Object.keys(roomData.votes).length === currentPlayers.length &&
           !roomData.voteResult
         ) {
-          window.gameLogic.tallyVotes(currentRoomCode);
+          gameLogic.tallyVotes(currentRoomCode);
         }
       }
     });
