@@ -1,3 +1,4 @@
+console.log('main.js loaded');
 // window.gameLogic is loaded globally before this script
 
 // Ensure the user is authenticated anonymously
@@ -246,144 +247,6 @@ window.auth.onAuthStateChanged(async (user) => {
    *  ODA OLUŞTUR
    * ------------------------ */
   const hasInvalidChars = (name) => /[.#$\[\]\/]/.test(name);
-
-  /** ------------------------
-   *  ODAYA KATIL
-   * ------------------------ */
-  document.getElementById("joinRoomBtn").addEventListener("click", async () => {
-    const joinName = document.getElementById("joinName").value.trim();
-    const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
-
-    if (hasInvalidChars(joinName)) {
-      alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
-      return;
-    }
-
-    if (!joinName || !joinCode) {
-      alert("Lütfen adınızı ve oda kodunu girin.");
-      return;
-    }
-
-    try {
-      const players = await window.gameLogic.joinRoom(joinName, joinCode);
-
-      currentRoomCode = joinCode;
-      currentPlayerName = joinName;
-      isCreator = false;
-
-      localStorage.setItem("roomCode", currentRoomCode);
-      localStorage.setItem("playerName", currentPlayerName);
-      localStorage.setItem("isCreator", "false");
-
-      showRoomUI(joinCode, joinName, false);
-      listenPlayersAndRoom(joinCode);
-      window.gameLogic.listenRoom(joinCode);
-    } catch (err) {
-      alert(err.message);
-      return;
-    }
-  });
-
-  /** ------------------------
-   *  ODADAN ÇIK
-   * ------------------------ */
-  document.getElementById("leaveRoomBtn").addEventListener("click", () => {
-    const action = isCreator
-      ? window.gameLogic.deleteRoom(currentRoomCode)
-      : window.gameLogic.leaveRoom(currentRoomCode);
-
-    Promise.resolve(action).then(() => {
-      localStorage.clear();
-      location.reload();
-    });
-  });
-
-  /** ------------------------
-   *  OYUNU BAŞLAT
-   * ------------------------ */
-  document.getElementById("startGameBtn").addEventListener("click", () => {
-   const settings = {
-      playerCount: parseInt(document.getElementById("playerCount").value),
-      spyCount: parseInt(document.getElementById("spyCount").value),
-      useRoles: document.getElementById("useRoles").value === "yes",
-      questionCount: parseInt(document.getElementById("questionCount").value),
-      guessCount: parseInt(document.getElementById("guessCount").value),
-      canEliminate: document.getElementById("canEliminate").value === "yes",
-      locations: ["Havalimanı", "Restoran", "Kütüphane", "Müze"],
-      roles: ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"]
-    };
-
-   window.gameLogic.startGame(currentRoomCode, settings);
-  });
-  document.getElementById("guessBtn").addEventListener("click", () => {
-    const loc = document.getElementById("guessSelect").value;
-    if (loc) {
-      window.gameLogic.guessLocation(currentRoomCode, currentUid, loc);
-      document.getElementById("guessSection").classList.add("hidden");
-    }
-  });
-
-  // Oylamayı başlatma isteği
-  document.getElementById("startVotingBtn").addEventListener("click", () => {
-    window.gameLogic.requestVotingStart(currentRoomCode, currentUid);
-    document
-      .getElementById("waitingVoteStart")
-      .classList.remove("hidden");
-  });
-
-  // Oy ver
-  document.getElementById("submitVoteBtn").addEventListener("click", () => {
-    const target = document.getElementById("voteSelect").value;
-    if (target) {
-      window.gameLogic.submitVote(currentRoomCode, currentUid, target);
-      document.getElementById("votingSection").classList.add("hidden");
-    }
-  });
-
-  document.getElementById("eliminateBtn").addEventListener("click", () => {
-    const target = document.getElementById("eliminateSelect").value;
-    if (target) {
-      window.gameLogic.eliminatePlayer(currentRoomCode, target);
-      document.getElementById("eliminationSection").classList.add("hidden");
-    }
-  });
-
-  // Sonraki tur
-  document.getElementById("nextRoundBtn").addEventListener("click", () => {
-    window.gameLogic.nextRound(currentRoomCode);
-  });
-
-  // Rol bilgisini kopyalama
-  document.getElementById("copyRoleBtn").addEventListener("click", () => {
-    const text = document.getElementById("roleMessage").innerText;
-    navigator.clipboard
-      .writeText(text)
-      .then(() => alert("Rolünüz kopyalandı!"));
-  });
-
-  // Oyundan çık (ana ekrana dön)
-  document.getElementById("backToHomeBtn").addEventListener("click", () => {
-    const roomCode = localStorage.getItem("roomCode");
-    const playerName = localStorage.getItem("playerName");
-    const isCreator = localStorage.getItem("isCreator") === "true";
-
-    if (roomCode) {
-      const action = isCreator
-        ? window.gameLogic.deleteRoom(roomCode)
-        : playerName
-        ? window.gameLogic.leaveRoom(roomCode)
-        : Promise.resolve();
-
-      Promise.resolve(action).then(() => {
-        localStorage.clear();
-        location.reload();
-      });
-    } else {
-      localStorage.clear();
-      location.reload();
-    }
-  });
-
   function updatePlayerList(players) {
     const listEl = document.getElementById("playerList");
     const countEl = document.getElementById("playerCountDisplay");
@@ -638,10 +501,13 @@ window.auth.onAuthStateChanged(async (user) => {
     document.getElementById("leaveRoomBtn").classList.remove("hidden");
   }
 
-// Bind create room button at load
+/** ------------------------
+ *  EVENT LISTENERS
+ * ------------------------ */
 const createRoomBtn = document.getElementById("createRoomBtn");
 const createRoomLoading = document.getElementById("createRoomLoading");
 createRoomBtn.addEventListener("click", async () => {
+  console.log('createRoomBtn clicked');
   const creatorName = document.getElementById("creatorName").value.trim();
   if (hasInvalidChars(creatorName)) {
     alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
@@ -690,5 +556,134 @@ createRoomBtn.addEventListener("click", async () => {
   } finally {
     createRoomBtn.disabled = false;
     createRoomLoading.classList.add("hidden");
+  }
+});
+
+document.getElementById("joinRoomBtn").addEventListener("click", async () => {
+  const joinName = document.getElementById("joinName").value.trim();
+  const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
+
+  if (hasInvalidChars(joinName)) {
+    alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
+    return;
+  }
+
+  if (!joinName || !joinCode) {
+    alert("Lütfen adınızı ve oda kodunu girin.");
+    return;
+  }
+
+  try {
+    const players = await window.gameLogic.joinRoom(joinName, joinCode);
+
+    currentRoomCode = joinCode;
+    currentPlayerName = joinName;
+    isCreator = false;
+
+    localStorage.setItem("roomCode", currentRoomCode);
+    localStorage.setItem("playerName", currentPlayerName);
+    localStorage.setItem("isCreator", "false");
+
+    showRoomUI(joinCode, joinName, false);
+    listenPlayersAndRoom(joinCode);
+    window.gameLogic.listenRoom(joinCode);
+  } catch (err) {
+    alert(err.message);
+    return;
+  }
+});
+
+document.getElementById("leaveRoomBtn").addEventListener("click", () => {
+  const action = isCreator
+    ? window.gameLogic.deleteRoom(currentRoomCode)
+    : window.gameLogic.leaveRoom(currentRoomCode);
+
+  Promise.resolve(action).then(() => {
+    localStorage.clear();
+    location.reload();
+  });
+});
+
+document.getElementById("startGameBtn").addEventListener("click", () => {
+  const settings = {
+    playerCount: parseInt(document.getElementById("playerCount").value),
+    spyCount: parseInt(document.getElementById("spyCount").value),
+    useRoles: document.getElementById("useRoles").value === "yes",
+    questionCount: parseInt(document.getElementById("questionCount").value),
+    guessCount: parseInt(document.getElementById("guessCount").value),
+    canEliminate: document.getElementById("canEliminate").value === "yes",
+    locations: ["Havalimanı", "Restoran", "Kütüphane", "Müze"],
+    roles: ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"]
+  };
+
+  window.gameLogic.startGame(currentRoomCode, settings);
+});
+
+document.getElementById("guessBtn").addEventListener("click", () => {
+  const loc = document.getElementById("guessSelect").value;
+  if (loc) {
+    window.gameLogic.guessLocation(currentRoomCode, currentUid, loc);
+    document.getElementById("guessSection").classList.add("hidden");
+  }
+});
+
+// Oylamayı başlatma isteği
+document.getElementById("startVotingBtn").addEventListener("click", () => {
+  window.gameLogic.requestVotingStart(currentRoomCode, currentUid);
+  document
+    .getElementById("waitingVoteStart")
+    .classList.remove("hidden");
+});
+
+// Oy ver
+document.getElementById("submitVoteBtn").addEventListener("click", () => {
+  const target = document.getElementById("voteSelect").value;
+  if (target) {
+    window.gameLogic.submitVote(currentRoomCode, currentUid, target);
+    document.getElementById("votingSection").classList.add("hidden");
+  }
+});
+
+document.getElementById("eliminateBtn").addEventListener("click", () => {
+  const target = document.getElementById("eliminateSelect").value;
+  if (target) {
+    window.gameLogic.eliminatePlayer(currentRoomCode, target);
+    document.getElementById("eliminationSection").classList.add("hidden");
+  }
+});
+
+// Sonraki tur
+document.getElementById("nextRoundBtn").addEventListener("click", () => {
+  window.gameLogic.nextRound(currentRoomCode);
+});
+
+// Rol bilgisini kopyalama
+document.getElementById("copyRoleBtn").addEventListener("click", () => {
+  const text = document.getElementById("roleMessage").innerText;
+  navigator.clipboard
+    .writeText(text)
+    .then(() => alert("Rolünüz kopyalandı!"));
+});
+
+// Oyundan çık (ana ekrana dön)
+document.getElementById("backToHomeBtn").addEventListener("click", () => {
+  const roomCode = localStorage.getItem("roomCode");
+  const playerName = localStorage.getItem("playerName");
+  const isCreator = localStorage.getItem("isCreator") === "true";
+
+  if (roomCode) {
+    const action = isCreator
+      ? window.gameLogic.deleteRoom(roomCode)
+      : playerName
+      ? window.gameLogic.leaveRoom(roomCode)
+      : Promise.resolve();
+
+    Promise.resolve(action).then(() => {
+      localStorage.clear();
+      location.reload();
+    });
+  } else {
+    localStorage.clear();
+    location.reload();
   }
 });
