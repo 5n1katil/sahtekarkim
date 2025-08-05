@@ -291,6 +291,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       showRoomUI(roomCode, creatorName, true);
       listenPlayersAndRoom(roomCode);
+      gameLogic.listenRoom(roomCode);
     } catch (err) {
       alert(err.message || err);
     } finally {
@@ -329,6 +330,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       showRoomUI(joinCode, joinName, false);
       listenPlayersAndRoom(joinCode);
+      gameLogic.listenRoom(joinCode);
     } catch (err) {
       alert(err.message);
       return;
