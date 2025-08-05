@@ -1,7 +1,7 @@
 let anonymousSignInPromise = null;
 
-// Expose all game-related operations as a module so it can be imported
-// without relying on global script execution order.
+// All game related logic lives in this object and will be exposed globally
+// as `window.gameLogic` so other scripts can use it without importing.
 const gameLogic = {
   getUid: async function () {
     if (!window.auth) return null;
@@ -127,8 +127,11 @@ const gameLogic = {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     playersRef.on("value", (snapshot) => {
       const playersObj = snapshot.val() || {};
-      const playerNames = Object.values(playersObj).map((p) => p.name);
-      callback(playerNames, playersObj);
+      const playersArr = Object.entries(playersObj).map(([uid, p]) => ({
+        uid,
+        ...p,
+      }));
+      callback(playersArr);
 
       const uids = Object.keys(playersObj);
 
@@ -492,4 +495,5 @@ const gameLogic = {
   },
 };
 
-export default gameLogic;
+// Expose globally so that main.js can access it without imports
+window.gameLogic = gameLogic;
