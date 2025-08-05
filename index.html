@@ -235,57 +235,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="firebase.js"></script>
-<script src="gameLogic.js"></script>
-<script src="main.js"></script>
-
-<script>
-  // Rol bilgisini kopyalama
-  document.getElementById("copyRoleBtn").addEventListener("click", () => {
-    const text = document.getElementById("roleMessage").innerText;
-    navigator.clipboard
-      .writeText(text)
-      .then(() => alert("Rolünüz kopyalandı!"));
-  });
-
-  // Oyundan çık (ana ekrana dön)
-  document.getElementById("backToHomeBtn").addEventListener("click", () => {
-    const roomCode = localStorage.getItem("roomCode");
-    const playerName = localStorage.getItem("playerName");
-    const isCreator = localStorage.getItem("isCreator") === "true";
-
-    if (roomCode) {
-      const action = isCreator
-        ? window.gameLogic.deleteRoom(roomCode)
-        : playerName
-        ? window.gameLogic.leaveRoom(roomCode, playerName)
-        : Promise.resolve();
-
-      Promise.resolve(action).then(() => {
-        localStorage.clear();
-        location.reload();
-      });
-    } else {
-      localStorage.clear();
-      location.reload();
-    }
-  });
-
-  // Canlı oyuncu listesi güncellemesi
-  function updatePlayerList(players) {
-    const listEl = document.getElementById("playerList");
-    const countEl = document.getElementById("playerCountDisplay");
-    if (!listEl || !countEl) return;
-
-    // Geçerli isimleri filtrele
-    const validPlayers = (players || []).filter((p) => p && p.trim() !== "");
-
-    // Listeyi güncelle
-    listEl.innerHTML = validPlayers.map((p) => `<li>${p}</li>`).join("");
-    countEl.textContent = validPlayers.length;
-  }
-  // Dışardan kullanılabilsin
-  window.updatePlayerList = updatePlayerList;
-</script>
+<script type="module" src="main.js"></script>
 
 </body>
 </html>
