@@ -1,25 +1,31 @@
+let anonymousSignInPromise = null;
+
 window.gameLogic = {
   getUid: async function () {
-    if (window.auth && window.auth.currentUser && window.auth.currentUser.uid) {
+    if (!window.auth) return null;
+    if (window.auth.currentUser && window.auth.currentUser.uid) {
       return window.auth.currentUser.uid;
     }
-    if (!window.auth) return null;
 
-    return new Promise((resolve) => {
-      const unsubscribe = window.auth.onAuthStateChanged((user) => {
-        if (user && user.uid) {
-          unsubscribe();
-          resolve(user.uid);
-        }
-      });
-      window.auth
-        .signInAnonymously()
-        .catch((err) => {
-          console.error("Anonymous sign-in error:", err);
-          unsubscribe();
-          resolve(null);
+    if (!anonymousSignInPromise) {
+      anonymousSignInPromise = new Promise((resolve) => {
+        const unsubscribe = window.auth.onAuthStateChanged((user) => {
+          if (user && user.uid) {
+            unsubscribe();
+            resolve(user.uid);
+          }
         });
-    });
+        window.auth
+          .signInAnonymously()
+          .catch((err) => {
+            console.error("Anonymous sign-in error:", err);
+            unsubscribe();
+            resolve(null);
+          });
+      });
+    }
+
+    return anonymousSignInPromise;
   },
   /** Oda oluştur */
   createRoom: async function (
