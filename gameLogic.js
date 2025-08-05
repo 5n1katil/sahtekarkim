@@ -131,10 +131,10 @@ const gameLogic = {
         uid,
         ...p,
       }));
-      callback(
-        playersArr.map((p) => p.name),
-        playersObj
-      );
+
+      // Pass both the names array and the raw players object to the callback
+      const playerNames = playersArr.map((p) => p.name);
+      callback(playerNames, playersObj);
 
       const uids = Object.keys(playersObj);
 
