@@ -236,7 +236,9 @@ window.addEventListener("DOMContentLoaded", () => {
    * ------------------------ */
   const hasInvalidChars = (name) => /[.#$\[\]\/]/.test(name);
 
-  document.getElementById("createRoomBtn").addEventListener("click", async () => {
+  const createRoomBtn = document.getElementById("createRoomBtn");
+  const createRoomLoading = document.getElementById("createRoomLoading");
+  createRoomBtn.addEventListener("click", async () => {
     const creatorName = document.getElementById("creatorName").value.trim();
     if (hasInvalidChars(creatorName)) {
       alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
@@ -254,28 +256,37 @@ window.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const roomCode = await window.gameLogic.createRoom(
-      creatorName,
-      playerCount,
-      spyCount,
-      useRoles,
-      questionCount,
-      guessCount,
-      canEliminate
-    );
-    if (!roomCode) return;
+    createRoomBtn.disabled = true;
+    createRoomLoading.classList.remove("hidden");
+    try {
+      const roomCode = await window.gameLogic.createRoom(
+        creatorName,
+        playerCount,
+        spyCount,
+        useRoles,
+        questionCount,
+        guessCount,
+        canEliminate
+      );
+      if (!roomCode) return;
 
-    currentRoomCode = roomCode;
-    currentPlayerName = creatorName;
-    isCreator = true;
+      currentRoomCode = roomCode;
+      currentPlayerName = creatorName;
+      isCreator = true;
 
-    // LocalStorage güncelle
-    localStorage.setItem("roomCode", currentRoomCode);
-    localStorage.setItem("playerName", currentPlayerName);
-    localStorage.setItem("isCreator", "true");
+      // LocalStorage güncelle
+      localStorage.setItem("roomCode", currentRoomCode);
+      localStorage.setItem("playerName", currentPlayerName);
+      localStorage.setItem("isCreator", "true");
 
-    showRoomUI(roomCode, creatorName, true);
-    listenPlayersAndRoom(roomCode);
+      showRoomUI(roomCode, creatorName, true);
+      listenPlayersAndRoom(roomCode);
+    } catch (err) {
+      alert(err.message || err);
+    } finally {
+      createRoomBtn.disabled = false;
+      createRoomLoading.classList.add("hidden");
+    }
   });
 
   /** ------------------------
