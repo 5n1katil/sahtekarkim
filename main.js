@@ -39,22 +39,24 @@ function getQuestionWord(count) {
   const suffix = suffixes[lastDigit] || "er";
   return `${count}'${suffix}`;
 }
-
-window.addEventListener("DOMContentLoaded", () => {
-  // Preserve game info on refresh but reset when opening a new session
+// Preserve game info on refresh but reset when opening a new session
+try {
   const nav = performance.getEntriesByType("navigation")[0];
   const isReload = nav ? nav.type === "reload" : performance.navigation.type === 1;
   if (!isReload) {
     localStorage.clear();
   }
+} catch (err) {
+  console.warn("Navigation performance check failed:", err);
+}
 
-  let currentRoomCode = localStorage.getItem("roomCode") || null;
-  let currentPlayerName = localStorage.getItem("playerName") || null;
-  let isCreator = localStorage.getItem("isCreator") === "true";
-  let currentPlayers = [];
-  let playerUidMap = {};
-  let currentUid = null;
-  window.auth.onAuthStateChanged(async (user) => {
+let currentRoomCode = localStorage.getItem("roomCode") || null;
+let currentPlayerName = localStorage.getItem("playerName") || null;
+let isCreator = localStorage.getItem("isCreator") === "true";
+let currentPlayers = [];
+let playerUidMap = {};
+let currentUid = null;
+window.auth.onAuthStateChanged(async (user) => {
     currentUid = user ? user.uid : null;
     if (user) {
       currentRoomCode = localStorage.getItem("roomCode") || null;
@@ -245,60 +247,6 @@ window.addEventListener("DOMContentLoaded", () => {
    *  ODA OLUŞTUR
    * ------------------------ */
   const hasInvalidChars = (name) => /[.#$\[\]\/]/.test(name);
-
-  const createRoomBtn = document.getElementById("createRoomBtn");
-  const createRoomLoading = document.getElementById("createRoomLoading");
-  createRoomBtn.addEventListener("click", async () => {
-    const creatorName = document.getElementById("creatorName").value.trim();
-    if (hasInvalidChars(creatorName)) {
-      alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
-      return;
-    }
-    const playerCount = parseInt(document.getElementById("playerCount").value);
-    const spyCount = parseInt(document.getElementById("spyCount").value);
-    const useRoles = document.getElementById("useRoles").value === "yes";
-    const questionCount = parseInt(document.getElementById("questionCount").value);
-    const guessCount = parseInt(document.getElementById("guessCount").value);
-    const canEliminate = document.getElementById("canEliminate").value === "yes";
-
-    if (!creatorName || isNaN(playerCount) || isNaN(spyCount)) {
-      alert("Lütfen tüm alanları doldurun.");
-      return;
-    }
-
-    createRoomBtn.disabled = true;
-    createRoomLoading.classList.remove("hidden");
-    try {
-        const roomCode = await gameLogic.createRoom(
-        creatorName,
-        playerCount,
-        spyCount,
-        useRoles,
-        questionCount,
-        guessCount,
-        canEliminate
-      );
-      if (!roomCode) return;
-
-      currentRoomCode = roomCode;
-      currentPlayerName = creatorName;
-      isCreator = true;
-
-      // LocalStorage güncelle
-      localStorage.setItem("roomCode", currentRoomCode);
-      localStorage.setItem("playerName", currentPlayerName);
-      localStorage.setItem("isCreator", "true");
-
-      showRoomUI(roomCode, creatorName, true);
-      listenPlayersAndRoom(roomCode);
-      gameLogic.listenRoom(roomCode);
-    } catch (err) {
-      alert(err.message || err);
-    } finally {
-      createRoomBtn.disabled = false;
-      createRoomLoading.classList.add("hidden");
-    }
-  });
 
   /** ------------------------
    *  ODAYA KATIL
@@ -689,5 +637,59 @@ window.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
     document.getElementById("leaveRoomBtn").classList.remove("hidden");
+  }
+
+// Bind create room button at load
+const createRoomBtn = document.getElementById("createRoomBtn");
+const createRoomLoading = document.getElementById("createRoomLoading");
+createRoomBtn.addEventListener("click", async () => {
+  const creatorName = document.getElementById("creatorName").value.trim();
+  if (hasInvalidChars(creatorName)) {
+    alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
+    return;
+  }
+  const playerCount = parseInt(document.getElementById("playerCount").value);
+  const spyCount = parseInt(document.getElementById("spyCount").value);
+  const useRoles = document.getElementById("useRoles").value === "yes";
+  const questionCount = parseInt(document.getElementById("questionCount").value);
+  const guessCount = parseInt(document.getElementById("guessCount").value);
+  const canEliminate = document.getElementById("canEliminate").value === "yes";
+
+  if (!creatorName || isNaN(playerCount) || isNaN(spyCount)) {
+    alert("Lütfen tüm alanları doldurun.");
+    return;
+  }
+
+  createRoomBtn.disabled = true;
+  createRoomLoading.classList.remove("hidden");
+  try {
+    const roomCode = await gameLogic.createRoom(
+      creatorName,
+      playerCount,
+      spyCount,
+      useRoles,
+      questionCount,
+      guessCount,
+      canEliminate
+    );
+    if (!roomCode) return;
+
+    currentRoomCode = roomCode;
+    currentPlayerName = creatorName;
+    isCreator = true;
+
+    // LocalStorage güncelle
+    localStorage.setItem("roomCode", currentRoomCode);
+    localStorage.setItem("playerName", currentPlayerName);
+    localStorage.setItem("isCreator", "true");
+
+    showRoomUI(roomCode, creatorName, true);
+    listenPlayersAndRoom(roomCode);
+    gameLogic.listenRoom(roomCode);
+  } catch (err) {
+    alert(err.message || err);
+  } finally {
+    createRoomBtn.disabled = false;
+    createRoomLoading.classList.add("hidden");
   }
 });
