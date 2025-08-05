@@ -1,6 +1,8 @@
 let anonymousSignInPromise = null;
 
-window.gameLogic = {
+// Expose all game-related operations as a module so it can be imported
+// without relying on global script execution order.
+const gameLogic = {
   getUid: async function () {
     if (!window.auth) return null;
     if (window.auth.currentUser && window.auth.currentUser.uid) {
