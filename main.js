@@ -262,14 +262,15 @@ window.auth.onAuthStateChanged(async (user) => {
    * ------------------------ */
   function listenPlayersAndRoom(roomCode) {
     // Oyuncu listesi
-    window.gameLogic.listenPlayers(roomCode, (players, playersObj) => {
-      // Update player list in UI and player count
-      updatePlayerList(players);
+    window.gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
+      // Update player list in UI and player count using the names array
+      updatePlayerList(playerNames);
 
+      // Use the raw players object for mappings and dropdown population
       playerUidMap = playersObj || {};
 
       // Maintain a filtered array of current players (names)
-      currentPlayers = (players || []).filter((p) => p && p.trim() !== "");
+      currentPlayers = (playerNames || []).filter((p) => p && p.trim() !== "");
 
       const selectEl = document.getElementById("voteSelect");
       if (selectEl) {
