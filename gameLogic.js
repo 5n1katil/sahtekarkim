@@ -10,19 +10,22 @@ window.gameLogic = {
     if (!anonymousSignInPromise) {
       anonymousSignInPromise = new Promise((resolve) => {
         const unsubscribe = window.auth.onAuthStateChanged((user) => {
-        if (user && user.uid) {
-          unsubscribe();
-          resolve(user.uid);
-        }
-      });
-      window.auth
-        .signInAnonymously()
-        .catch((err) => {
-          console.error("Anonymous sign-in error:", err);
-          unsubscribe();
-          resolve(null);
+          if (user && user.uid) {
+            unsubscribe();
+            resolve(user.uid);
+          }
         });
-    });
+        window.auth
+          .signInAnonymously()
+          .catch((err) => {
+            console.error("Anonymous sign-in error:", err);
+            unsubscribe();
+            resolve(null);
+          });
+      });
+    }
+
+    return anonymousSignInPromise;
   },
   /** Oda oluştur */
   createRoom: async function (
