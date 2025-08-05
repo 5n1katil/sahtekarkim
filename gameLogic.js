@@ -10,22 +10,19 @@ window.gameLogic = {
     if (!anonymousSignInPromise) {
       anonymousSignInPromise = new Promise((resolve) => {
         const unsubscribe = window.auth.onAuthStateChanged((user) => {
-          if (user && user.uid) {
-            unsubscribe();
-            resolve(user.uid);
-          }
-        });
-        window.auth
-          .signInAnonymously()
-          .catch((err) => {
-            console.error("Anonymous sign-in error:", err);
-            unsubscribe();
-            resolve(null);
-          });
+        if (user && user.uid) {
+          unsubscribe();
+          resolve(user.uid);
+        }
       });
-    }
-
-    return anonymousSignInPromise;
+      window.auth
+        .signInAnonymously()
+        .catch((err) => {
+          console.error("Anonymous sign-in error:", err);
+          unsubscribe();
+          resolve(null);
+        });
+    });
   },
   /** Oda oluştur */
   createRoom: async function (
@@ -38,7 +35,6 @@ window.gameLogic = {
     canEliminate
   ) {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
-    const roomRef = window.db.ref("rooms/" + roomCode);
 
     const uid = await this.getUid();
     if (!uid) {
@@ -61,12 +57,14 @@ window.gameLogic = {
       createdAt: Date.now(),
     };
 
-    // Save basic room data first
-    await roomRef.set(roomData);
-
-    // Add the creator as the first player under their UID
-    const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
-    await playerRef.set({ name: creatorName, isCreator: true });
+    // Save room data and creator player in a single update call
+    await window.db.ref().update({
+      [`rooms/${roomCode}`]: roomData,
+      [`rooms/${roomCode}/players/${uid}`]: {
+        name: creatorName,
+        isCreator: true,
+      },
+    });
 
     localStorage.setItem("roomCode", roomCode);
     localStorage.setItem("playerName", creatorName);
