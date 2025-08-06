@@ -150,7 +150,7 @@ window.auth.onAuthStateChanged(async (user) => {
       overlay.classList.remove("impostor-animation", "innocent-animation");
       if (isSpy) {
         localStorage.clear();
-        location.href = "https://5n1katil.github.io/detective/";
+        location.href = "https://5n1katil.github.io/sahtekarkim/";
       } else {
           window.gameLogic.endRound(currentRoomCode);
       }
@@ -179,7 +179,7 @@ window.auth.onAuthStateChanged(async (user) => {
       if (correct) {
         const finish = () => {
           localStorage.clear();
-          location.href = "https://5n1katil.github.io/detective/";
+          location.href = "https://5n1katil.github.io/sahtekarkim/";
         };
         if (isCreator) {
           window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
@@ -188,7 +188,7 @@ window.auth.onAuthStateChanged(async (user) => {
         }
       } else {
         localStorage.clear();
-        location.href = "https://5n1katil.github.io/detective/";
+        location.href = "https://5n1katil.github.io/sahtekarkim/";
       }
     }, delay);
   }
@@ -229,7 +229,7 @@ window.auth.onAuthStateChanged(async (user) => {
       overlay.classList.remove("impostor-animation", "innocent-animation");
       const finish = () => {
         localStorage.clear();
-        location.href = "https://5n1katil.github.io/detective/";
+        location.href = "https://5n1katil.github.io/sahtekarkim/";
       };
       if (isCreator) {
         window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
