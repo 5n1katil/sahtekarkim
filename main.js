@@ -215,7 +215,9 @@ window.auth.onAuthStateChanged(async (user) => {
       .join(", ");
     gameEnded = true;
     overlay.innerHTML =
-      "Sahtekar (names ? `<br><span class=\"impostor-name\">${names}</span>` : ""); kazandı! Oyun Bitti..." +
+      "Sahtekar" +
+      (names ? `<br><span class="impostor-name">${names}</span>` : "") +
+      " kazandı! Oyun Bitti...";
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
