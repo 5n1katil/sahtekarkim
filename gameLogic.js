@@ -272,7 +272,7 @@ const gameLogic = {
           const rolesForLoc = locationRoles[chosenLocation];
           const randomRole = settings.useRoles
             ? rolesForLoc[Math.floor(Math.random() * rolesForLoc.length)]
-            : "Masum";
+            : "Ajan";
           playerRoles[player] = {
             isSpy: false,
             role: randomRole,
