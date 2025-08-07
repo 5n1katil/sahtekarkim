@@ -138,7 +138,7 @@ window.auth.onAuthStateChanged(async (user) => {
     const cls = isSpy ? "impostor-animation" : "innocent-animation";
     overlay.textContent = isSpy
       ? `${name} sahtekar çıktı!`
-      : `${name} masumdu.`;
+      : `${name} ajandı.`;
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
@@ -165,7 +165,7 @@ window.auth.onAuthStateChanged(async (user) => {
     ? `Sahtekar kazandı! <span class="impostor-name">${guesser}</span> konumu '<strong>${location}</strong>' olarak<br> doğru tahmin etti.`
     : `${guesser} yanlış tahmin etti!<br>
        Konum '<strong>${location}</strong>'.<br>
-       Masumlar kazandı!`;
+       Ajanlar kazandı!`;
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
