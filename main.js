@@ -494,20 +494,14 @@ window.auth.onAuthStateChanged(async (user) => {
    *  ODA UI GÖSTER
    * ------------------------ */
 function showRoomUI(roomCode, playerName, isCreator) {
-  notifyParentScroll('SAHTEKARKIM_SCROLL_TOP');  // Oda açıldığında garanti kaydır
+  // ✅ Oda açıldığında hemen yukarı kaydırma sinyali gönder
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => notifyParentScroll('SAHTEKARKIM_SCROLL_TOP'), i * 50); // 0ms, 50ms, 100ms, 150ms, 200ms
+  }
+
   document.getElementById("setup").classList.add("hidden");
   document.getElementById("playerJoin").classList.add("hidden");
   document.getElementById("roomInfo").classList.remove("hidden");
-
-  // ---- Wix için üst kaydırma sinyali ----
-  const sendScrollMessage = () => {
-    try {
-      window.parent.postMessage({ type: 'SAHTEKARKIM_SCROLL_TOP' }, '*');
-    } catch (e) {}
-  };
-  // Birkaç kez gönder (mobilde geç yüklenme için)
-  [0, 200, 500, 1000].forEach(ms => setTimeout(sendScrollMessage, ms));
-  // ---------------------------------------
 
   document.getElementById("roomCode").textContent = roomCode;
   document.getElementById("roomTitle").textContent = isCreator
