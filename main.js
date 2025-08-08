@@ -494,15 +494,12 @@ window.auth.onAuthStateChanged(async (user) => {
    *  ODA UI GÖSTER
    * ------------------------ */
 function showRoomUI(roomCode, playerName, isCreator) {
-  // ✅ Oda açıldığında hemen yukarı kaydırma sinyali gönder
-  for (let i = 0; i < 5; i++) {
-    setTimeout(() => notifyParentScroll('SAHTEKARKIM_SCROLL_TOP'), i * 50); // 0ms, 100ms, 200ms, 250ms, 300ms
-  }
-
+  // UI’yi görünür yap
   document.getElementById("setup").classList.add("hidden");
   document.getElementById("playerJoin").classList.add("hidden");
   document.getElementById("roomInfo").classList.remove("hidden");
 
+  // Oda bilgilerini doldur
   document.getElementById("roomCode").textContent = roomCode;
   document.getElementById("roomTitle").textContent = isCreator
     ? "Oda başarıyla oluşturuldu!"
@@ -510,9 +507,23 @@ function showRoomUI(roomCode, playerName, isCreator) {
   document.getElementById("roomInstructions").textContent = isCreator
     ? "Diğer oyuncular bu kodla giriş yapabilir."
     : "Oda kurucusunun oyunu başlatmasını bekleyin.";
-
   document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
   document.getElementById("leaveRoomBtn").classList.remove("hidden");
+
+  // === KAYDIRMAYI, DOM boyaması tamamlandıktan sonra tetikle ===
+  const burst = () => {
+    // kısa, sık aralıklı ama toplamda hızlı bir seri
+    [0, 80, 160, 300].forEach(ms =>
+      setTimeout(() => notifyParentScroll('SAHTEKARKIM_SCROLL_TOP'), ms)
+    );
+  };
+
+  // 2 ardışık requestAnimationFrame: layout + paint kesin bitsin
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      burst();
+    });
+  });
 }
 
 /** ------------------------
