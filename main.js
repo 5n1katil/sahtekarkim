@@ -492,7 +492,11 @@ window.auth.onAuthStateChanged(async (user) => {
     document.getElementById("setup").classList.add("hidden");
     document.getElementById("playerJoin").classList.add("hidden");
     document.getElementById("roomInfo").classList.remove("hidden");
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTop = 0; // iOS/Safari uyumluluğu
+      document.body.scrollTop = 0;
+    }, 50);
 
     document.getElementById("roomCode").textContent = roomCode;
     document.getElementById("roomTitle").textContent = isCreator
