@@ -1,4 +1,9 @@
 console.log('main.js loaded');
+// En üste kaydırma sinyali gönderen yardımcı
+function notifyParentScroll(type = 'SAHTEKARKIM_PRE_SCROLL') {
+  try { window.parent.postMessage({ type }, '*'); } catch (e) {}
+}
+
 // window.gameLogic is loaded globally before this script
 
 // Ensure the user is authenticated anonymously
@@ -489,6 +494,7 @@ window.auth.onAuthStateChanged(async (user) => {
    *  ODA UI GÖSTER
    * ------------------------ */
 function showRoomUI(roomCode, playerName, isCreator) {
+  notifyParentScroll('SAHTEKARKIM_SCROLL_TOP');  // Oda açıldığında garanti kaydır
   document.getElementById("setup").classList.add("hidden");
   document.getElementById("playerJoin").classList.add("hidden");
   document.getElementById("roomInfo").classList.remove("hidden");
@@ -521,6 +527,7 @@ function showRoomUI(roomCode, playerName, isCreator) {
 const createRoomBtn = document.getElementById("createRoomBtn");
 const createRoomLoading = document.getElementById("createRoomLoading");
 createRoomBtn.addEventListener("click", async () => {
+  notifyParentScroll('SAHTEKARKIM_PRE_SCROLL');  // Hemen yukarı kaydır
   console.log('createRoomBtn clicked');
   const creatorName = document.getElementById("creatorName").value.trim();
   if (hasInvalidChars(creatorName)) {
@@ -574,6 +581,7 @@ createRoomBtn.addEventListener("click", async () => {
 });
 
 document.getElementById("joinRoomBtn").addEventListener("click", async () => {
+  notifyParentScroll('SAHTEKARKIM_PRE_SCROLL');  // Hemen yukarı kaydır
   const joinName = document.getElementById("joinName").value.trim();
   const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
 
