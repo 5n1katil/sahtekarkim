@@ -493,7 +493,16 @@ window.auth.onAuthStateChanged(async (user) => {
     document.getElementById("playerJoin").classList.add("hidden");
     document.getElementById("roomInfo").classList.remove("hidden");
     setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const scrollOptions = { top: 0, behavior: 'smooth' };
+      if (window !== window.parent) {
+        try {
+          window.parent.scrollTo(scrollOptions);
+        } catch (e) {
+          window.scrollTo(scrollOptions);
+        }
+      } else {
+        window.scrollTo(scrollOptions);
+      }
       document.documentElement.scrollTop = 0; // iOS/Safari uyumluluğu
       document.body.scrollTop = 0;
     }, 50);
