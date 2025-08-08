@@ -102,10 +102,26 @@
       justify-content: center;
       background: rgba(0, 0, 0, 0.8);
       z-index: 999;
-      font-size: 2rem;
+      padding: 1rem;
+      box-sizing: border-box;
+      overflow: auto;
     }
     .result-overlay.hidden {
       display: none;
+    }
+    .result-message {
+      background: #2c2a4a;
+      color: #fff;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      max-width: 90%;
+      width: auto;
+      max-height: 80vh;
+      overflow-y: auto;
+      text-align: center;
+      word-wrap: break-word;
+      font-size: clamp(1rem, 4vw, 1.5rem);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
     }
     .innocent-animation {
       color: #00e676;
