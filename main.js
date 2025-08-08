@@ -494,6 +494,7 @@ window.auth.onAuthStateChanged(async (user) => {
    *  ODA UI GÖSTER
    * ------------------------ */
 function showRoomUI(roomCode, playerName, isCreator) {
+  // UI güncelleme
   document.getElementById("setup").classList.add("hidden");
   document.getElementById("playerJoin").classList.add("hidden");
   document.getElementById("roomInfo").classList.remove("hidden");
@@ -509,9 +510,20 @@ function showRoomUI(roomCode, playerName, isCreator) {
   document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
   document.getElementById("leaveRoomBtn").classList.remove("hidden");
 
-  // ✅ UI tamamen yüklendikten sonra yukarı kaydırma sinyali
+  // Yukarı kaydırma (300ms sonra, 3 tekrar ile)
+  const scrollTopNow = () => {
+    // Eğer iframe içindeysek parent’a mesaj gönder
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'SAHTEKARKIM_SCROLL_TOP' }, '*');
+    }
+    // Kendi sayfasında da kaydır
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   setTimeout(() => {
-    notifyParentScroll('SAHTEKARKIM_SCROLL_TOP');
+    scrollTopNow();
+    setTimeout(scrollTopNow, 150);
+    setTimeout(scrollTopNow, 300);
   }, 300);
 }
 
