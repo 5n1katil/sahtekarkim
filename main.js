@@ -499,7 +499,7 @@ function showRoomUI(roomCode, playerName, isCreator) {
   document.getElementById("playerJoin").classList.add("hidden");
   document.getElementById("roomInfo").classList.remove("hidden");
 
-  // Oda bilgilerini doldur
+  // Oda bilgileri
   document.getElementById("roomCode").textContent = roomCode;
   document.getElementById("roomTitle").textContent = isCreator
     ? "Oda başarıyla oluşturuldu!"
@@ -510,15 +510,12 @@ function showRoomUI(roomCode, playerName, isCreator) {
   document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
   document.getElementById("leaveRoomBtn").classList.remove("hidden");
 
-  // === KAYDIRMAYI, DOM boyaması tamamlandıktan sonra tetikle ===
+  // DOM boyaması bitsin, sonra scroll sinyali gönder
   const burst = () => {
-    // kısa, sık aralıklı ama toplamda hızlı bir seri
     [0, 80, 160, 300].forEach(ms =>
       setTimeout(() => notifyParentScroll('SAHTEKARKIM_SCROLL_TOP'), ms)
     );
   };
-
-  // 2 ardışık requestAnimationFrame: layout + paint kesin bitsin
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       burst();
