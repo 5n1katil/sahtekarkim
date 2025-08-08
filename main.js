@@ -488,36 +488,35 @@ window.auth.onAuthStateChanged(async (user) => {
   /** ------------------------
    *  ODA UI GÖSTER
    * ------------------------ */
-  function showRoomUI(roomCode, playerName, isCreator) {
-    document.getElementById("setup").classList.add("hidden");
-    document.getElementById("playerJoin").classList.add("hidden");
-    document.getElementById("roomInfo").classList.remove("hidden");
-    setTimeout(() => {
-      const scrollOptions = { top: 0, behavior: 'smooth' };
-      if (window !== window.parent) {
-        try {
-          window.parent.scrollTo(scrollOptions);
-        } catch (e) {
-          window.scrollTo(scrollOptions);
-        }
-      } else {
-        window.scrollTo(scrollOptions);
-      }
-      document.documentElement.scrollTop = 0; // iOS/Safari uyumluluğu
-      document.body.scrollTop = 0;
-    }, 50);
+function showRoomUI(roomCode, playerName, isCreator) {
+  document.getElementById("setup").classList.add("hidden");
+  document.getElementById("playerJoin").classList.add("hidden");
+  document.getElementById("roomInfo").classList.remove("hidden");
 
-    document.getElementById("roomCode").textContent = roomCode;
-    document.getElementById("roomTitle").textContent = isCreator
-      ? "Oda başarıyla oluşturuldu!"
-      : "Oyun odasına hoş geldiniz!";
-    document.getElementById("roomInstructions").textContent = isCreator
-      ? "Diğer oyuncular bu kodla giriş yapabilir."
-      : "Oda kurucusunun oyunu başlatmasını bekleyin.";
+  // ---- EKRANI ÜSTE AL (iframe + standalone uyumlu) ----
+  const bumpToTop = () => {
+    // Kendi dokümanını kaydır
+    const el = document.scrollingElement || document.documentElement || document.body;
+    el.scrollTo({ top: 0, behavior: 'auto' });
+    // Parent’a nazikçe haber ver (Wix için)
+    try { window.parent.postMessage({ type: 'SAHTEKARKIM_SCROLL_TOP' }, '*'); } catch (e) {}
+  };
+  // İlk deneme + reflow sonrası birkaç tekrar (Wix mobil’de güvenli)
+  bumpToTop();
+  [50, 150, 300, 600].forEach(ms => setTimeout(bumpToTop, ms));
+  // ------------------------------------------------------
 
-    document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
-    document.getElementById("leaveRoomBtn").classList.remove("hidden");
-  }
+  document.getElementById("roomCode").textContent = roomCode;
+  document.getElementById("roomTitle").textContent = isCreator
+    ? "Oda başarıyla oluşturuldu!"
+    : "Oyun odasına hoş geldiniz!";
+  document.getElementById("roomInstructions").textContent = isCreator
+    ? "Diğer oyuncular bu kodla giriş yapabilir."
+    : "Oda kurucusunun oyunu başlatmasını bekleyin.";
+
+  document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
+  document.getElementById("leaveRoomBtn").classList.remove("hidden");
+}
 
 /** ------------------------
  *  EVENT LISTENERS
