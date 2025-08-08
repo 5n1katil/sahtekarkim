@@ -494,11 +494,6 @@ window.auth.onAuthStateChanged(async (user) => {
    *  ODA UI GÖSTER
    * ------------------------ */
 function showRoomUI(roomCode, playerName, isCreator) {
-  // ✅ Oda açıldığında hemen yukarı kaydırma sinyali gönder
-  for (let i = 0; i < 5; i++) {
-    setTimeout(() => notifyParentScroll('SAHTEKARKIM_SCROLL_TOP'), i * 50); // 0ms, 50ms, 100ms, 150ms, 200ms
-  }
-
   document.getElementById("setup").classList.add("hidden");
   document.getElementById("playerJoin").classList.add("hidden");
   document.getElementById("roomInfo").classList.remove("hidden");
@@ -513,6 +508,11 @@ function showRoomUI(roomCode, playerName, isCreator) {
 
   document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
   document.getElementById("leaveRoomBtn").classList.remove("hidden");
+
+  // ✅ UI tamamen yüklendikten sonra yukarı kaydırma sinyali
+  setTimeout(() => {
+    notifyParentScroll('SAHTEKARKIM_SCROLL_TOP');
+  }, 300);
 }
 
 /** ------------------------
