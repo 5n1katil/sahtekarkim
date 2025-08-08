@@ -493,18 +493,15 @@ function showRoomUI(roomCode, playerName, isCreator) {
   document.getElementById("playerJoin").classList.add("hidden");
   document.getElementById("roomInfo").classList.remove("hidden");
 
-  // ---- EKRANI ÜSTE AL (iframe + standalone uyumlu) ----
-  const bumpToTop = () => {
-    // Kendi dokümanını kaydır
-    const el = document.scrollingElement || document.documentElement || document.body;
-    el.scrollTo({ top: 0, behavior: 'auto' });
-    // Parent’a nazikçe haber ver (Wix için)
-    try { window.parent.postMessage({ type: 'SAHTEKARKIM_SCROLL_TOP' }, '*'); } catch (e) {}
+  // ---- Wix için üst kaydırma sinyali ----
+  const sendScrollMessage = () => {
+    try {
+      window.parent.postMessage({ type: 'SAHTEKARKIM_SCROLL_TOP' }, '*');
+    } catch (e) {}
   };
-  // İlk deneme + reflow sonrası birkaç tekrar (Wix mobil’de güvenli)
-  bumpToTop();
-  [50, 150, 300, 600].forEach(ms => setTimeout(bumpToTop, ms));
-  // ------------------------------------------------------
+  // Birkaç kez gönder (mobilde geç yüklenme için)
+  [0, 200, 500, 1000].forEach(ms => setTimeout(sendScrollMessage, ms));
+  // ---------------------------------------
 
   document.getElementById("roomCode").textContent = roomCode;
   document.getElementById("roomTitle").textContent = isCreator
