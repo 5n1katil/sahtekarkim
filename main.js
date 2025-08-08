@@ -532,7 +532,6 @@ function showRoomUI(roomCode, playerName, isCreator) {
 const createRoomBtn = document.getElementById("createRoomBtn");
 const createRoomLoading = document.getElementById("createRoomLoading");
 createRoomBtn.addEventListener("click", async () => {
-  notifyParentScroll('SAHTEKARKIM_PRE_SCROLL');  // Hemen yukarı kaydır
   console.log('createRoomBtn clicked');
   const creatorName = document.getElementById("creatorName").value.trim();
   if (hasInvalidChars(creatorName)) {
