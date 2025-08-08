@@ -492,6 +492,7 @@ window.auth.onAuthStateChanged(async (user) => {
     document.getElementById("setup").classList.add("hidden");
     document.getElementById("playerJoin").classList.add("hidden");
     document.getElementById("roomInfo").classList.remove("hidden");
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     document.getElementById("roomCode").textContent = roomCode;
     document.getElementById("roomTitle").textContent = isCreator
