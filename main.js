@@ -141,9 +141,10 @@ window.auth.onAuthStateChanged(async (user) => {
   function showResultOverlay(isSpy, name) {
     const overlay = document.getElementById("resultOverlay");
     const cls = isSpy ? "impostor-animation" : "innocent-animation";
-    overlay.textContent = isSpy
+    const message = isSpy
       ? `${name} sahtekar çıktı!`
       : `${name} ajandı.`;
+    overlay.innerHTML = `<div class="result-message">${message}</div>`;
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
@@ -166,11 +167,10 @@ window.auth.onAuthStateChanged(async (user) => {
     const overlay = document.getElementById("resultOverlay");
     const cls = correct ? "impostor-animation" : "innocent-animation";
     if (correct) gameEnded = true;
-    overlay.innerHTML = correct
-    ? `Sahtekar kazandı! <span class="impostor-name">${guesser}</span> konumu '<strong>${location}</strong>' olarak<br> doğru tahmin etti.`
-    : `${guesser} yanlış tahmin etti!<br>
-       Konum '<strong>${location}</strong>'.<br>
-       Ajanlar kazandı!`;
+    const message = correct
+      ? `Sahtekar kazandı! <span class="impostor-name">${guesser}</span> konumu '<strong>${location}</strong>' olarak<br> doğru tahmin etti.`
+      : `${guesser} yanlış tahmin etti!<br> Konum '<strong>${location}</strong>'.<br> Ajanlar kazandı!`;
+    overlay.innerHTML = `<div class="result-message">${message}</div>`;
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
@@ -200,9 +200,10 @@ window.auth.onAuthStateChanged(async (user) => {
 
   function showGuessWarning(remaining) {
     const overlay = document.getElementById("resultOverlay");
-    overlay.textContent =
+    const message =
       "Bir sahtekar konumu tahmin etti ama bulamadı!" +
       (typeof remaining === "number" ? ` Kalan tahmin hakkı: ${remaining}.` : "");
+    overlay.innerHTML = `<div class="result-message">${message}</div>`;
     overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
     overlay.classList.add("innocent-animation");
     setTimeout(() => {
@@ -219,10 +220,11 @@ window.auth.onAuthStateChanged(async (user) => {
       .filter((n) => n && currentPlayers.includes(n))
       .join(", ");
     gameEnded = true;
-    overlay.innerHTML =
+    const message =
       "Sahtekar" +
       (names ? `<br><span class="impostor-name">${names}</span>` : "") +
       " kazandı! Oyun Bitti...";
+    overlay.innerHTML = `<div class="result-message">${message}</div>`;
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
@@ -309,8 +311,9 @@ window.auth.onAuthStateChanged(async (user) => {
       ) {
         const reason = roomData.eliminations[currentUid];
         const overlay = document.getElementById("resultOverlay");
-        overlay.textContent =
+        const message =
           reason === "vote" ? "Oylama sonucu elendin!" : "Sahtekar seni eledi!";
+        overlay.innerHTML = `<div class="result-message">${message}</div>`;
         overlay.classList.remove(
           "hidden",
           "impostor-animation",
