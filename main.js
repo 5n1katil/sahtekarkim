@@ -496,7 +496,7 @@ window.auth.onAuthStateChanged(async (user) => {
 function showRoomUI(roomCode, playerName, isCreator) {
   // ✅ Oda açıldığında hemen yukarı kaydırma sinyali gönder
   for (let i = 0; i < 5; i++) {
-    setTimeout(() => notifyParentScroll('SAHTEKARKIM_SCROLL_TOP'), i * 50); // 0ms, 50ms, 100ms, 150ms, 200ms
+    setTimeout(() => notifyParentScroll('SAHTEKARKIM_SCROLL_TOP'), i * 50); // 0ms, 100ms, 200ms, 250ms, 300ms
   }
 
   document.getElementById("setup").classList.add("hidden");
