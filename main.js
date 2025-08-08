@@ -582,7 +582,6 @@ createRoomBtn.addEventListener("click", async () => {
 });
 
 document.getElementById("joinRoomBtn").addEventListener("click", async () => {
-  notifyParentScroll('SAHTEKARKIM_PRE_SCROLL');  // Hemen yukarı kaydır
   const joinName = document.getElementById("joinName").value.trim();
   const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
 
