@@ -513,21 +513,6 @@ function showRoomUI(roomCode, playerName, isCreator) {
   document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
   document.getElementById("leaveRoomBtn").classList.remove("hidden");
 
-  // Yukarı kaydırma (300ms sonra, 3 tekrar ile)
-  const scrollTopNow = () => {
-    // Eğer iframe içindeysek parent’a mesaj gönder
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'SAHTEKARKIM_SCROLL_TOP' }, '*');
-    }
-    // Kendi sayfasında da kaydır
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  setTimeout(() => {
-    scrollTopNow();
-    setTimeout(scrollTopNow, 150);
-    setTimeout(scrollTopNow, 300);
-  }, 300);
 }
 
 /** ------------------------
