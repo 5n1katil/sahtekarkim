@@ -1,8 +1,4 @@
 console.log('main.js loaded');
-// En üste kaydırma sinyali gönderen yardımcı
-function notifyParentScroll(type = 'SAHTEKARKIM_PRE_SCROLL') {
-  try { window.parent.postMessage({ type }, '*'); } catch (e) {}
-}
 
 // window.gameLogic is loaded globally before this script
 
