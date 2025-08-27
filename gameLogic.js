@@ -257,8 +257,10 @@ const gameLogic = {
     updates[`rooms/${roomCode}/spies`] = spies;
 
     const gameType = settings.gameType;
-    const isLocationGame = gameType === "Klasik (Konum)";
-    const isCategoryGame = gameType === "Özel Kategori";
+    const isLocationGame =
+      gameType === "location" || gameType === "Klasik (Konum)";
+    const isCategoryGame =
+      gameType === "category" || gameType === "Özel Kategori";
 
     if (isLocationGame) {
       const pool = samplePool([...POOLS.locations], settings.poolSize);
