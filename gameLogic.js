@@ -313,6 +313,24 @@ const gameLogic = {
   },
 
   startGame: async function (roomCode) {
+    const roomRef = window.db.ref(`rooms/${roomCode}`);
+    const snapshot = await roomRef.get();
+    if (!snapshot.exists()) {
+      throw new Error("Oda bulunamadı");
+    }
+
+    const data = snapshot.val();
+    const players = data.players || {};
+    const settings = data.settings || {};
+    const playerCount = Object.keys(players).length;
+
+    if (playerCount < 3) {
+      throw new Error("Oyun en az 3 oyuncu ile başlamalı.");
+    }
+    if (playerCount !== settings.playerCount) {
+      throw new Error("Belirlenen oyuncu sayısına ulaşılmadı.");
+    }
+
     await this.assignRoles(roomCode);
     await window.db.ref(`rooms/${roomCode}`).update({
       status: "started",
