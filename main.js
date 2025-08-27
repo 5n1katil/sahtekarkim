@@ -144,13 +144,16 @@ let gameEnded = false;
       "innocent-animation"
     );
     overlay.classList.add("impostor-animation");
+
     setTimeout(() => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
+
       const finish = () => {
         localStorage.clear();
         location.href = "https://5n1katil.github.io/sahtekarkim/";
       };
+
       if (isCreator) {
         window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
       } else {
@@ -159,7 +162,7 @@ let gameEnded = false;
         document.getElementById("playerRoleInfo").classList.add("hidden");
         finish();
       }
-    }, 3000);
+    }, 3000); // overlay 3 saniye sonra kapanır
   }
 
   /** ------------------------
@@ -184,7 +187,7 @@ let gameEnded = false;
     window.gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
       // İsim dizisini kullanarak UI'da oyuncu listesini ve oyuncu sayısını güncelle
       updatePlayerList(playerNames);
-
+      
       // Ham oyuncu nesnesini eşleştirme ve açılır menüyü doldurma için kullan
       playerUidMap = playersObj || {};
 
