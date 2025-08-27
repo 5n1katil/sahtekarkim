@@ -1,5 +1,18 @@
 let anonymousSignInPromise = null;
 
+// Basit HTML kaçış fonksiyonu
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (ch) =>
+    ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[ch])
+  );
+}
+
 // Konumlar ve kategoriler için veri havuzları
 const POOLS = {
   locations: [
@@ -346,7 +359,9 @@ const gameLogic = {
       const players = Object.values(playersObj).map((p) => p.name);
       const playerListEl = document.getElementById("playerList");
       if (playerListEl) {
-        playerListEl.innerHTML = players.map((p) => `<li>${p}</li>`).join("");
+        playerListEl.innerHTML = players
+          .map((p) => `<li>${escapeHtml(p)}</li>`)
+          .join("");
       }
 
       // Oyun başladıysa rol göster
