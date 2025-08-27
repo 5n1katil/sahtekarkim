@@ -98,9 +98,8 @@ window.auth.onAuthStateChanged(async (user) => {
       showSetupJoin();
     }
   });
-  let lastVoteResult = null;
-  let lastGuessResult = null;
-  let gameEnded = false;
+let lastVoteResult = null;
+let gameEnded = false;
 
   function showResultOverlay(isSpy, name) {
     const overlay = document.getElementById("resultOverlay");
@@ -125,41 +124,6 @@ window.auth.onAuthStateChanged(async (user) => {
           window.gameLogic.endRound(currentRoomCode);
       }
     }, 3000);
-  }
-
-  function showGuessOverlay(correct, location, guesser) {
-    const overlay = document.getElementById("resultOverlay");
-    const cls = correct ? "impostor-animation" : "innocent-animation";
-    if (correct) gameEnded = true;
-    const message = correct
-      ? `Sahtekar kazandı! <span class="impostor-name">${guesser}</span> konumu '<strong>${location}</strong>' olarak<br> doğru tahmin etti.`
-      : `${guesser} yanlış tahmin etti!<br> Konum '<strong>${location}</strong>'.<br> Ajanlar kazandı!`;
-    overlay.innerHTML = `<div class="result-message">${message}</div>`;
-    overlay.classList.remove(
-      "hidden",
-      "impostor-animation",
-      "innocent-animation"
-    );
-    overlay.classList.add(cls);
-    const delay = correct ? 10000 : 3000;
-    setTimeout(() => {
-      overlay.classList.add("hidden");
-      overlay.classList.remove("impostor-animation", "innocent-animation");
-      if (correct) {
-        const finish = () => {
-          localStorage.clear();
-          location.href = "https://5n1katil.github.io/sahtekarkim/";
-        };
-        if (isCreator) {
-          window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
-        } else {
-          finish();
-        }
-      } else {
-        localStorage.clear();
-        location.href = "https://5n1katil.github.io/sahtekarkim/";
-      }
-    }, delay);
   }
 
   function showSpyWinOverlay(spyIds) {
@@ -253,58 +217,16 @@ window.auth.onAuthStateChanged(async (user) => {
       const roomData = snapshot.val();
       const leaveBtn = document.getElementById("leaveRoomBtn");
       const exitBtn = document.getElementById("backToHomeBtn");
-      if (
-        roomData &&
-        roomData.eliminations &&
-        roomData.eliminations[currentUid]
-      ) {
-        const reason = roomData.eliminations[currentUid];
-        const overlay = document.getElementById("resultOverlay");
-        const message =
-          reason === "vote" ? "Oylama sonucu elendin!" : "Sahtekar seni eledi!";
-        overlay.innerHTML = `<div class="result-message">${message}</div>`;
-        overlay.classList.remove(
-          "hidden",
-          "impostor-animation",
-          "innocent-animation"
-        );
-        overlay.classList.add("impostor-animation");
-        setTimeout(() => {
-          window.db
-            .ref(`rooms/${currentRoomCode}/eliminations/${currentUid}`)
-            .remove();
-          localStorage.clear();
-          location.reload();
-        }, 3000);
-        return;
-      }
-      if (roomData && roomData.guessResult) {
-        const key = JSON.stringify(roomData.guessResult);
-        if (key !== lastGuessResult) {
-          lastGuessResult = key;
-          const g =
-            playerUidMap[roomData.guessResult.guesser]?.name ||
-            roomData.guessResult.guesser;
-          showGuessOverlay(
-            !!roomData.guessResult.correct,
-            roomData.location,
-            g
-          );
+        if (
+          roomData &&
+          (roomData.spyParityWin ||
+            (roomData.status === "finished" && roomData.winner === "spy"))
+        ) {
+          showSpyWinOverlay(roomData.spies);
+          window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
+          return;
         }
-      } else {
-        lastGuessResult = null;
-      }
-      if (
-        roomData &&
-        !roomData.guessResult?.correct &&
-        (roomData.spyParityWin ||
-          (roomData.status === "finished" && roomData.winner === "spy"))
-      ) {
-        showSpyWinOverlay(roomData.spies);
-        window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
-        return;
-      }
-      if (!roomData || roomData.status !== "started") {
+        if (!roomData || roomData.status !== "started") {
         document.getElementById("gameActions").classList.add("hidden");
         leaveBtn?.classList.remove("hidden");
         exitBtn?.classList.remove("hidden");
@@ -325,40 +247,16 @@ window.auth.onAuthStateChanged(async (user) => {
           roleMessageEl.innerHTML =
             `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
             `Olası konumlar: ${myData.allLocations.join(", ")}`;
-          const guessSection = document.getElementById("guessSection");
-          const canGuess = !roomData.guessResult;
-          guessSection.classList.toggle("hidden", !canGuess);
-          const guessSelect = document.getElementById("guessSelect");
-          guessSelect.innerHTML = myData.allLocations
-            .map((loc) => `<option value="${loc}">${loc}</option>`)
-            .join("");
-          const elimSection = document.getElementById("eliminationSection");
-          if (
-            roomData.settings &&
-            roomData.settings.canEliminate &&
-            roomData.eliminationPending
-          ) {
-            elimSection.classList.remove("hidden");
-            const elimSelect = document.getElementById("eliminateSelect");
-            elimSelect.innerHTML = Object.entries(playerUidMap)
-              .filter(([uid]) => uid !== currentUid)
-              .map(([uid, p]) => `<option value="${uid}">${p.name}</option>`)
-              .join("");
-          } else {
-            elimSection.classList.add("hidden");
-          }
         } else {
           roleMessageEl.innerHTML =
             `📍 Konum: <b>${myData.location}</b><br>` +
             `🎭 Rolün: <b>${myData.role}</b>`;
-          document.getElementById("guessSection").classList.add("hidden");
-          document.getElementById("eliminationSection").classList.add("hidden");
         }
 
         const votingInstructionEl = document.getElementById("votingInstruction");
         if (votingInstructionEl) {
           votingInstructionEl.textContent =
-            "Hazır olduğunuzda oylamayı başlatabilirsiniz.";
+            "Her tur tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
         }
 
         // Oylama durumu
@@ -586,15 +484,6 @@ document.getElementById("leaveRoomBtn").addEventListener("click", () => {
   });
 });
 
-document.getElementById("guessBtn").addEventListener("click", () => {
-  const loc = document.getElementById("guessSelect").value;
-  if (loc) {
-    window.gameLogic.guessLocation(currentRoomCode, currentUid, loc);
-    document.getElementById("guessSection").classList.add("hidden");
-  }
-});
-
-// Oylamayı başlatma isteği
 document.getElementById("startVotingBtn").addEventListener("click", () => {
   window.gameLogic.startVote(currentRoomCode, currentUid);
 });
@@ -605,14 +494,6 @@ document.getElementById("submitVoteBtn").addEventListener("click", () => {
   if (target) {
     window.gameLogic.submitVote(currentRoomCode, currentUid, target);
     document.getElementById("votingSection").classList.add("hidden");
-  }
-});
-
-document.getElementById("eliminateBtn").addEventListener("click", () => {
-  const target = document.getElementById("eliminateSelect").value;
-  if (target) {
-    window.gameLogic.eliminatePlayer(currentRoomCode, target);
-    document.getElementById("eliminationSection").classList.add("hidden");
   }
 });
 
