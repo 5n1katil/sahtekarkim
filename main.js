@@ -61,7 +61,16 @@ window.auth.onAuthStateChanged(async (user) => {
           const playerRef = window.db.ref(
             `rooms/${currentRoomCode}/players/${uid}`
           );
-          playerRef.set({ name: currentPlayerName, isCreator });
+          if (
+            typeof currentPlayerName === "string" &&
+            currentPlayerName.trim() !== ""
+          ) {
+            playerRef.set({ name: currentPlayerName, isCreator });
+          } else {
+            console.error(
+              "Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı."
+            );
+          }
 
           showRoomUI(currentRoomCode, currentPlayerName, isCreator);
           listenPlayersAndRoom(currentRoomCode);
