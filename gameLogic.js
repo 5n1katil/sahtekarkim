@@ -181,7 +181,11 @@ const gameLogic = {
     return window.db.ref("rooms/tmp/settings").set(settings);
   },
   /** Oda oluştur */
-  createRoom: async function (creatorName, settings) {
+  createRoom: async function (options) {
+    const {
+      creatorName,
+      ...settings
+    } = options || {};
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
 
     const uid = await this.getUid();
