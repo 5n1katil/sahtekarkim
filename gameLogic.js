@@ -463,7 +463,8 @@ const gameLogic = {
         const players = Object.keys(data.players || {});
         const requests = Object.keys(data.voteRequests || {});
 
-        if (requests.length === players.length) {
+        const allRequested = players.every((uid) => requests.includes(uid));
+        if (allRequested) {
           this.startVoting(roomCode);
           ref.child("voteRequests").remove();
         }
