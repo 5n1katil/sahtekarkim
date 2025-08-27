@@ -8,38 +8,6 @@ if (window.auth && !window.auth.currentUser) {
     console.error("Anonymous sign-in error:", err);
   });
 }
-
-function getQuestionWord(count) {
-  const words = {
-    1: "birer",
-    2: "ikişer",
-    3: "üçer",
-    4: "dörder",
-    5: "beşer",
-    6: "altışar",
-    7: "yedişer",
-    8: "sekizer",
-    9: "dokuzar",
-    10: "onar",
-  };
-  if (words[count]) return words[count];
-
-  const suffixes = {
-    0: "ar",
-    1: "er",
-    2: "şer",
-    3: "er",
-    4: "er",
-    5: "er",
-    6: "şar",
-    7: "şer",
-    8: "er",
-    9: "ar",
-  };
-  const lastDigit = Math.abs(Number(count)) % 10;
-  const suffix = suffixes[lastDigit] || "er";
-  return `${count}'${suffix}`;
-}
 // Preserve game info on refresh but reset when opening a new session
 try {
   const nav = performance.getEntriesByType("navigation")[0];
@@ -194,21 +162,6 @@ window.auth.onAuthStateChanged(async (user) => {
     }, delay);
   }
 
-  function showGuessWarning(remaining) {
-    const overlay = document.getElementById("resultOverlay");
-    const message =
-      "Bir sahtekar konumu tahmin etti ama bulamadı!" +
-      (typeof remaining === "number" ? ` Kalan tahmin hakkı: ${remaining}.` : "");
-    overlay.innerHTML = `<div class="result-message">${message}</div>`;
-    overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
-    overlay.classList.add("innocent-animation");
-    setTimeout(() => {
-      overlay.classList.add("hidden");
-      overlay.classList.remove("innocent-animation");
-      window.db.ref(`rooms/${currentRoomCode}/guessResult`).remove();
-    }, 3000);
-  }
-
   function showSpyWinOverlay(spyIds) {
     const overlay = document.getElementById("resultOverlay");
     const names = (spyIds || [])
@@ -329,19 +282,14 @@ window.auth.onAuthStateChanged(async (user) => {
         const key = JSON.stringify(roomData.guessResult);
         if (key !== lastGuessResult) {
           lastGuessResult = key;
-          if (roomData.guessResult.correct) {
-            const g =
-              playerUidMap[roomData.guessResult.guesser]?.name ||
-              roomData.guessResult.guesser;
-            showGuessOverlay(true, roomData.location, g);
-          } else if (roomData.guessResult.guesser) {
-            const g =
-              playerUidMap[roomData.guessResult.guesser]?.name ||
-              roomData.guessResult.guesser;
-            showGuessOverlay(false, roomData.location, g);
-          } else {
-            showGuessWarning(roomData.settings && roomData.settings.guessCount);
-          }
+          const g =
+            playerUidMap[roomData.guessResult.guesser]?.name ||
+            roomData.guessResult.guesser;
+          showGuessOverlay(
+            !!roomData.guessResult.correct,
+            roomData.location,
+            g
+          );
         }
       } else {
         lastGuessResult = null;
@@ -378,8 +326,7 @@ window.auth.onAuthStateChanged(async (user) => {
             `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
             `Olası konumlar: ${myData.allLocations.join(", ")}`;
           const guessSection = document.getElementById("guessSection");
-          const canGuess =
-            roomData.settings && roomData.settings.guessCount > 0 && !roomData.guessResult;
+          const canGuess = !roomData.guessResult;
           guessSection.classList.toggle("hidden", !canGuess);
           const guessSelect = document.getElementById("guessSelect");
           guessSelect.innerHTML = myData.allLocations
@@ -410,11 +357,8 @@ window.auth.onAuthStateChanged(async (user) => {
 
         const votingInstructionEl = document.getElementById("votingInstruction");
         if (votingInstructionEl) {
-          const qc = roomData.settings && roomData.settings.questionCount
-            ? roomData.settings.questionCount
-            : 1;
-          const word = getQuestionWord(qc);
-          votingInstructionEl.textContent = `Herkes birbirine ${word} soru sorduktan sonra oylamaya başlayınız...`;
+          votingInstructionEl.textContent =
+            "Herkes birbirine birer soru sorduktan sonra oylamaya başlayınız...";
         }
 
         // Oylama durumu
@@ -506,7 +450,6 @@ function showRoomUI(roomCode, playerName, isCreator) {
     ? "Diğer oyuncular bu kodla giriş yapabilir."
     : "Oda kurucusunun oyunu başlatmasını bekleyin.";
 
-  document.getElementById("startGameBtn").classList.toggle("hidden", !isCreator);
   document.getElementById("leaveRoomBtn").classList.remove("hidden");
 
 }
@@ -526,6 +469,40 @@ gameTypeSelect.addEventListener("change", () => {
 
 const createRoomBtn = document.getElementById("createRoomBtn");
 const createRoomLoading = document.getElementById("createRoomLoading");
+const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+
+async function buildSettings() {
+  const playerCount = parseInt(document.getElementById("playerCount").value);
+  const spyCount = parseInt(document.getElementById("spyCount").value);
+  const gameType = document.getElementById("gameType").value;
+  let categoryName = null;
+  if (gameType === "Özel Kategori") {
+    const c = document.getElementById("categoryName").value.trim();
+    if (c) categoryName = c;
+  }
+  const poolSize = parseInt(document.getElementById("poolSize").value);
+  const voteAnytime = document.getElementById("voteAnytime").checked;
+  const creatorUid = await window.gameLogic.getUid();
+  return {
+    playerCount,
+    spyCount,
+    gameType,
+    categoryName,
+    poolSize,
+    voteAnytime,
+    clueMode: "one-word",
+    creatorUid,
+  };
+}
+
+saveSettingsBtn.addEventListener("click", async () => {
+  const settings = await buildSettings();
+  try {
+    await window.gameLogic.saveSettings(settings);
+  } catch (err) {
+    alert(err.message || err);
+  }
+});
 createRoomBtn.addEventListener("click", async () => {
   console.log('createRoomBtn clicked');
   const creatorName = document.getElementById("creatorName").value.trim();
@@ -533,14 +510,8 @@ createRoomBtn.addEventListener("click", async () => {
     alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
     return;
   }
-  const playerCount = parseInt(document.getElementById("playerCount").value);
-  const spyCount = parseInt(document.getElementById("spyCount").value);
-  const gameType = document.getElementById("gameType").value;
-  const categoryName = document.getElementById("categoryName").value;
-  const poolSize = parseInt(document.getElementById("poolSize").value);
-  const voteAnytime = document.getElementById("voteAnytime").checked;
-
-  if (!creatorName || isNaN(playerCount) || isNaN(spyCount)) {
+  const settings = await buildSettings();
+  if (!creatorName || isNaN(settings.playerCount) || isNaN(settings.spyCount)) {
     alert("Lütfen tüm alanları doldurun.");
     return;
   }
@@ -548,15 +519,7 @@ createRoomBtn.addEventListener("click", async () => {
   createRoomBtn.disabled = true;
   createRoomLoading.classList.remove("hidden");
   try {
-    const roomCode = await window.gameLogic.createRoom(
-      creatorName,
-      playerCount,
-      spyCount,
-      gameType,
-      categoryName,
-      poolSize,
-      voteAnytime
-    );
+    const roomCode = await window.gameLogic.createRoom(creatorName, settings);
     if (!roomCode) return;
 
     currentRoomCode = roomCode;
@@ -622,21 +585,6 @@ document.getElementById("leaveRoomBtn").addEventListener("click", () => {
     localStorage.clear();
     location.reload();
   });
-});
-
-document.getElementById("startGameBtn").addEventListener("click", () => {
-  const settings = {
-    playerCount: parseInt(document.getElementById("playerCount").value),
-    spyCount: parseInt(document.getElementById("spyCount").value),
-    gameType: document.getElementById("gameType").value,
-    categoryName: document.getElementById("categoryName").value,
-    poolSize: parseInt(document.getElementById("poolSize").value),
-    voteAnytime: document.getElementById("voteAnytime").checked,
-    locations: ["Havalimanı", "Restoran", "Kütüphane", "Müze"],
-    roles: ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"]
-  };
-
-  window.gameLogic.startGame(currentRoomCode, settings);
 });
 
 document.getElementById("guessBtn").addEventListener("click", () => {
