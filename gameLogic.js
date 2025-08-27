@@ -372,7 +372,11 @@ const gameLogic = {
     const voteAnytimeSnap = await window.db
       .ref(`rooms/${roomCode}/settings/voteAnytime`)
       .get();
-    if (!voteAnytimeSnap.exists() || !voteAnytimeSnap.val()) return;
+    const voteAnytime = voteAnytimeSnap.exists() && voteAnytimeSnap.val();
+    if (!voteAnytime) {
+      this.requestVotingStart(roomCode, uid);
+      return;
+    }
     const updates = {};
     updates[`rooms/${roomCode}/phase`] = "voting";
     updates[`rooms/${roomCode}/voting`] = {
