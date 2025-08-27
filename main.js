@@ -359,7 +359,7 @@ const categoryLabel = document.getElementById("categoryLabel");
 const categorySelect = document.getElementById("categoryName");
 
 gameTypeSelect.addEventListener("change", () => {
-  const show = gameTypeSelect.value === "category";
+  const show = gameTypeSelect.value === "Özel Kategori";
   categoryLabel.classList.toggle("hidden", !show);
   categorySelect.classList.toggle("hidden", !show);
 });
