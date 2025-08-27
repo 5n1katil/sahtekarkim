@@ -506,5 +506,5 @@ const gameLogic = {
   },
 };
 
-// Expose globally so that main.js can access it without imports
+// main.js import gerektirmeden erişebilsin diye global olarak açığa çıkar
 window.gameLogic = gameLogic;
