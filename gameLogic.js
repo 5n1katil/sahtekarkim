@@ -247,6 +247,7 @@ const gameLogic = {
     if (!settingsSnap.exists() || !playersSnap.exists()) {
       throw new Error("Oda bulunamadı");
     }
+
     const settings = settingsSnap.val();
     const players = playersSnap.val() || {};
     const uids = Object.keys(players);
@@ -257,19 +258,27 @@ const gameLogic = {
     updates[`rooms/${roomCode}/spies`] = spies;
 
     const gameType = settings.gameType;
-    const isLocationGame =
-      gameType === "location" || gameType === "Klasik (Konum)";
-    const isCategoryGame =
-      gameType === "category" || gameType === "Özel Kategori";
+    const isLocationGame = gameType === "location";
+    const isCategoryGame = gameType === "category";
 
     if (isLocationGame) {
       const pool = samplePool([...POOLS.locations], settings.poolSize);
       const chosenLocation = randomFrom(pool);
       uids.forEach((uid) => {
         const isSpy = spies.includes(uid);
-        updates[`rooms/${roomCode}/assignments/${uid}`] = isSpy
-          ? { role: "spy", secret: null, type: "location" }
-          : { role: "citizen", secret: chosenLocation, type: "location" };
+        updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
+          ? {
+              isSpy: true,
+              role: "Sahtekar",
+              location: null,
+              allLocations: pool,
+            }
+          : {
+              isSpy: false,
+              role: "Vatandaş",
+              location: chosenLocation,
+              allLocations: pool,
+            };
       });
     } else if (isCategoryGame) {
       const categoryName = settings.categoryName;
@@ -282,9 +291,19 @@ const gameLogic = {
       let idx = 0;
       uids.forEach((uid) => {
         const isSpy = spies.includes(uid);
-        updates[`rooms/${roomCode}/assignments/${uid}`] = isSpy
-          ? { role: "spy", secret: null, type: "category" }
-          : { role: "citizen", secret: pool[idx++], type: "category" };
+        updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
+          ? {
+              isSpy: true,
+              role: "Sahtekar",
+              location: null,
+              allLocations: pool,
+            }
+          : {
+              isSpy: false,
+              role: pool[idx++],
+              location: categoryName,
+              allLocations: pool,
+            };
       });
     } else {
       throw new Error("Bilinmeyen oyun türü");
@@ -295,44 +314,14 @@ const gameLogic = {
 
   startGame: async function (roomCode) {
     await this.assignRoles(roomCode);
-
-    const [assignSnap, settingsSnap] = await Promise.all([
-      window.db.ref(`rooms/${roomCode}/assignments`).get(),
-      window.db.ref(`rooms/${roomCode}/settings`).get(),
-    ]);
-
-    if (!assignSnap.exists() || !settingsSnap.exists()) return;
-
-    const assignments = assignSnap.val() || {};
-    const settings = settingsSnap.val() || {};
-    const playerRoles = {};
-
-    const allLocations =
-      settings.gameType === "Özel Kategori"
-        ? POOLS[settings.categoryName] || []
-        : POOLS.locations;
-
-    Object.entries(assignments).forEach(([uid, info]) => {
-      if (info.role === "spy") {
-        playerRoles[uid] = {
-          role: "Sahtekar",
-          isSpy: true,
-          allLocations,
-        };
-      } else {
-        playerRoles[uid] = {
-          role: "Sivil",
-          location: info.secret,
-          isSpy: false,
-          allLocations,
-        };
-      }
-    });
-
     await window.db.ref(`rooms/${roomCode}`).update({
       status: "started",
-      playerRoles,
       round: 1,
+      phase: "clue",
+      votes: null,
+      voteResult: null,
+      votingStarted: false,
+      voteRequests: null,
     });
   },
 
