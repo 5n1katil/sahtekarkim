@@ -305,9 +305,14 @@ let gameEnded = false;
         document
           .getElementById("startVotingBtn")
           .classList.toggle("hidden", isVotingPhase);
-        document
-          .getElementById("waitingVoteStart")
-          .classList.toggle("hidden", !(hasRequested && !isVotingPhase));
+
+        const waitingEl = document.getElementById("waitingVoteStart");
+        if (hasRequested && !isVotingPhase) {
+          waitingEl.classList.remove("hidden");
+        } else {
+          waitingEl.classList.add("hidden");
+        }
+
         const hasVoted =
           roomData.votes && roomData.votes[currentUid] ? true : false;
         document
