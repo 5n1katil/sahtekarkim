@@ -529,8 +529,20 @@ document.getElementById("leaveRoomBtn").addEventListener("click", () => {
   });
 });
 
-document.getElementById("startGameBtn").addEventListener("click", () => {
-  window.gameLogic.startGame(currentRoomCode);
+document.getElementById("startGameBtn").addEventListener("click", async (e) => {
+  if (!currentRoomCode) {
+    alert("Oda kodu bulunamadı!");
+    return;
+  }
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    await window.gameLogic.startGame(currentRoomCode);
+  } catch (error) {
+    alert("Oyunu başlatırken bir hata oluştu: " + (error.message || error));
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 document.getElementById("startVotingBtn").addEventListener("click", () => {
