@@ -42,13 +42,6 @@ window.auth.onAuthStateChanged(async (user) => {
             isCreator = false;
             showSetupJoin();
             return;
-          if (!roomSnap.exists()) {
-            localStorage.clear();
-            currentRoomCode = null;
-            currentPlayerName = null;
-            isCreator = false;
-            showSetupJoin();
-            return;
           }
 
           const uid = user.uid;
@@ -161,9 +154,12 @@ let gameEnded = false;
       if (isCreator) {
         window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
       } else {
-    document.getElementById("playerJoin").classList.remove("hidden");
-    document.getElementById("roomInfo").classList.add("hidden");
-    document.getElementById("playerRoleInfo").classList.add("hidden");
+        document.getElementById("playerJoin").classList.remove("hidden");
+        document.getElementById("roomInfo").classList.add("hidden");
+        document.getElementById("playerRoleInfo").classList.add("hidden");
+        finish();
+      }
+    }, 3000);
   }
 
   /** ------------------------
@@ -211,13 +207,6 @@ let gameEnded = false;
         location.reload();
       }
     });
-
-    // Oyun başlama durumunu canlı dinle
-    window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
-      const roomData = snapshot.val();
-      const leaveBtn = document.getElementById("leaveRoomBtn");
-      const exitBtn = document.getElementById("backToHomeBtn");
-        if (
 
     // Oyun başlama durumunu canlı dinle
     window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
@@ -412,11 +401,6 @@ createRoomBtn.addEventListener("click", async () => {
   const creatorName = document.getElementById("creatorName").value.trim();
   if (hasInvalidChars(creatorName)) {
     alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
-    return;
-  }
-  const settings = await buildSettings();
-  if (!creatorName || isNaN(settings.playerCount) || isNaN(settings.spyCount)) {
-    alert("Lütfen tüm alanları doldurun.");
     return;
   }
   const settings = await buildSettings();
