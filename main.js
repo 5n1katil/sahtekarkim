@@ -1,11 +1,16 @@
-console.log('main.js loaded');
+const isProd = !['localhost', '127.0.0.1'].includes(window.location.hostname);
+if (!isProd) {
+  console.log('main.js yüklendi');
+}
 
 // window.gameLogic is loaded globally before this script
 
 // Ensure the user is authenticated anonymously
 if (window.auth && !window.auth.currentUser) {
   window.auth.signInAnonymously().catch((err) => {
-    console.error("Anonymous sign-in error:", err);
+    if (!isProd) {
+      console.error('Anonim giriş hatası:', err);
+    }
   });
 }
 // Preserve game info on refresh but reset when opening a new session
@@ -16,7 +21,9 @@ try {
     localStorage.clear();
   }
 } catch (err) {
-  console.warn("Navigation performance check failed:", err);
+  if (!isProd) {
+    console.warn('Gezinme performans kontrolü başarısız:', err);
+  }
 }
 
 let currentRoomCode = localStorage.getItem("roomCode") || null;
