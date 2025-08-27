@@ -514,6 +514,16 @@ function showRoomUI(roomCode, playerName, isCreator) {
 /** ------------------------
  *  EVENT LISTENERS
  * ------------------------ */
+const gameTypeSelect = document.getElementById("gameType");
+const categoryLabel = document.getElementById("categoryLabel");
+const categorySelect = document.getElementById("categoryName");
+
+gameTypeSelect.addEventListener("change", () => {
+  const show = gameTypeSelect.value === "category";
+  categoryLabel.classList.toggle("hidden", !show);
+  categorySelect.classList.toggle("hidden", !show);
+});
+
 const createRoomBtn = document.getElementById("createRoomBtn");
 const createRoomLoading = document.getElementById("createRoomLoading");
 createRoomBtn.addEventListener("click", async () => {
@@ -525,10 +535,10 @@ createRoomBtn.addEventListener("click", async () => {
   }
   const playerCount = parseInt(document.getElementById("playerCount").value);
   const spyCount = parseInt(document.getElementById("spyCount").value);
-  const useRoles = document.getElementById("useRoles").value === "yes";
-  const questionCount = parseInt(document.getElementById("questionCount").value);
-  const guessCount = parseInt(document.getElementById("guessCount").value);
-  const canEliminate = document.getElementById("canEliminate").value === "yes";
+  const gameType = document.getElementById("gameType").value;
+  const categoryName = document.getElementById("categoryName").value;
+  const poolSize = parseInt(document.getElementById("poolSize").value);
+  const voteAnytime = document.getElementById("voteAnytime").checked;
 
   if (!creatorName || isNaN(playerCount) || isNaN(spyCount)) {
     alert("Lütfen tüm alanları doldurun.");
@@ -542,10 +552,10 @@ createRoomBtn.addEventListener("click", async () => {
       creatorName,
       playerCount,
       spyCount,
-      useRoles,
-      questionCount,
-      guessCount,
-      canEliminate
+      gameType,
+      categoryName,
+      poolSize,
+      voteAnytime
     );
     if (!roomCode) return;
 
@@ -618,10 +628,10 @@ document.getElementById("startGameBtn").addEventListener("click", () => {
   const settings = {
     playerCount: parseInt(document.getElementById("playerCount").value),
     spyCount: parseInt(document.getElementById("spyCount").value),
-    useRoles: document.getElementById("useRoles").value === "yes",
-    questionCount: parseInt(document.getElementById("questionCount").value),
-    guessCount: parseInt(document.getElementById("guessCount").value),
-    canEliminate: document.getElementById("canEliminate").value === "yes",
+    gameType: document.getElementById("gameType").value,
+    categoryName: document.getElementById("categoryName").value,
+    poolSize: parseInt(document.getElementById("poolSize").value),
+    voteAnytime: document.getElementById("voteAnytime").checked,
     locations: ["Havalimanı", "Restoran", "Kütüphane", "Müze"],
     roles: ["Güvenlik", "Aşçı", "Kütüphaneci", "Sanatçı"]
   };
