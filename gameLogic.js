@@ -34,10 +34,10 @@ const gameLogic = {
     creatorName,
     playerCount,
     spyCount,
-    useRoles,
-    questionCount,
-    guessCount,
-    canEliminate
+    gameType,
+    categoryName,
+    poolSize,
+    voteAnytime
   ) {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
 
@@ -52,10 +52,10 @@ const gameLogic = {
       settings: {
         playerCount: Number(playerCount),
         spyCount: Number(spyCount),
-        useRoles,
-        questionCount: Number(questionCount),
-        guessCount: Number(guessCount),
-        canEliminate,
+        gameType,
+        categoryName,
+        poolSize: Number(poolSize),
+        voteAnytime,
         creatorUid: uid,
       },
       status: "waiting",
@@ -270,9 +270,7 @@ const gameLogic = {
           };
         } else {
           const rolesForLoc = locationRoles[chosenLocation];
-          const randomRole = settings.useRoles
-            ? rolesForLoc[Math.floor(Math.random() * rolesForLoc.length)]
-            : "Ajan";
+          const randomRole = rolesForLoc[Math.floor(Math.random() * rolesForLoc.length)];
           playerRoles[player] = {
             isSpy: false,
             role: randomRole,
