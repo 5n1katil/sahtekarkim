@@ -408,29 +408,6 @@ const gameLogic = {
     ref.update({ votingStarted: true, votes: null, voteResult: null });
   },
 
-  guessLocation: function (roomCode, playerUid, guessedLocation) {
-    const ref = window.db.ref("rooms/" + roomCode);
-    ref.get().then((snap) => {
-      if (!snap.exists()) return;
-      const data = snap.val();
-      if (
-        data.status !== "started" ||
-        !data.spies ||
-        !data.spies.includes(playerUid) ||
-        data.guessResult
-      ) {
-        return;
-      }
-
-      const correct = data.location === guessedLocation;
-
-      ref.update({
-        guessResult: { guesser: playerUid, guessedLocation, correct },
-        status: "finished",
-      });
-    });
-  },
-
   submitVote: function (roomCode, voter, target) {
     window.db
       .ref(`rooms/${roomCode}/votes/${voter}`)
@@ -482,47 +459,20 @@ const gameLogic = {
       if (!snap.exists()) return;
       const data = snap.val();
       const removals = [];
-      if (data.voteResult && data.voteResult.voted && !data.voteResult.isSpy) {
-        removals.push(
-          ref.child(`eliminations/${data.voteResult.voted}`).set("vote")
-        );
-        removals.push(ref.child(`players/${data.voteResult.voted}`).remove());
-        removals.push(ref.child(`playerRoles/${data.voteResult.voted}`).remove());
-      }
+        if (data.voteResult && data.voteResult.voted && !data.voteResult.isSpy) {
+          removals.push(ref.child(`players/${data.voteResult.voted}`).remove());
+          removals.push(ref.child(`playerRoles/${data.voteResult.voted}`).remove());
+        }
 
       Promise.all(removals).then(() => {
         this.checkSpyWin(roomCode).then((spyWon) => {
           if (spyWon) return;
-          ref.get().then((snap2) => {
-            const data2 = snap2.val();
-            if (data2.settings && data2.settings.canEliminate) {
-              ref.update({ eliminationPending: true, voteResult: null });
-            } else {
-              ref.update({ voteResult: null }).then(() => {
-                this.nextRound(roomCode);
-              });
-            }
-          });
+            ref.update({ voteResult: null }).then(() => {
+              this.nextRound(roomCode);
+            });
         });
       });
     });
-  },
-
-  eliminatePlayer: function (roomCode, target) {
-    const ref = window.db.ref("rooms/" + roomCode);
-    ref
-      .update({ [`eliminations/${target}`]: "impostor", eliminationPending: false })
-      .then(() => {
-        Promise.all([
-          ref.child(`players/${target}`).remove(),
-          ref.child(`playerRoles/${target}`).remove(),
-        ]).then(() => {
-          this.checkSpyWin(roomCode).then((spyWon) => {
-            if (spyWon) return;
-            this.nextRound(roomCode);
-          });
-        });
-      });
   },
 
   checkSpyWin: function (roomCode) {
@@ -553,7 +503,6 @@ const gameLogic = {
         voteResult: null,
         votingStarted: false,
         voteRequests: null,
-        eliminationPending: false,
       });
     });
   },
