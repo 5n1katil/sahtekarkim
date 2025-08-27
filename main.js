@@ -1,19 +1,14 @@
-const isProd = !['localhost', '127.0.0.1'].includes(window.location.hostname);
-if (!isProd) {
-  console.log('main.js yüklendi');
-}
+console.log('main.js yüklendi');
 
-// window.gameLogic is loaded globally before this script
+// Bu betikten önce window.gameLogic global olarak yüklenir
 
-// Ensure the user is authenticated anonymously
+// Kullanıcının anonim şekilde doğrulandığından emin ol
 if (window.auth && !window.auth.currentUser) {
   window.auth.signInAnonymously().catch((err) => {
-    if (!isProd) {
-      console.error('Anonim giriş hatası:', err);
-    }
+    console.error("Anonim giriş hatası:", err);
   });
 }
-// Preserve game info on refresh but reset when opening a new session
+// Sayfa yenilendiğinde oyun bilgilerini koru, yeni oturumda sıfırla
 try {
   const nav = performance.getEntriesByType("navigation")[0];
   const isReload = nav ? nav.type === "reload" : performance.navigation.type === 1;
@@ -21,9 +16,7 @@ try {
     localStorage.clear();
   }
 } catch (err) {
-  if (!isProd) {
-    console.warn('Gezinme performans kontrolü başarısız:', err);
-  }
+  console.warn("Gezinme performans kontrolü başarısız oldu:", err);
 }
 
 let currentRoomCode = localStorage.getItem("roomCode") || null;
@@ -42,6 +35,13 @@ window.auth.onAuthStateChanged(async (user) => {
       if (currentRoomCode && currentPlayerName) {
         const roomRef = window.db.ref("rooms/" + currentRoomCode);
         roomRef.get().then((roomSnap) => {
+          if (!roomSnap.exists()) {
+            localStorage.clear();
+            currentRoomCode = null;
+            currentPlayerName = null;
+            isCreator = false;
+            showSetupJoin();
+            return;
           if (!roomSnap.exists()) {
             localStorage.clear();
             currentRoomCode = null;
@@ -161,13 +161,6 @@ let gameEnded = false;
       if (isCreator) {
         window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
       } else {
-        finish();
-      }
-    }, 10000);
-  }
-
-  function showSetupJoin() {
-    document.getElementById("setup").classList.remove("hidden");
     document.getElementById("playerJoin").classList.remove("hidden");
     document.getElementById("roomInfo").classList.add("hidden");
     document.getElementById("playerRoleInfo").classList.add("hidden");
@@ -193,13 +186,13 @@ let gameEnded = false;
   function listenPlayersAndRoom(roomCode) {
     // Oyuncu listesi
     window.gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
-      // Update player list in UI and player count using the names array
+      // İsim dizisini kullanarak UI'da oyuncu listesini ve oyuncu sayısını güncelle
       updatePlayerList(playerNames);
 
-      // Use the raw players object for mappings and dropdown population
+      // Ham oyuncu nesnesini eşleştirme ve açılır menüyü doldurma için kullan
       playerUidMap = playersObj || {};
 
-      // Maintain a filtered array of current players (names)
+      // Geçerli oyuncuların (isimler) filtrelenmiş bir dizisini tut
       currentPlayers = (playerNames || []).filter((p) => p && p.trim() !== "");
 
       const selectEl = document.getElementById("voteSelect");
@@ -218,6 +211,13 @@ let gameEnded = false;
         location.reload();
       }
     });
+
+    // Oyun başlama durumunu canlı dinle
+    window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
+      const roomData = snapshot.val();
+      const leaveBtn = document.getElementById("leaveRoomBtn");
+      const exitBtn = document.getElementById("backToHomeBtn");
+        if (
 
     // Oyun başlama durumunu canlı dinle
     window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
