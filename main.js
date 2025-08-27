@@ -1,5 +1,18 @@
 console.log('main.js yüklendi');
 
+// Basit HTML kaçış yardımcısı
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (ch) =>
+    ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[ch])
+  );
+}
+
 // Bu betikten önce window.gameLogic global olarak yüklenir
 
 // Kullanıcının anonim şekilde doğrulandığından emin ol
@@ -80,13 +93,18 @@ window.auth.onAuthStateChanged(async (user) => {
                 
                 const roleMessageEl = document.getElementById("roleMessage");
                 if (myData.role.includes("Sahtekar")) {
+                  const safeLocations = myData.allLocations
+                    .map(escapeHtml)
+                    .join(", ");
                   roleMessageEl.innerHTML =
                     `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
-                    `Olası konumlar: ${myData.allLocations.join(", ")}`;
+                    `Olası konumlar: ${safeLocations}`;
                 } else {
+                  const safeLocation = escapeHtml(myData.location);
+                  const safeRole = escapeHtml(myData.role);
                   roleMessageEl.innerHTML =
-                    `📍 Konum: <b>${myData.location}</b><br>` +
-                    `🎭 Rolün: <b>${myData.role}</b>`;
+                    `📍 Konum: <b>${safeLocation}</b><br>` +
+                    `🎭 Rolün: <b>${safeRole}</b>`;
                 }
               }
             });
@@ -104,10 +122,13 @@ let gameEnded = false;
   function showResultOverlay(isSpy, name) {
     const overlay = document.getElementById("resultOverlay");
     const cls = isSpy ? "impostor-animation" : "innocent-animation";
-    const message = isSpy
+    const msgDiv = document.createElement("div");
+    msgDiv.className = "result-message";
+    msgDiv.textContent = isSpy
       ? `${name} sahtekar çıktı!`
       : `${name} ajandı.`;
-    overlay.innerHTML = `<div class="result-message">${message}</div>`;
+    overlay.innerHTML = "";
+    overlay.appendChild(msgDiv);
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
@@ -133,11 +154,19 @@ let gameEnded = false;
       .filter((n) => n && currentPlayers.includes(n))
       .join(", ");
     gameEnded = true;
-    const message =
-      "Sahtekar" +
-      (names ? `<br><span class="impostor-name">${names}</span>` : "") +
-      " kazandı! Oyun Bitti...";
-    overlay.innerHTML = `<div class="result-message">${message}</div>`;
+    overlay.innerHTML = "";
+    const msgDiv = document.createElement("div");
+    msgDiv.className = "result-message";
+    msgDiv.append("Sahtekar");
+    if (names) {
+      msgDiv.appendChild(document.createElement("br"));
+      const span = document.createElement("span");
+      span.className = "impostor-name";
+      span.textContent = names;
+      msgDiv.appendChild(span);
+    }
+    msgDiv.append(" kazandı! Oyun Bitti...");
+    overlay.appendChild(msgDiv);
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
@@ -175,7 +204,9 @@ let gameEnded = false;
     if (!listEl || !countEl) return;
 
     const validPlayers = (players || []).filter((p) => p && p.trim() !== "");
-    listEl.innerHTML = validPlayers.map((p) => `<li>${p}</li>`).join("");
+    listEl.innerHTML = validPlayers
+      .map((p) => `<li>${escapeHtml(p)}</li>`)
+      .join("");
     countEl.textContent = validPlayers.length;
   }
 
@@ -198,7 +229,10 @@ let gameEnded = false;
       if (selectEl) {
         selectEl.innerHTML = Object.entries(playerUidMap)
           .filter(([uid]) => uid !== currentUid)
-          .map(([uid, p]) => `<option value="${uid}">${p.name}</option>`)
+          .map(
+            ([uid, p]) =>
+              `<option value="${uid}">${escapeHtml(p.name)}</option>`
+          )
           .join("");
       }
     });
@@ -243,13 +277,18 @@ let gameEnded = false;
         document.getElementById("gameActions").classList.remove("hidden");
 
         if (myData.role.includes("Sahtekar")) {
+          const safeLocations = myData.allLocations
+            .map(escapeHtml)
+            .join(", ");
           roleMessageEl.innerHTML =
             `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
-            `Olası konumlar: ${myData.allLocations.join(", ")}`;
+            `Olası konumlar: ${safeLocations}`;
         } else {
+          const safeLocation = escapeHtml(myData.location);
+          const safeRole = escapeHtml(myData.role);
           roleMessageEl.innerHTML =
-            `📍 Konum: <b>${myData.location}</b><br>` +
-            `🎭 Rolün: <b>${myData.role}</b>`;
+            `📍 Konum: <b>${safeLocation}</b><br>` +
+            `🎭 Rolün: <b>${safeRole}</b>`;
         }
 
         const votingInstructionEl = document.getElementById("votingInstruction");
@@ -285,7 +324,10 @@ let gameEnded = false;
             counts[t] = (counts[t] || 0) + 1;
           });
           voteCountListEl.innerHTML = Object.entries(playerUidMap)
-            .map(([uid, p]) => `<li>${p.name}: ${counts[uid] || 0}</li>`)
+            .map(
+              ([uid, p]) =>
+                `<li>${escapeHtml(p.name)}: ${counts[uid] || 0}</li>`
+            )
             .join("");
         } else {
           liveCountsEl.classList.add("hidden");
