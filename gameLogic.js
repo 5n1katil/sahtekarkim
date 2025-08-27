@@ -313,15 +313,18 @@ const gameLogic = {
   },
 
   startGame: async function (roomCode) {
-    const roomRef = window.db.ref(`rooms/${roomCode}`);
-    const snapshot = await roomRef.get();
-    if (!snapshot.exists()) {
+    const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
+    const playersRef = window.db.ref(`rooms/${roomCode}/players`);
+    const [settingsSnap, playersSnap] = await Promise.all([
+      settingsRef.get(),
+      playersRef.get(),
+    ]);
+    if (!settingsSnap.exists() || !playersSnap.exists()) {
       throw new Error("Oda bulunamadı");
     }
 
-    const data = snapshot.val();
-    const players = data.players || {};
-    const settings = data.settings || {};
+    const settings = settingsSnap.val();
+    const players = playersSnap.val() || {};
     const playerCount = Object.keys(players).length;
 
     if (playerCount < 3) {
