@@ -457,12 +457,12 @@ saveSettingsBtn.addEventListener("click", async () => {
   }
 });
 createRoomBtn.addEventListener("click", async () => {
-  console.log('createRoomBtn clicked');
   const creatorName = document.getElementById("creatorName").value.trim();
   if (hasInvalidChars(creatorName)) {
     alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
     return;
   }
+
   const settings = await buildSettings();
   if (!creatorName || isNaN(settings.playerCount) || isNaN(settings.spyCount)) {
     alert("Lütfen tüm alanları doldurun.");
@@ -472,7 +472,10 @@ createRoomBtn.addEventListener("click", async () => {
   createRoomBtn.disabled = true;
   createRoomLoading.classList.remove("hidden");
   try {
-    const roomCode = await window.gameLogic.createRoom(creatorName, settings);
+    const roomCode = await window.gameLogic.createRoom({
+      creatorName,
+      ...settings,
+    });
     if (!roomCode) return;
 
     currentRoomCode = roomCode;
