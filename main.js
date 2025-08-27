@@ -358,30 +358,29 @@ window.auth.onAuthStateChanged(async (user) => {
         const votingInstructionEl = document.getElementById("votingInstruction");
         if (votingInstructionEl) {
           votingInstructionEl.textContent =
-            "Herkes birbirine birer soru sorduktan sonra oylamaya başlayınız...";
+            "Hazır olduğunuzda oylamayı başlatabilirsiniz.";
         }
 
         // Oylama durumu
+        const isVotingPhase =
+          roomData.phase === "voting" || roomData.votingStarted;
         const hasRequested =
           roomData.voteRequests && roomData.voteRequests[currentUid];
         document
           .getElementById("startVotingBtn")
-          .classList.toggle("hidden", !!roomData.votingStarted);
+          .classList.toggle("hidden", isVotingPhase);
         document
           .getElementById("waitingVoteStart")
-          .classList.toggle(
-            "hidden",
-            !(hasRequested && !roomData.votingStarted)
-          );
+          .classList.toggle("hidden", !(hasRequested && !isVotingPhase));
         const hasVoted =
           roomData.votes && roomData.votes[currentUid] ? true : false;
         document
           .getElementById("votingSection")
-          .classList.toggle("hidden", !roomData.votingStarted || hasVoted);
+          .classList.toggle("hidden", !isVotingPhase || hasVoted);
 
         const liveCountsEl = document.getElementById("liveVoteCounts");
         const voteCountListEl = document.getElementById("voteCountList");
-        if (roomData.votingStarted) {
+        if (isVotingPhase) {
           liveCountsEl.classList.remove("hidden");
           const votes = roomData.votes || {};
           const counts = {};
@@ -597,10 +596,7 @@ document.getElementById("guessBtn").addEventListener("click", () => {
 
 // Oylamayı başlatma isteği
 document.getElementById("startVotingBtn").addEventListener("click", () => {
-  window.gameLogic.requestVotingStart(currentRoomCode, currentUid);
-  document
-    .getElementById("waitingVoteStart")
-    .classList.remove("hidden");
+  window.gameLogic.startVote(currentRoomCode, currentUid);
 });
 
 // Oy ver
