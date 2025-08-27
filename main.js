@@ -119,14 +119,23 @@ window.auth.onAuthStateChanged(async (user) => {
 let lastVoteResult = null;
 let gameEnded = false;
 
-  function showResultOverlay(isSpy, name) {
+  function showResultOverlay(isSpy, name, role, location) {
     const overlay = document.getElementById("resultOverlay");
     const cls = isSpy ? "impostor-animation" : "innocent-animation";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
-    msgDiv.textContent = isSpy
-      ? `${name} sahtekar çıktı!`
-      : `${name} ajandı.`;
+    if (isSpy) {
+      msgDiv.textContent = `${name} sahtekar çıktı!`;
+    } else {
+      let innocentText = `${name} ajandı.`;
+      if (role) {
+        innocentText += ` Rolü: ${role}`;
+        if (location) {
+          innocentText += ` (Konum: ${location})`;
+        }
+      }
+      msgDiv.textContent = innocentText;
+    }
     overlay.innerHTML = "";
     overlay.appendChild(msgDiv);
     overlay.classList.remove(
@@ -323,11 +332,6 @@ let gameEnded = false;
         const voteCountListEl = document.getElementById("voteCountList");
         if (isVotingPhase) {
           liveCountsEl.classList.remove("hidden");
-          const votes = roomData.votes || {};
-          const counts = {};
-          Object.values(votes).forEach((t) => {
-            counts[t] = (counts[t] || 0) + 1;
-          });
           voteCountListEl.innerHTML = Object.entries(playerUidMap)
             .map(
               ([uid, p]) =>
@@ -353,7 +357,9 @@ let gameEnded = false;
                 roomData.voteResult.voted;
               showResultOverlay(
                 roomData.voteResult.isSpy,
-                votedName
+                votedName,
+                roomData.voteResult.role,
+                roomData.voteResult.location
               );
             }
             resultEl.classList.add("hidden");
