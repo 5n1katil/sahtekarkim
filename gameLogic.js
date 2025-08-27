@@ -291,6 +291,49 @@ const gameLogic = {
     await window.db.ref().update(updates);
   },
 
+  startGame: async function (roomCode) {
+    await this.assignRoles(roomCode);
+
+    const [assignSnap, settingsSnap] = await Promise.all([
+      window.db.ref(`rooms/${roomCode}/assignments`).get(),
+      window.db.ref(`rooms/${roomCode}/settings`).get(),
+    ]);
+
+    if (!assignSnap.exists() || !settingsSnap.exists()) return;
+
+    const assignments = assignSnap.val() || {};
+    const settings = settingsSnap.val() || {};
+    const playerRoles = {};
+
+    const allLocations =
+      settings.gameType === "Özel Kategori"
+        ? POOLS[settings.categoryName] || []
+        : POOLS.locations;
+
+    Object.entries(assignments).forEach(([uid, info]) => {
+      if (info.role === "spy") {
+        playerRoles[uid] = {
+          role: "Sahtekar",
+          isSpy: true,
+          allLocations,
+        };
+      } else {
+        playerRoles[uid] = {
+          role: "Sivil",
+          location: info.secret,
+          isSpy: false,
+          allLocations,
+        };
+      }
+    });
+
+    await window.db.ref(`rooms/${roomCode}`).update({
+      status: "started",
+      playerRoles,
+      round: 1,
+    });
+  },
+
   /** Odayı sil */
   deleteRoom: function (roomCode) {
     return window.db.ref("rooms/" + roomCode).remove();
