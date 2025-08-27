@@ -328,7 +328,13 @@ const gameLogic = {
     }
 
     const settings = settingsSnap.val();
-    const players = playersSnap.val() || {};
+    const allPlayers = playersSnap.val() || {};
+    const players = Object.fromEntries(
+      Object.entries(allPlayers).filter(([_, p]) => p && p.name)
+    );
+    if (Object.keys(players).length !== Object.keys(allPlayers).length) {
+      throw new Error("Tüm oyuncuların bir adı olmalıdır.");
+    }
     const playerCount = Object.keys(players).length;
 
     if (playerCount < 3) {
