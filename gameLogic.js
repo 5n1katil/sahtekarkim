@@ -29,16 +29,11 @@ const gameLogic = {
 
     return anonymousSignInPromise;
   },
+  saveSettings: async function (settings) {
+    return window.db.ref("rooms/tmp/settings").set(settings);
+  },
   /** Oda oluştur */
-  createRoom: async function (
-    creatorName,
-    playerCount,
-    spyCount,
-    gameType,
-    categoryName,
-    poolSize,
-    voteAnytime
-  ) {
+  createRoom: async function (creatorName, settings) {
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
 
     const uid = await this.getUid();
@@ -47,29 +42,14 @@ const gameLogic = {
       return null;
     }
 
-    const roomData = {
-      creator: creatorName,
-      settings: {
-        playerCount: Number(playerCount),
-        spyCount: Number(spyCount),
-        gameType,
-        categoryName,
-        poolSize: Number(poolSize),
-        voteAnytime,
-        creatorUid: uid,
-      },
-      status: "waiting",
-      createdAt: Date.now(),
-      players: {
-        [uid]: {
-          name: creatorName,
-          isCreator: true,
-        },
-      },
+    const updates = {};
+    updates[`rooms/${roomCode}/settings`] = settings;
+    updates[`rooms/${roomCode}/players/${uid}`] = {
+      name: creatorName,
+      isCreator: true,
     };
 
-    // Save room data with creator player in a single set call
-    await window.db.ref(`rooms/${roomCode}`).set(roomData);
+    await window.db.ref().update(updates);
 
     localStorage.setItem("roomCode", roomCode);
     localStorage.setItem("playerName", creatorName);
@@ -196,118 +176,6 @@ const gameLogic = {
     });
   },
 
-  /** Oyunu başlat ve roller ata */
-  startGame: function (roomCode, settings) {
-    const roomRef = window.db.ref("rooms/" + roomCode);
-
-    roomRef.get().then((snapshot) => {
-      if (!snapshot.exists()) return;
-      const roomData = snapshot.val();
-      const players = Object.keys(roomData.players || {});
-
-      if (players.length < 4) {
-        alert("Oyuna başlamak için en az 4 oyuncu olmalıdır!");
-        return;
-      }
-
-      const locationRoles = {
-        "Havalimanı": ["Pilot","Hostes","Yolcu","Güvenlik","Bagaj Görevlisi","Yer Hizmetleri"],
-        "Restoran": ["Şef","Garson","Müşteri","Kasiyer","Temizlikçi","Barmen"],
-        "Kütüphane": ["Kütüphaneci","Öğrenci","Okur","Temizlikçi","Güvenlik","Araştırmacı"],
-        "Müze": ["Sanatçı","Rehber","Turist","Güvenlik","Temizlikçi","Koleksiyoncu"],
-        "Otobüs": ["Şoför","Biletçi","Yolcu","Turist","Öğrenci","Memur"],
-        "Okul": ["Öğretmen","Öğrenci","Müdür","Hademe","Güvenlik","Kütüphaneci"],
-        "Hastane": ["Doktor","Hemşire","Hasta","Ziyaretçi","Temizlikçi","Güvenlik"],
-        "Spor Salonu": ["Antrenör","Sporcu","Üye","Resepsiyonist","Temizlikçi","Fizyoterapist"],
-        "Otel": ["Resepsiyonist","Müşteri","Kat Görevlisi","Güvenlik","Aşçı","Vale"],
-        "Sirk": ["Palyaço","Akrobat","Hayvan Terbiyecisi","Gösteri Sunucusu","Seyirci","Biletçi"],
-        "Stadyum": ["Futbolcu","Hakem","Seyirci","Biletçi","Güvenlik","Satıcı"],
-        "Denizaltı": ["Kaptan","Subay","Mühendis","Dalgıç","Teknisyen","Gözlemci"],
-        "Sinema": ["Biletçi","Seyirci","Gösterim Görevlisi","Temizlikçi","Satıcı","Yönetici"],
-        "Kayık": ["Balıkçı","Yolcu","Turist","Kaptan","Kürekçi","Rehber"],
-        "Çiftlik": ["Çiftçi","Veteriner","İşçi","Çocuk","Turist","Komşu"],
-        "Tren İstasyonu": ["Makinist","Biletçi","Yolcu","Turist","Güvenlik","Temizlikçi"],
-        "Hapishane": ["Gardiyan","Mahkum","Müdür","Avukat","Ziyaretçi","Temizlikçi"],
-        "Kışla": ["Asker","Komutan","Doktor","Aşçı","Eğitmen","Ziyaretçi"],
-        "Kafe": ["Barista","Garson","Müşteri","Kasiyer","Öğrenci","Turist"],
-        "Pazar": ["Satıcı","Müşteri","Hırsız","Güvenlik","Çocuk","Dilenci"],
-        "Dağ Evi": ["Dağcı","Turist","Ev Sahibi","Avcı","Aşçı","Komşu"],
-        "Festival": ["Dansçı","Müzisyen","Satıcı","Seyirci","Görevli","Turist"],
-        "Plaj": ["Cankurtaran","Turist","Çocuk","Satıcı","Yüzücü","Balıkçı"],
-        "Yat Limanı": ["Kaptan","Turist","Balıkçı","Teknisyen","Güvenlik","Satıcı"],
-        "Konsolosluk": ["Konsolos","Sekreter","Misafir","Güvenlik","Temizlikçi","Vatandaş"],
-        "Tiyatro": ["Oyuncu","Seyirci","Biletçi","Işıkçı","Dekoratör","Temizlikçi"],
-        "Kilise": ["Papaz","Seyirci","Ziyaretçi","Güvenlik","Koro Üyesi","Temizlikçi"],
-        "Lunapark": ["Operatör","Biletçi","Çocuk","Anne-Baba","Satıcı","Güvenlik"],
-        "Üniversite": ["Profesör","Öğrenci","Memur","Temizlikçi","Güvenlik","Ziyaretçi"],
-        "Hayvanat Bahçesi": ["Bakıcı","Veteriner","Turist","Satıcı","Çocuk","Güvenlik"]
-      };
-
-      const locations = Object.keys(locationRoles);
-      const chosenLocation = locations[Math.floor(Math.random() * locations.length)];
-
-      const spyCount = Math.min(settings.spyCount, players.length - 1);
-      const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
-      const spies = shuffledPlayers.slice(0, spyCount);
-
-      const playerRoles = {};
-      const gameStatePlayers = {};
-
-      shuffledPlayers.forEach((player) => {
-        const isSpy = spies.includes(player);
-
-        if (isSpy) {
-          playerRoles[player] = {
-            isSpy: true,
-            role: "Sahtekar",
-            location: null,
-            allLocations: locations,
-          };
-
-          gameStatePlayers[player] = {
-            roleInfo: "SAHTEKAR",
-            location: null,
-          };
-        } else {
-          const rolesForLoc = locationRoles[chosenLocation];
-          const randomRole = rolesForLoc[Math.floor(Math.random() * rolesForLoc.length)];
-          playerRoles[player] = {
-            isSpy: false,
-            role: randomRole,
-            location: chosenLocation,
-            allLocations: null,
-          };
-
-          gameStatePlayers[player] = {
-            roleInfo: randomRole,
-            location: chosenLocation,
-          };
-        }
-      });
-
-      const gameState = {
-        started: true,
-        players: gameStatePlayers,
-        allLocations: locations,
-      };
-
-      roomRef.update({
-        status: "started",
-        location: chosenLocation,
-        spies,
-        playerRoles,
-        gameState,
-        round: 1,
-        votingStarted: false,
-        guessResult: null,
-      });
-    });
-  },
-
-  /**
-   * Bir oyuncu oylamayı başlatma isteği gönderdiğinde çağrılır.
-   * Tüm oyuncular isteği gönderdiğinde oylama otomatik başlar.
-   */
   requestVotingStart: function (roomCode, playerUid) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref.child(`voteRequests/${playerUid}`).set(true).then(() => {
@@ -339,32 +207,17 @@ const gameLogic = {
         data.status !== "started" ||
         !data.spies ||
         !data.spies.includes(playerUid) ||
-        (data.settings && data.settings.guessCount <= 0) ||
         data.guessResult
       ) {
         return;
       }
 
-      const remaining = data.settings?.guessCount || 0;
       const correct = data.location === guessedLocation;
 
-      if (correct) {
-        ref.update({
-          guessResult: { guesser: playerUid, guessedLocation, correct: true },
-          status: "finished",
-        });
-      } else if (remaining > 1) {
-        ref.update({
-          'settings/guessCount': remaining - 1,
-          guessResult: { correct: false },
-        });
-      } else {
-        ref.update({
-          'settings/guessCount': 0,
-          guessResult: { guesser: playerUid, guessedLocation, correct: false },
-          status: "finished",
-        });
-      }
+      ref.update({
+        guessResult: { guesser: playerUid, guessedLocation, correct },
+        status: "finished",
+      });
     });
   },
 
