@@ -366,7 +366,7 @@ const categoryLabel = document.getElementById("categoryLabel");
 const categorySelect = document.getElementById("categoryName");
 
 gameTypeSelect.addEventListener("change", () => {
-  const show = gameTypeSelect.value === "Özel Kategori";
+  const show = gameTypeSelect.value === "category";
   categoryLabel.classList.toggle("hidden", !show);
   categorySelect.classList.toggle("hidden", !show);
 });
@@ -380,7 +380,7 @@ async function buildSettings() {
   const spyCount = parseInt(document.getElementById("spyCount").value);
   const gameType = document.getElementById("gameType").value;
   let categoryName = null;
-  if (gameType === "Özel Kategori") {
+  if (gameType === "category") {
     const c = document.getElementById("categoryName").value.trim();
     if (c) categoryName = c;
   }
@@ -394,7 +394,7 @@ async function buildSettings() {
     categoryName,
     poolSize,
     voteAnytime,
-    clueMode: "one-word",
+    clueMode: "tek-kelime",
     creatorUid,
   };
 }
@@ -412,6 +412,11 @@ createRoomBtn.addEventListener("click", async () => {
   const creatorName = document.getElementById("creatorName").value.trim();
   if (hasInvalidChars(creatorName)) {
     alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
+    return;
+  }
+  const settings = await buildSettings();
+  if (!creatorName || isNaN(settings.playerCount) || isNaN(settings.spyCount)) {
+    alert("Lütfen tüm alanları doldurun.");
     return;
   }
   const settings = await buildSettings();
