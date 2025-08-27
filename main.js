@@ -388,6 +388,10 @@ function showRoomUI(roomCode, playerName, isCreator) {
     ? "Diğer oyuncular bu kodla giriş yapabilir."
     : "Oda kurucusunun oyunu başlatmasını bekleyin.";
 
+  const startGameBtn = document.getElementById("startGameBtn");
+  if (startGameBtn) {
+    startGameBtn.classList.toggle("hidden", !isCreator);
+  }
   document.getElementById("leaveRoomBtn").classList.remove("hidden");
 
 }
@@ -525,6 +529,10 @@ document.getElementById("leaveRoomBtn").addEventListener("click", () => {
   });
 });
 
+document.getElementById("startGameBtn").addEventListener("click", () => {
+  window.gameLogic.startGame(currentRoomCode);
+});
+
 document.getElementById("startVotingBtn").addEventListener("click", () => {
   window.gameLogic.startVote(currentRoomCode, currentUid);
 });
@@ -550,7 +558,6 @@ document.getElementById("copyRoleBtn").addEventListener("click", () => {
     .writeText(text)
     .then(() => alert("Rolünüz kopyalandı!"));
 });
-
 // Oyundan çık (ana ekrana dön)
 document.getElementById("backToHomeBtn").addEventListener("click", () => {
   const roomCode = localStorage.getItem("roomCode");
