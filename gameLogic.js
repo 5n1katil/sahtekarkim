@@ -1,43 +1,43 @@
 let anonymousSignInPromise = null;
 
-// Data pools for locations and categories
+// Konumlar ve kategoriler için veri havuzları
 const POOLS = {
   locations: [
-    "Airport",
-    "Hospital",
-    "Restaurant",
-    "School",
-    "Police Station",
-    "Fire Station",
-    "Library",
-    "Museum",
-    "Cinema",
-    "Stadium",
-    "Beach",
+    "Havalimanı",
+    "Hastane",
+    "Restoran",
+    "Okul",
+    "Polis Merkezi",
+    "İtfaiye",
+    "Kütüphane",
+    "Müze",
+    "Sinema",
+    "Stadyum",
+    "Plaj",
     "Park",
-    "Mall",
-    "Train Station",
-    "Bus Station",
-    "Hotel",
-    "University",
-    "Office",
-    "Factory",
-    "Bank",
-    "Zoo",
-    "Amusement Park",
-    "Farm",
-    "Aquarium",
-    "Theater",
-    "Casino",
-    "Space Station",
-    "Pirate Ship",
-    "Desert",
-    "Jungle",
-    "Mountain",
-    "Village",
-    "Harbor",
-    "Submarine",
-    "Warehouse"
+    "Alışveriş Merkezi",
+    "Tren Garı",
+    "Otobüs Terminali",
+    "Otel",
+    "Üniversite",
+    "Ofis",
+    "Fabrika",
+    "Banka",
+    "Hayvanat Bahçesi",
+    "Lunapark",
+    "Çiftlik",
+    "Akvaryum",
+    "Tiyatro",
+    "Kumarhane",
+    "Uzay İstasyonu",
+    "Korsan Gemisi",
+    "Çöl",
+    "Orman",
+    "Dağ",
+    "Köy",
+    "Liman",
+    "Denizaltı",
+    "Depo"
   ],
   "Famous Turkish Actors": [
     "Kıvanç Tatlıtuğ",
@@ -115,14 +115,14 @@ const POOLS = {
   ]
 };
 
-// Aliases for localized category names
+// Yerelleştirilmiş kategori adları için takma adlar
 POOLS["Ünlü Türk Oyuncular"] = POOLS["Famous Turkish Actors"];
 POOLS["En İyi Sporcular"] = POOLS["Top Athletes"];
 
-// Export pools globally
+// Havuzları global olarak dışa aktar
 window.POOLS = POOLS;
 
-// Fisher–Yates shuffle helpers
+// Fisher–Yates karıştırma yardımcıları
 function randomFrom(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
@@ -135,8 +135,8 @@ function samplePool(list, n) {
   return list.slice(0, n);
 }
 
-// All game related logic lives in this object and will be exposed globally
-// as `window.gameLogic` so other scripts can use it without importing.
+// Tüm oyunla ilgili mantık bu nesnede bulunur ve diğer betikler import etmeye gerek kalmadan
+// `window.gameLogic` üzerinden erişebilsin diye global olarak ortaya çıkarılır.
 const gameLogic = {
   getUid: async function () {
     if (!window.auth) return null;
@@ -155,7 +155,7 @@ const gameLogic = {
         window.auth
           .signInAnonymously()
           .catch((err) => {
-            console.error("Anonymous sign-in error:", err);
+            console.error("Anonim giriş hatası:", err);
             unsubscribe();
             resolve(null);
           });
@@ -223,7 +223,7 @@ const gameLogic = {
     return Object.values(updatedPlayers).map((p) => p.name);
   },
 
-  /** Assign roles to players */
+  /** Oyunculara roller atayın */
   assignRoles: async function (roomCode) {
     const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
@@ -232,7 +232,7 @@ const gameLogic = {
       playersRef.get(),
     ]);
     if (!settingsSnap.exists() || !playersSnap.exists()) {
-      throw new Error("Room not found");
+      throw new Error("Oda bulunamadı");
     }
     const settings = settingsSnap.val();
     const players = playersSnap.val() || {};
@@ -262,7 +262,7 @@ const gameLogic = {
       const pool = samplePool([...allItems], settings.poolSize);
       const nonSpyCount = uids.length - spies.length;
       if (pool.length < nonSpyCount) {
-        throw new Error("Not enough unique items in category pool");
+        throw new Error("Kategori havuzunda yeterli benzersiz öğe yok");
       }
       let idx = 0;
       uids.forEach((uid) => {
@@ -272,7 +272,7 @@ const gameLogic = {
           : { role: "citizen", secret: pool[idx++], type: "category" };
       });
     } else {
-      throw new Error("Unknown game type");
+      throw new Error("Bilinmeyen oyun türü");
     }
 
     await window.db.ref().update(updates);
@@ -302,7 +302,7 @@ const gameLogic = {
         ...p,
       }));
 
-      // Pass both the names array and the raw players object to the callback
+      // Hem isim dizisini hem de ham oyuncu nesnesini geri çağrıya aktar
       const playerNames = playersArr.map((p) => p.name);
       callback(playerNames, playersObj);
 
