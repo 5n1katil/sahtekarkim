@@ -484,7 +484,6 @@ const gameLogic = {
   },
 
   tallyVotes: function (roomCode) {
-    const ref = window.db.ref("rooms/" + roomCode);
     ref.get().then((snap) => {
       if (!snap.exists()) return;
       const data = snap.val();
@@ -510,9 +509,11 @@ const gameLogic = {
       const voted = top[0];
       const votedRole = data.playerRoles && data.playerRoles[voted];
       const isSpy = votedRole ? votedRole.isSpy : false;
+      const role = votedRole ? votedRole.role : null;
+      const location = votedRole ? votedRole.location : null;
 
       ref.update({
-        voteResult: { voted, isSpy },
+        voteResult: { voted, isSpy, role, location },
         votingStarted: false,
       });
 
@@ -535,7 +536,10 @@ const gameLogic = {
 
       Promise.all(removals).then(() => {
         this.checkSpyWin(roomCode).then((spyWon) => {
-          if (spyWon) return;
+          if (spyWon) {
+            ref.update({ status: "finished" });
+            return;
+          }
             ref.update({ voteResult: null }).then(() => {
               this.nextRound(roomCode);
             });
@@ -560,6 +564,7 @@ const gameLogic = {
     });
   },
 
+  nextRound: function (roomCode) {
   nextRound: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref.get().then((snap) => {
