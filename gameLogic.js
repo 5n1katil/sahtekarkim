@@ -32,7 +32,12 @@ const POOLS = {
     "Space Station",
     "Pirate Ship",
     "Desert",
-    "Jungle"
+    "Jungle",
+    "Mountain",
+    "Village",
+    "Harbor",
+    "Submarine",
+    "Warehouse"
   ],
   "Famous Turkish Actors": [
     "Kıvanç Tatlıtuğ",
@@ -64,7 +69,12 @@ const POOLS = {
     "Hande Erçel",
     "Gülse Birsel",
     "Şener Şen",
-    "Demet Evgar"
+    "Demet Evgar",
+    "Erkan Petekkaya",
+    "Kadir İnanır",
+    "Türkan Şoray",
+    "Fatma Girik",
+    "Tarık Akan"
   ],
   "Top Athletes": [
     "Lionel Messi",
@@ -96,7 +106,12 @@ const POOLS = {
     "Sidney Crosby",
     "Conor McGregor",
     "Floyd Mayweather",
-    "Lindsey Vonn"
+    "Lindsey Vonn",
+    "Diego Maradona",
+    "Pelé",
+    "Babe Ruth",
+    "Jackie Robinson",
+    "Eliud Kipchoge"
   ]
 };
 
@@ -104,19 +119,20 @@ const POOLS = {
 POOLS["Ünlü Türk Oyuncular"] = POOLS["Famous Turkish Actors"];
 POOLS["En İyi Sporcular"] = POOLS["Top Athletes"];
 
+// Export pools globally
+window.POOLS = POOLS;
+
 // Fisher–Yates shuffle helpers
-function samplePool(list, n) {
-  const arr = Array.from(list);
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr.slice(0, n);
+function randomFrom(list) {
+  return list[Math.floor(Math.random() * list.length)];
 }
 
-function randomFrom(list) {
-  const [item] = samplePool(list, 1);
-  return item;
+function samplePool(list, n) {
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list.slice(0, n);
 }
 
 // All game related logic lives in this object and will be exposed globally
@@ -222,7 +238,7 @@ const gameLogic = {
     const players = playersSnap.val() || {};
     const uids = Object.keys(players);
     const spyCount = Math.min(settings.spyCount || 0, uids.length);
-    const spies = samplePool(uids, spyCount);
+    const spies = samplePool([...uids], spyCount);
 
     const updates = {};
     updates[`rooms/${roomCode}/spies`] = spies;
@@ -234,7 +250,7 @@ const gameLogic = {
       gameType === "category" || gameType === "Özel Kategori";
 
     if (isLocationGame) {
-      const pool = samplePool(POOLS.locations, settings.poolSize);
+      const pool = samplePool([...POOLS.locations], settings.poolSize);
       const chosenLocation = randomFrom(pool);
       uids.forEach((uid) => {
         const isSpy = spies.includes(uid);
@@ -245,7 +261,7 @@ const gameLogic = {
     } else if (isCategoryGame) {
       const categoryName = settings.categoryName;
       const allItems = POOLS[categoryName] || [];
-      const pool = samplePool(allItems, settings.poolSize);
+      const pool = samplePool([...allItems], settings.poolSize);
       const nonSpyCount = uids.length - spies.length;
       if (pool.length < nonSpyCount) {
         throw new Error("Not enough unique items in category pool");
