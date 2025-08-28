@@ -515,7 +515,7 @@ createRoomBtn.addEventListener("click", async () => {
 });
 
 document.getElementById("joinRoomBtn").addEventListener("click", async () => {
-  if (!window.gameLogic) {
+  if (typeof window.gameLogic === "undefined") {
     alert("Oyun mantığı yüklenemedi. Lütfen sayfayı yeniden yükleyin.");
     return;
   }
