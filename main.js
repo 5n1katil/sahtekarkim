@@ -466,7 +466,14 @@ saveSettingsBtn.addEventListener("click", async () => {
   }
 });
 createRoomBtn.addEventListener("click", async () => {
-  const creatorName = document.getElementById("creatorName").value.trim();
+  if (!window.gameLogic) {
+    alert("Oyun mantığı yüklenemedi. Lütfen sayfayı yeniden yükleyin.");
+    return;
+  }
+
+  const creatorName = document
+    .getElementById("creatorName")
+    .value.trim();
   if (hasInvalidChars(creatorName)) {
     alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
     return;
