@@ -360,6 +360,12 @@ const gameLogic = {
   deleteRoom: function (roomCode) {
     return window.db.ref("rooms/" + roomCode).remove();
   },
+  },
+
+  /** Odayı sil */
+  deleteRoom: function (roomCode) {
+    return window.db.ref("rooms/" + roomCode).remove();
+  },
 
   /** Odadan çık */
   leaveRoom: async function (roomCode) {
