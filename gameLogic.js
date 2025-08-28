@@ -457,7 +457,20 @@ const gameLogic = {
     return anonymousSignInPromise;
   },
   saveSettings: async function (settings) {
-    return window.db.ref("rooms/tmp/settings").set(settings);
+    const uid = await this.getUid();
+    if (!uid) {
+      throw new Error("Kimlik doğrulaması tamamlanamadı");
+    }
+    return window.db.ref(`savedSettings/${uid}`).set(settings);
+  },
+
+  loadSettings: async function () {
+    const uid = await this.getUid();
+    if (!uid) {
+      return null;
+    }
+    const snap = await window.db.ref(`savedSettings/${uid}`).get();
+    return snap.exists() ? snap.val() : null;
   },
   /** Oda oluştur */
   createRoom: async function (options) {
