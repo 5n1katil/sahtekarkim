@@ -152,44 +152,11 @@ const POOLS = {
     "Mike Tyson",
     "Muhammad Ali"
   ]
-"Turkish Singers": [
-    "Tarkan",
-    "Kenan Doğulu",
-    "Sertab Erener",
-    "Ajda Pekkan",
-    "Sezen Aksu",
-    "Hadise",
-    "Aleyna Tilki",
-    "Edis",
-    "Simge",
-    "Gülşen",
-    "Ziynet Sali",
-    "Demet Akalın",
-    "İrem Derici",
-    "Derya Uluğ",
-    "Buray",
-    "Mabel Matiz",
-    "Yalın",
-    "Gökhan Özoğuz",
-    "Murat Boz",
-    "Mustafa Ceceli",
-    "Zeynep Bastık",
-    "Melike Şahin",
-    "Cem Adrian",
-    "Teoman",
-    "Ferman Akgül",
-    "Şebnem Ferah",
-    "Haluk Levent",
-    "Candan Erçetin",
-    "Özcan Deniz",
-    "Emre Aydın"
-  ]
 };
 
 // Yerelleştirilmiş kategori adları için takma adlar
 POOLS["Ünlü Türk Oyuncular"] = POOLS["Famous Turkish Actors"];
 POOLS["En İyi Sporcular"] = POOLS["Top Athletes"];
-POOLS["Türk Şarkıcılar"] = POOLS["Turkish Singers"];
 
 // Havuzları global olarak dışa aktar
 window.POOLS = POOLS;
