@@ -446,22 +446,11 @@ const gameLogic = {
     });
   },
 
-  startVote: async function (roomCode, uid) {
-    const voteAnytimeSnap = await window.db
-      .ref(`rooms/${roomCode}/settings/voteAnytime`)
-      .get();
-    const voteAnytime = voteAnytimeSnap.exists() && voteAnytimeSnap.val();
-    if (!voteAnytime) {
-      this.requestVotingStart(roomCode, uid);
-      return;
-    }
-    const updates = {};
-    updates[`rooms/${roomCode}/phase`] = "voting";
-    updates[`rooms/${roomCode}/voting`] = {
-      startedAt: firebase.database.ServerValue.TIMESTAMP,
-      initiatedBy: uid,
-    };
-    await window.db.ref().update(updates);
+  // Oylamayı başlatma isteği gönder. Artık tüm oyuncuların onayı
+  // bekleniyor; herhangi bir oyuncu düğmeye bastığında oylama hemen
+  // başlamaz.
+  startVote: function (roomCode, uid) {
+    this.requestVotingStart(roomCode, uid);
   },
 
   requestVotingStart: function (roomCode, playerUid) {
