@@ -250,15 +250,10 @@ const gameLogic = {
       const categoryName = settings.categoryName;
       const allItems = POOLS[categoryName] || [];
       const pool = samplePool([...allItems], settings.poolSize);
-      if (pool.length === 0) {
+      if (pool.length < 1) {
         throw new Error("Kategori havuzunda yeterli öğe yok");
       }
-      const nonSpyCount = uids.length - spyCount;
-      if (pool.length < nonSpyCount) {
-        throw new Error("Kategori havuzunda yeterli öğe yok");
-      }
-      const rolesForPlayers = samplePool([...pool], nonSpyCount);
-      let idx = 0;
+      const chosenRole = randomFrom(pool);
       uids.forEach((uid) => {
         const isSpy = spies.includes(uid);
         updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
@@ -270,7 +265,7 @@ const gameLogic = {
             }
           : {
               isSpy: false,
-              role: rolesForPlayers[idx++],
+              role: chosenRole,
               location: categoryName,
               allLocations: pool,
             };
