@@ -515,7 +515,7 @@ const gameLogic = {
             }
           : {
               isSpy: false,
-              role: "Vatandaş",
+              role: "Masum",
               location: chosenLocation,
               allLocations: pool,
             };
