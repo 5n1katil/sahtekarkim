@@ -100,21 +100,23 @@ window.auth.onAuthStateChanged(async (user) => {
                   .getElementById("playerRoleInfo")
                   .classList.remove("hidden");
                 
-                const roleMessageEl = document.getElementById("roleMessage");
-                if (myData.role.includes("Sahtekar")) {
-                  const safeLocations = myData.allLocations
-                    .map(escapeHtml)
-                    .join(", ");
-                  roleMessageEl.innerHTML =
-                    `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
-                    `Olası konumlar: ${safeLocations}`;
-                } else {
-                  const safeLocation = escapeHtml(myData.location);
-                  const safeRole = escapeHtml(myData.role);
-                  roleMessageEl.innerHTML =
-                    `📍 Konum: <b>${safeLocation}</b><br>` +
-                    `🎭 Rolün: <b>${safeRole}</b>`;
-                }
+                  const roleMessageEl = document.getElementById("roleMessage");
+                  if (myData.role && myData.role.includes("Sahtekar")) {
+                    const safeLocations = myData.allLocations
+                      .map(escapeHtml)
+                      .join(", ");
+                    roleMessageEl.innerHTML =
+                      `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
+                      `Olası konumlar: ${safeLocations}`;
+                  } else if (myData.role) {
+                    const safeLocation = escapeHtml(myData.location);
+                    const safeRole = escapeHtml(myData.role);
+                    roleMessageEl.innerHTML =
+                      `📍 Konum: <b>${safeLocation}</b><br>` +
+                      `🎭 Rolün: <b>${safeRole}</b>`;
+                  } else {
+                    roleMessageEl.textContent = "Rol bilgisi bulunamadı.";
+                  }
               }
             });
         });
