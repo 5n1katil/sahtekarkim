@@ -320,9 +320,10 @@ let gameEnded = false;
           roomData.phase === "voting" || roomData.votingStarted;
         const hasRequested =
           roomData.voteRequests && roomData.voteRequests[currentUid];
+        // Oyuncu oylamayı başlattıysa butonu gizle
         document
           .getElementById("startVotingBtn")
-          .classList.toggle("hidden", isVotingPhase);
+          .classList.toggle("hidden", isVotingPhase || hasRequested);
 
         const waitingEl = document.getElementById("waitingVoteStart");
         if (hasRequested && !isVotingPhase) {
