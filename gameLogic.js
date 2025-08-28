@@ -438,9 +438,22 @@ const gameLogic = {
           document.getElementById("roomInfo")?.classList.add("hidden");
           document.getElementById("playerRoleInfo")?.classList.remove("hidden");
 
-          document.getElementById("roleMessage").textContent = myRole.isSpy
-            ? `🎭 Sen BİR SAHTEKARSIN! Konumu bilmiyorsun. Olası konumlar: ${myRole.allLocations.join(", ")}`
-            : `✅ Konum: ${myRole.location} | Rolün: ${myRole.role}`;
+          const isCategoryGame = roomData.settings?.gameType === "category";
+          const roleEl = document.getElementById("roleMessage");
+          if (myRole.isSpy) {
+            const unknownText = isCategoryGame
+              ? "Rolü bilmiyorsun."
+              : "Konumu bilmiyorsun.";
+            const label = isCategoryGame
+              ? "Olası roller"
+              : "Olası konumlar";
+            roleEl.textContent =
+              `🎭 Sen BİR SAHTEKARSIN! ${unknownText} ${label}: ${myRole.allLocations.join(", ")}`;
+          } else {
+            const locLabel = isCategoryGame ? "Kategori" : "Konum";
+            roleEl.textContent =
+              `✅ ${locLabel}: ${myRole.location} | Rolün: ${myRole.role}`;
+          }
         }
       }
     });
