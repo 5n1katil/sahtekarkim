@@ -317,13 +317,21 @@ let gameEnded = false;
 
         // Oylama durumu
         const isVotingPhase =
-          roomData.phase === "voting" || !!roomData.votingStarted;
-        const hasRequested =
-          !!(roomData.voteRequests && roomData.voteRequests[currentUid]);
-        // Oyuncu oylamayı başlattıysa butonu gizle
-        document
-          .getElementById("startVotingBtn")
-          .classList.toggle("hidden", isVotingPhase || hasRequested);
+          roomData.phase === "voting" || roomData.votingStarted === true;
+        const hasRequested = !!(
+          roomData.voteRequests && roomData.voteRequests[currentUid]
+        );
+
+        // Oylamayı başlat butonu
+        const startBtn = document.getElementById("startVotingBtn");
+        if (startBtn) {
+          if (isVotingPhase) {
+            startBtn.classList.add("hidden");
+          } else {
+            startBtn.classList.remove("hidden");
+          }
+          startBtn.disabled = hasRequested;
+        }
 
         const waitingEl = document.getElementById("waitingVoteStart");
         if (hasRequested && !isVotingPhase) {
