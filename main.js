@@ -438,6 +438,19 @@ const gameTypeSelect = document.getElementById("gameType");
 const categoryLabel = document.getElementById("categoryLabel");
 const categorySelect = document.getElementById("categoryName");
 
+if (categorySelect && window.gameLogic && window.gameLogic.POOLS) {
+  categorySelect.innerHTML = "";
+  Object.keys(window.gameLogic.POOLS)
+    .filter((key) => key !== "locations")
+    .forEach((key) => {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = key;
+      categorySelect.appendChild(opt);
+    });
+}
+
+
 gameTypeSelect.addEventListener("change", () => {
   const show = gameTypeSelect.value === "category";
   categoryLabel.classList.toggle("hidden", !show);
