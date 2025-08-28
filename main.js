@@ -342,6 +342,12 @@ let gameEnded = false;
         const voteCountListEl = document.getElementById("voteCountList");
         if (isVotingPhase) {
           liveCountsEl.classList.remove("hidden");
+
+          const counts = {};
+          Object.values(roomData.votes || {}).forEach((t) => {
+            counts[t] = (counts[t] || 0) + 1;
+          });
+
           voteCountListEl.innerHTML = Object.entries(playerUidMap)
             .map(
               ([uid, p]) =>
