@@ -441,13 +441,7 @@ const categorySelect = document.getElementById("categoryName");
 if (categorySelect && window.gameLogic && window.gameLogic.POOLS) {
   categorySelect.innerHTML = "";
   Object.keys(window.gameLogic.POOLS)
-    .filter(
-      (key) =>
-        key !== "locations" &&
-        key !== "Top Athletes" &&
-        key !== "En İyi Sporcular" &&
-        key !== "Famous Turkish Athletes"
-    )
+    .filter((key) => key !== "locations")
     .forEach((key) => {
       const opt = document.createElement("option");
       opt.value = key;
