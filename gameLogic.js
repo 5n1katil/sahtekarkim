@@ -659,4 +659,5 @@ const gameLogic = {
 };
 
 // main.js import gerektirmeden erişebilsin diye global olarak açığa çıkar
+gameLogic.POOLS = POOLS;
 window.gameLogic = gameLogic;
