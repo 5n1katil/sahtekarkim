@@ -88,99 +88,11 @@ const POOLS = {
     "Türkan Şoray",
     "Kerem Bürsin",
     "Birce Akalay"
-  ],
-  "Top Athletes": [
-    "Arda Güler",
-    "Hakan Çalhanoğlu",
-    "Merih Demiral",
-    "İrfan Can Kahveci",
-    "Ferdi Kadıoğlu",
-    "Edin Džeko",
-    "Dusan Tadić",
-    "Mert Hakan Yandaş",
-    "Mauro Icardi",
-    "Dries Mertens",
-    "Kerem Aktürkoğlu",
-    "Wilfried Zaha",
-    "Fernando Muslera",
-    "Cenk Tosun",
-    "Vincent Aboubakar",
-    "Rachid Ghezzal",
-    "Gedson Fernandes",
-    "Rıdvan Yılmaz",
-    "Mete Gazoz",
-    "Busenaz Sürmeneli",
-    "Cristiano Ronaldo",
-    "Lionel Messi",
-    "Kylian Mbappé",
-    "Erling Haaland",
-    "Neymar",
-    "Mohamed Salah",
-    "Kevin De Bruyne",
-    "Luka Modrić",
-    "Robert Lewandowski",
-    "Karim Benzema",
-    "Zlatan İbrahimović",
-    "Antoine Griezmann",
-    "Harry Kane",
-    "Paulo Dybala",
-    "Virgil van Dijk",
-    "Sergio Ramos",
-    "Rafa Silva",
-    "Ricardo Quaresma",
-    "Mario Gomez",
-    "Orkun Kökçü",
-    "Novak Djokovic",
-    "Rafael Nadal",
-    "Roger Federer",
-    "Michael Phelps",
-    "Usain Bolt",
-    "Simone Biles",
-    "LeBron James",
-    "Stephen Curry",
-    "Giannis Antetokounmpo",
-    "Alperen Şengün",
-    "Nikola Jokic",
-    "Diego Maradona",
-    "Pelé",
-    "Ronaldinho",
-    "David Beckham",
-    "Andrea Pirlo",
-    "Francesco Totti",
-    "Khabib Nurmagomedov",
-    "Conor McGregor",
-    "Mike Tyson",
-    "Muhammad Ali",
-    "Naim Süleymanoğlu",
-    "Taha Akgül",
-    "Rıza Kayaalp",
-    "Kenan Sofuoğlu",
-    "Ramil Guliyev",
-    "Çağla Büyükakçay",
-    "Naz Aydemir Akyol",
-    "Hidayet Türkoğlu",
-    "Mehmet Okur",
-    "Serena Williams",
-    "Naomi Osaka",
-    "Michael Jordan",
-    "Kobe Bryant",
-    "Shaquille O'Neal",
-    "Magic Johnson",
-    "Larry Bird",
-    "Kevin Durant",
-    "Russell Westbrook",
-    "Kawhi Leonard",
-    "Chris Paul",
-    "Klay Thompson",
-    "Tom Brady",
-    "Peyton Manning",
-    "Tiger Woods"
   ]
 };
 
 // Yerelleştirilmiş kategori adları için takma adlar
 POOLS["Ünlü Türk Oyuncular"] = POOLS["Famous Turkish Actors"];
-POOLS["En İyi Sporcular"] = POOLS["Top Athletes"];
 
 // Havuzları global olarak dışa aktar
 window.POOLS = POOLS;
@@ -341,7 +253,12 @@ const gameLogic = {
       if (pool.length === 0) {
         throw new Error("Kategori havuzunda yeterli öğe yok");
       }
-      const chosenRole = randomFrom(pool);
+      const nonSpyCount = uids.length - spyCount;
+      if (pool.length < nonSpyCount) {
+        throw new Error("Kategori havuzunda yeterli öğe yok");
+      }
+      const rolesForPlayers = samplePool([...pool], nonSpyCount);
+      let idx = 0;
       uids.forEach((uid) => {
         const isSpy = spies.includes(uid);
         updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
@@ -353,7 +270,7 @@ const gameLogic = {
             }
           : {
               isSpy: false,
-              role: chosenRole,
+              role: rolesForPlayers[idx++],
               location: categoryName,
               allLocations: pool,
             };
