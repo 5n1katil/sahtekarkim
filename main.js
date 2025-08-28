@@ -508,6 +508,11 @@ createRoomBtn.addEventListener("click", async () => {
 });
 
 document.getElementById("joinRoomBtn").addEventListener("click", async () => {
+  if (!window.gameLogic) {
+    alert("Oyun mantığı yüklenemedi. Lütfen sayfayı yeniden yükleyin.");
+    return;
+  }
+
   const joinName = document.getElementById("joinName").value.trim();
   const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
 
