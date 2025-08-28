@@ -317,9 +317,9 @@ let gameEnded = false;
 
         // Oylama durumu
         const isVotingPhase =
-          roomData.phase === "voting" || roomData.votingStarted;
+          roomData.phase === "voting" || !!roomData.votingStarted;
         const hasRequested =
-          roomData.voteRequests && roomData.voteRequests[currentUid];
+          !!(roomData.voteRequests && roomData.voteRequests[currentUid]);
         // Oyuncu oylamayı başlattıysa butonu gizle
         document
           .getElementById("startVotingBtn")
