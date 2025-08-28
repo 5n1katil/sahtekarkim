@@ -136,7 +136,7 @@ let gameEnded = false;
     if (isSpy) {
       msgDiv.textContent = `${name} sahtekar çıktı!`;
     } else {
-      let innocentText = `${name} ajandı.`;
+      let innocentText = `${name} masumdu.`;
       if (role) {
         innocentText += ` Rolü: ${role}`;
         if (location) {
