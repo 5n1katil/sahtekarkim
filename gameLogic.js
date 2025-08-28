@@ -477,9 +477,24 @@ const gameLogic = {
   },
 
   submitVote: function (roomCode, voter, target) {
-    window.db
-      .ref(`rooms/${roomCode}/votes/${voter}`)
-      .set(target);
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref
+      .child(`votes/${voter}`)
+      .set(target)
+      .then(() => {
+        ref.get().then((snap) => {
+          if (!snap.exists()) return;
+          const data = snap.val();
+          const players = Object.keys(data.players || {});
+          const votes = data.votes || {};
+          if (
+            Object.keys(votes).length === players.length &&
+            !data.voteResult
+          ) {
+            this.tallyVotes(roomCode);
+          }
+        });
+      });
   },
 
   tallyVotes: function (roomCode) {
