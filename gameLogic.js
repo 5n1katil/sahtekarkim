@@ -150,7 +150,31 @@ const POOLS = {
     "Khabib Nurmagomedov",
     "Conor McGregor",
     "Mike Tyson",
-    "Muhammad Ali"
+    "Muhammad Ali",
+    "Naim Süleymanoğlu",
+    "Taha Akgül",
+    "Rıza Kayaalp",
+    "Kenan Sofuoğlu",
+    "Ramil Guliyev",
+    "Çağla Büyükakçay",
+    "Naz Aydemir Akyol",
+    "Hidayet Türkoğlu",
+    "Mehmet Okur",
+    "Serena Williams",
+    "Naomi Osaka",
+    "Michael Jordan",
+    "Kobe Bryant",
+    "Shaquille O'Neal",
+    "Magic Johnson",
+    "Larry Bird",
+    "Kevin Durant",
+    "Russell Westbrook",
+    "Kawhi Leonard",
+    "Chris Paul",
+    "Klay Thompson",
+    "Tom Brady",
+    "Peyton Manning",
+    "Tiger Woods"
   ]
 };
 
