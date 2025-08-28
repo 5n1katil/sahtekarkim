@@ -483,6 +483,7 @@ const gameLogic = {
   },
 
   tallyVotes: function (roomCode) {
+    const ref = window.db.ref("rooms/" + roomCode);
     ref.get().then((snap) => {
       if (!snap.exists()) return;
       const data = snap.val();
