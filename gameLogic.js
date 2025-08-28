@@ -189,6 +189,7 @@ const POOLS = {
 // Yerelleştirilmiş kategori adları için takma adlar
 POOLS["Ünlü Türk Oyuncular"] = POOLS["Famous Turkish Actors"];
 POOLS["En İyi Sporcular"] = POOLS["Top Athletes"];
+POOLS["Türk Şarkıcılar"] = POOLS["Turkish Singers"];
 
 // Havuzları global olarak dışa aktar
 window.POOLS = POOLS;
