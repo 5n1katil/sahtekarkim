@@ -459,6 +459,39 @@ gameTypeSelect.addEventListener("change", () => {
   categorySelect.classList.toggle("hidden", !show);
 });
 
+async function prefillSettings() {
+  if (!window.gameLogic || !window.gameLogic.loadSettings) return;
+  try {
+    const saved = await window.gameLogic.loadSettings();
+    if (!saved) return;
+
+    const playerCountEl = document.getElementById("playerCount");
+    const spyCountEl = document.getElementById("spyCount");
+    const poolSizeEl = document.getElementById("poolSize");
+    const voteAnytimeEl = document.getElementById("voteAnytime");
+
+    if (saved.playerCount) playerCountEl.value = saved.playerCount;
+    if (saved.spyCount) spyCountEl.value = saved.spyCount;
+    if (saved.poolSize) poolSizeEl.value = saved.poolSize;
+    if (typeof saved.voteAnytime !== "undefined")
+      voteAnytimeEl.checked = saved.voteAnytime;
+
+    if (saved.gameType) {
+      gameTypeSelect.value = saved.gameType;
+      const show = saved.gameType === "category";
+      categoryLabel.classList.toggle("hidden", !show);
+      categorySelect.classList.toggle("hidden", !show);
+      if (show && saved.categoryName) {
+        categorySelect.value = saved.categoryName;
+      }
+    }
+  } catch (err) {
+    console.warn("Ayarlar yüklenemedi:", err);
+  }
+}
+
+prefillSettings();
+
 const createRoomBtn = document.getElementById("createRoomBtn");
 const createRoomLoading = document.getElementById("createRoomLoading");
 const saveSettingsBtn = document.getElementById("saveSettingsBtn");
@@ -491,6 +524,7 @@ saveSettingsBtn.addEventListener("click", async () => {
   const settings = await buildSettings();
   try {
     await window.gameLogic.saveSettings(settings);
+    alert("Ayarlar kaydedildi!");
   } catch (err) {
     alert(err.message || err);
   }
