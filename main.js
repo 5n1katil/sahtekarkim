@@ -582,7 +582,8 @@ createRoomBtn.addEventListener("click", async () => {
     if (
       !creatorName ||
       isNaN(settings.playerCount) ||
-      isNaN(settings.spyCount)
+      isNaN(settings.spyCount) ||
+      isNaN(settings.spyGuessLimit)
     ) {
       alert("Lütfen tüm alanları doldurun.");
       return;
