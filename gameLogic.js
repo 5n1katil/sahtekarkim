@@ -796,16 +796,16 @@ const gameLogic = {
       if (!spyRole) return;
       let guessesLeft = spyRole.guessesLeft || 0;
       if (guessesLeft <= 0) return;
-      let correctLocation = null;
+      let correctAnswer = null;
       for (const uid in roles) {
         const r = roles[uid];
         if (r && !r.isSpy) {
-          correctLocation = r.location;
+          correctAnswer = data.gameType === "category" ? r.role : r.location;
           break;
         }
       }
-      if (!correctLocation) return;
-      if (guess === correctLocation) {
+      if (!correctAnswer) return;
+      if (guess === correctAnswer) {
         ref.update({ status: "finished", winner: "spy", lastGuess: null });
       } else {
         guessesLeft -= 1;
