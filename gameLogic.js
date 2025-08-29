@@ -731,13 +731,6 @@ const gameLogic = {
           const roleEl = document.getElementById("roleMessage");
           if (myRole.isSpy) {
             const unknownText = isCategoryGame
-          document.getElementById("roomInfo")?.classList.add("hidden");
-          document.getElementById("playerRoleInfo")?.classList.remove("hidden");
-
-          const isCategoryGame = roomData.settings?.gameType === "category";
-          const roleEl = document.getElementById("roleMessage");
-          if (myRole.isSpy) {
-            const unknownText = isCategoryGame
               ? "Rolü bilmiyorsun."
               : "Konumu bilmiyorsun.";
             const label = isCategoryGame
