@@ -797,10 +797,11 @@ const gameLogic = {
       let guessesLeft = spyRole.guessesLeft || 0;
       if (guessesLeft <= 0) return;
       let correctAnswer = null;
+      const gameType = data.settings?.gameType;
       for (const uid in roles) {
         const r = roles[uid];
         if (r && !r.isSpy) {
-          correctAnswer = data.gameType === "category" ? r.role : r.location;
+          correctAnswer = gameType === "category" ? r.role : r.location;
           break;
         }
       }
