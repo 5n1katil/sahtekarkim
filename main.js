@@ -224,7 +224,6 @@ let lastVotingState = null;
   /** ------------------------
    *  ODA OLUŞTUR
    * ------------------------ */
-  const hasInvalidChars = (name) => /[.#$\[\]\/]/.test(name);
   function updatePlayerList(players) {
     const listEl = document.getElementById("playerList");
     const countEl = document.getElementById("playerCountDisplay");
