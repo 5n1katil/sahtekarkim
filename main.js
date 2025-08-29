@@ -542,7 +542,24 @@ const createRoomBtn = document.getElementById("createRoomBtn");
 const createRoomLoading = document.getElementById("createRoomLoading");
 const saveSettingsBtn = document.getElementById("saveSettingsBtn");
 
+async function ensureGameLogicLoaded(timeout = 3000) {
+  if (window.gameLogic) return;
+  await new Promise((resolve, reject) => {
+    const start = Date.now();
+    (function check() {
+      if (window.gameLogic) {
+        resolve();
+      } else if (Date.now() - start >= timeout) {
+        reject(new Error("gameLogic yüklenemedi"));
+      } else {
+        setTimeout(check, 50);
+      }
+    })();
+  });
+}
+
 async function buildSettings() {
+  await ensureGameLogicLoaded();
   const playerCount = parseInt(document.getElementById("playerCount").value);
   const spyCount = parseInt(document.getElementById("spyCount").value);
   const spyGuessCount = parseInt(document.getElementById("spyGuessCount").value);
@@ -578,7 +595,9 @@ saveSettingsBtn.addEventListener("click", async () => {
   }
 });
 createRoomBtn.addEventListener("click", async () => {
-  if (!window.gameLogic) {
+  try {
+    await ensureGameLogicLoaded();
+  } catch {
     alert("Oyun mantığı yüklenemedi. Lütfen sayfayı yeniden yükleyin.");
     return;
   }
@@ -627,7 +646,9 @@ createRoomBtn.addEventListener("click", async () => {
 });
 
 document.getElementById("joinRoomBtn").addEventListener("click", async () => {
-  if (typeof window.gameLogic === "undefined") {
+  try {
+    await ensureGameLogicLoaded();
+  } catch {
     alert("Oyun mantığı yüklenemedi. Lütfen sayfayı yeniden yükleyin.");
     return;
   }
