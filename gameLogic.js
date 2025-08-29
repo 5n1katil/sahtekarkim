@@ -806,12 +806,21 @@ const gameLogic = {
         }
       }
       if (!correctAnswer) return;
+      const preserveVotingStarted = data.votingStarted;
+      const preserveVotes = data.votes;
       if (guess === correctAnswer) {
-        ref.update({
+        const winUpdate = {
           status: "finished",
           winner: "spy",
           lastGuess: { spy: spyUid, guess, correct: true },
-        });
+        };
+        if (typeof preserveVotingStarted !== "undefined") {
+          winUpdate.votingStarted = preserveVotingStarted;
+        }
+        if (typeof preserveVotes !== "undefined") {
+          winUpdate.votes = preserveVotes;
+        }
+        ref.update(winUpdate);
       } else {
         guessesLeft -= 1;
         const updates = {};
@@ -822,6 +831,12 @@ const gameLogic = {
           updates.lastGuess = null;
         } else {
           updates.lastGuess = { spy: spyUid, guess, guessesLeft };
+        }
+        if (typeof preserveVotingStarted !== "undefined") {
+          updates.votingStarted = preserveVotingStarted;
+        }
+        if (typeof preserveVotes !== "undefined") {
+          updates.votes = preserveVotes;
         }
         ref.update(updates);
       }
