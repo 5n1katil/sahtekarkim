@@ -137,6 +137,7 @@ window.auth.onAuthStateChanged(async (user) => {
 let lastVoteResult = null;
 let gameEnded = false;
 let lastGuessEvent = null;
+let lastVotingState = null;
 
   function showResultOverlay(isSpy, name, role, location) {
     const overlay = document.getElementById("resultOverlay");
@@ -316,7 +317,9 @@ let lastGuessEvent = null;
         document.getElementById("playerRoleInfo").classList.remove("hidden");
         document.getElementById("gameActions").classList.remove("hidden");
 
-        if (myData.role.includes("Sahtekar")) {
+        const guessesLeft = myData.guessesLeft ?? 0;
+        const isSpy = myData.role.includes("Sahtekar");
+        if (isSpy && guessesLeft > 0) {
           const safeLocations = myData.allLocations
             .map(escapeHtml)
             .join(", ");
@@ -360,13 +363,20 @@ let lastGuessEvent = null;
           roomData.voteRequests && roomData.voteRequests[currentUid]
         );
 
-        const votingSection = document.getElementById("votingSection");
-        if (votingSection) {
-          const hasVoted = roomData.votes && roomData.votes[currentUid];
-          votingSection.classList.toggle(
-            "hidden",
-            !(roomData.votingStarted && !hasVoted)
-          );
+        const votingStateKey = JSON.stringify({
+          votingStarted: roomData.votingStarted,
+          votes: roomData.votes,
+        });
+        if (votingStateKey !== lastVotingState) {
+          const votingSection = document.getElementById("votingSection");
+          if (votingSection) {
+            const hasVoted = roomData.votes && roomData.votes[currentUid];
+            votingSection.classList.toggle(
+              "hidden",
+              !(roomData.votingStarted && !hasVoted)
+            );
+          }
+          lastVotingState = votingStateKey;
         }
 
         // Oylamayı başlat butonu
