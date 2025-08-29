@@ -605,6 +605,9 @@ export const gameLogic = {
     const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     const [settingsSnap, playersSnap] = await Promise.all([
+      settingsRef.get(),
+      playersRef.get(),
+    ]);
     const settings = settingsSnap.val();
     const allPlayers = playersSnap.val() || {};
     const players = Object.fromEntries(
