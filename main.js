@@ -168,7 +168,7 @@ let lastGuessEvent = null;
     }, 3000);
   }
 
-  function showSpyWinOverlay(spyIds) {
+  function showSpyWinOverlay(spyIds, guessed, guessWord) {
     const overlay = document.getElementById("resultOverlay");
     const names = (spyIds || [])
       .map((id) => playerUidMap[id]?.name)
@@ -178,15 +178,21 @@ let lastGuessEvent = null;
     overlay.innerHTML = "";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
-    msgDiv.append("Sahtekar");
-    if (names) {
-      msgDiv.appendChild(document.createElement("br"));
-      const span = document.createElement("span");
-      span.className = "impostor-name";
-      span.textContent = names;
-      msgDiv.appendChild(span);
+    if (guessed) {
+      const safeGuess = escapeHtml(guessed);
+      const word = guessWord || "konumu";
+      msgDiv.textContent = `Sahtekar ${word} ${safeGuess} olarak doğru tahmin etti ve oyunu kazandı`;
+    } else {
+      msgDiv.append("Sahtekar");
+      if (names) {
+        msgDiv.appendChild(document.createElement("br"));
+        const span = document.createElement("span");
+        span.className = "impostor-name";
+        span.textContent = names;
+        msgDiv.appendChild(span);
+      }
+      msgDiv.append(" kazandı! Oyun Bitti...");
     }
-    msgDiv.append(" kazandı! Oyun Bitti...");
     overlay.appendChild(msgDiv);
     overlay.classList.remove(
       "hidden",
@@ -276,7 +282,13 @@ let lastGuessEvent = null;
           (roomData.spyParityWin ||
             (roomData.status === "finished" && roomData.winner === "spy"))
         ) {
-          showSpyWinOverlay(roomData.spies);
+          const guessed =
+            roomData.lastGuess && roomData.lastGuess.correct
+              ? roomData.lastGuess.guess
+              : null;
+          const guessWord =
+            roomData.gameType === "category" ? "rolü" : "konumu";
+          showSpyWinOverlay(roomData.spies, guessed, guessWord);
           window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
           return;
         }
