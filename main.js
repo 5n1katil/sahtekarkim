@@ -1,19 +1,7 @@
 import { gameLogic, POOLS } from './gameLogic.js';
+import { escapeHtml } from './utils.js';
 
 console.log('main.js yüklendi');
-
-// Basit HTML kaçış yardımcısı
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (ch) =>
-    ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    }[ch])
-  );
-}
 
 // Kullanıcının anonim şekilde doğrulandığından emin ol
 if (window.auth && !window.auth.currentUser) {
