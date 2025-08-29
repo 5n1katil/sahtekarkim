@@ -833,12 +833,12 @@ export const gameLogic = {
         ref.get().then((snap) => {
           if (!snap.exists()) return;
           const data = snap.val();
-          const players = Object.keys(data.players || {});
+          const activePlayers = Object.keys(data.playerRoles || {});
           const votes = data.votes || {};
-          if (
-            Object.keys(votes).length === players.length &&
-            !data.voteResult
-          ) {
+          const activeVoteCount = Object.keys(votes).filter((v) =>
+            activePlayers.includes(v)
+          ).length;
+          if (activeVoteCount >= activePlayers.length && !data.voteResult) {
             this.tallyVotes(roomCode);
           }
         });
@@ -850,14 +850,18 @@ export const gameLogic = {
     ref.get().then((snap) => {
       if (!snap.exists()) return;
       const data = snap.val();
-      const players = Object.keys(data.players || {});
+      const players = Object.keys(data.playerRoles || {});
       const votes = data.votes || {};
-      if (Object.keys(votes).length < players.length) return;
+      const voteEntries = Object.entries(votes).filter(([voter]) =>
+        players.includes(voter)
+      );
+      if (voteEntries.length < players.length) return;
 
       const counts = {};
-      Object.values(votes).forEach((t) => {
+      voteEntries.forEach(([, t]) => {
         counts[t] = (counts[t] || 0) + 1;
       });
+      console.log("[tallyVotes] Vote counts:", counts);
       const max = Math.max(...Object.values(counts));
       const top = Object.keys(counts).filter((p) => counts[p] === max);
       if (top.length !== 1) {
@@ -874,6 +878,9 @@ export const gameLogic = {
       const role = votedRole ? votedRole.role : null;
       const location = votedRole ? votedRole.location : null;
 
+      console.log(
+        `[tallyVotes] Player ${voted} received ${counts[voted]} votes. Eliminated: ${!isSpy}`
+      );
       ref.update({
         voteResult: { voted, isSpy, role, location },
         votingStarted: false,
