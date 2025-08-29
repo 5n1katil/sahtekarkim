@@ -301,16 +301,24 @@ let lastGuessEvent = null;
           const safeLocations = myData.allLocations
             .map(escapeHtml)
             .join(", ");
-          roleMessageEl.innerHTML =
-            `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
-            `Olası konumlar: ${safeLocations}`;
-
           const guessSection = document.getElementById("guessSection");
+          const guessLabel = document.getElementById("guessLabel");
           guessSection.classList.remove("hidden");
           const guessSelect = document.getElementById("guessSelect");
           guessSelect.innerHTML = myData.allLocations
             .map((loc) => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`)
             .join("");
+          if (roomData.gameType === "category") {
+            roleMessageEl.innerHTML =
+              `🎭 Sen <b>SAHTEKAR</b>sın! Rolü bilmiyorsun.<br>` +
+              `Olası roller: ${safeLocations}`;
+            if (guessLabel) guessLabel.textContent = "Rolü tahmin et:";
+          } else {
+            roleMessageEl.innerHTML =
+              `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
+              `Olası konumlar: ${safeLocations}`;
+            if (guessLabel) guessLabel.textContent = "Konumu tahmin et:";
+          }
         } else {
           const safeLocation = escapeHtml(myData.location);
           const safeRole = escapeHtml(myData.role);
@@ -343,7 +351,8 @@ let lastGuessEvent = null;
           }
           startBtn.disabled = hasRequested;
         }
-@@ -373,50 +382,64 @@ let gameEnded = false;
+
+        if (roomData.voteResult) {
           if (roomData.voteResult.tie) {
             resultEl.classList.remove("hidden");
             outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
@@ -375,8 +384,10 @@ let lastGuessEvent = null;
             lastGuessEvent = guessKey;
             const spyName =
               playerUidMap[roomData.lastGuess.spy]?.name || "Sahtekar";
+            const guessWord =
+              roomData.gameType === "category" ? "rolünü" : "konumunu";
             alert(
-              `${spyName} '${roomData.lastGuess.guess}' konumunu tahmin etti ama yanıldı. Kalan hak: ${roomData.lastGuess.guessesLeft}`
+              `${spyName} '${roomData.lastGuess.guess}' ${guessWord} tahmin etti ama yanıldı. Kalan hak: ${roomData.lastGuess.guessesLeft}`
             );
           }
         } else {
@@ -649,41 +660,6 @@ document.getElementById("submitVoteBtn").addEventListener("click", () => {
   }
 });
 
-// Sonraki tur
-document.getElementById("nextRoundBtn").addEventListener("click", () => {
-  window.gameLogic.nextRound(currentRoomCode);
-});
-
-// Rol bilgisini kopyalama
-document.getElementById("copyRoleBtn").addEventListener("click", () => {
-  const text = document.getElementById("roleMessage").innerText;
-  navigator.clipboard
-    .writeText(text)
-  }
-  const btn = e.currentTarget;
-  btn.disabled = true;
-  try {
-    await window.gameLogic.startGame(currentRoomCode);
-  } catch (error) {
-    alert("Oyunu başlatırken bir hata oluştu: " + (error.message || error));
-  } finally {
-    btn.disabled = false;
-  }
-});
-
-document.getElementById("startVotingBtn").addEventListener("click", () => {
-  window.gameLogic.startVote(currentRoomCode, currentUid);
-});
-
-// Oy ver
-document.getElementById("submitVoteBtn").addEventListener("click", () => {
-  const target = document.getElementById("voteSelect").value;
-  if (target) {
-    window.gameLogic.submitVote(currentRoomCode, currentUid, target);
-    document.getElementById("votingSection").classList.add("hidden");
-  }
-});
-
 document.getElementById("submitGuessBtn").addEventListener("click", () => {
   const guess = document.getElementById("guessSelect").value;
   if (guess) {
@@ -703,6 +679,7 @@ document.getElementById("copyRoleBtn").addEventListener("click", () => {
     .writeText(text)
     .then(() => alert("Rolünüz kopyalandı!"));
 });
+
 // Oyundan çık (ana ekrana dön)
 document.getElementById("backToHomeBtn").addEventListener("click", () => {
   const roomCode = localStorage.getItem("roomCode");
@@ -714,4 +691,13 @@ document.getElementById("backToHomeBtn").addEventListener("click", () => {
       ? window.gameLogic.deleteRoom(roomCode)
       : playerName
       ? window.gameLogic.leaveRoom(roomCode)
-      : Promise.resolve()
+      : Promise.resolve();
+    Promise.resolve(action).then(() => {
+      localStorage.clear();
+      location.reload();
+    });
+  } else {
+    localStorage.clear();
+    location.reload();
+  }
+});
