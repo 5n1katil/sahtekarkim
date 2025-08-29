@@ -617,13 +617,6 @@ const gameLogic = {
     const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     const [settingsSnap, playersSnap] = await Promise.all([
-      settingsRef.get(),
-      playersRef.get(),
-    ]);
-    if (!settingsSnap.exists() || !playersSnap.exists()) {
-      throw new Error("Oda bulunamadı");
-    }
-
     const settings = settingsSnap.val();
     const allPlayers = playersSnap.val() || {};
     const players = Object.fromEntries(
@@ -649,7 +642,6 @@ const gameLogic = {
       votes: null,
       voteResult: null,
       votingStarted: false,
-      voteRequests: null,
     });
   },
 
@@ -739,6 +731,13 @@ const gameLogic = {
           const roleEl = document.getElementById("roleMessage");
           if (myRole.isSpy) {
             const unknownText = isCategoryGame
+          document.getElementById("roomInfo")?.classList.add("hidden");
+          document.getElementById("playerRoleInfo")?.classList.remove("hidden");
+
+          const isCategoryGame = roomData.settings?.gameType === "category";
+          const roleEl = document.getElementById("roleMessage");
+          if (myRole.isSpy) {
+            const unknownText = isCategoryGame
               ? "Rolü bilmiyorsun."
               : "Konumu bilmiyorsun.";
             const label = isCategoryGame
@@ -756,34 +755,19 @@ const gameLogic = {
     });
   },
 
-  // Oylamayı başlatma isteği gönder. Artık tüm oyuncuların onayı
-  // bekleniyor; herhangi bir oyuncu düğmeye bastığında oylama hemen
-  // başlamaz.
-  startVote: function (roomCode, uid) {
-    this.requestVotingStart(roomCode, uid);
-  },
-
-  requestVotingStart: function (roomCode, playerUid) {
-    const ref = window.db.ref("rooms/" + roomCode);
-    ref.child(`voteRequests/${playerUid}`).set(true).then(() => {
-      ref.get().then((snap) => {
-        if (!snap.exists()) return;
-        const data = snap.val();
-        const players = Object.keys(data.players || {});
-        const requests = Object.keys(data.voteRequests || {});
-
-        const allRequested = players.every((uid) => requests.includes(uid));
-        if (allRequested) {
-          this.startVoting(roomCode);
-          ref.child("voteRequests").remove();
-        }
-      });
-    });
+  // Oylamayı hemen başlat
+  startVote: function (roomCode) {
+    this.startVoting(roomCode);
   },
 
   startVoting: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.update({ votingStarted: true, votes: null, voteResult: null });
+    ref.update({
+      votingStarted: true,
+      votes: null,
+      voteResult: null,
+      voteRequests: null,
+    });
   },
 
   guessLocation: function (roomCode, spyUid, guess) {
@@ -882,7 +866,6 @@ const gameLogic = {
       if (top.length !== 1) {
         ref.update({
           votes: null,
-          voteRequests: null,
           votingStarted: false,
           voteResult: { tie: true },
         });
@@ -956,7 +939,6 @@ const gameLogic = {
         votes: null,
         voteResult: null,
         votingStarted: false,
-        voteRequests: null,
       });
     });
   },
