@@ -573,15 +573,21 @@ createRoomBtn.addEventListener("click", async () => {
     return;
   }
 
-  const settings = await buildSettings();
-  if (!creatorName || isNaN(settings.playerCount) || isNaN(settings.spyCount)) {
-    alert("Lütfen tüm alanları doldurun.");
-    return;
-  }
-
+  // Buton tepkisiz görünmesin diye yükleme başlamadan önce kapat
   createRoomBtn.disabled = true;
   createRoomLoading.classList.remove("hidden");
+
   try {
+    const settings = await buildSettings();
+    if (
+      !creatorName ||
+      isNaN(settings.playerCount) ||
+      isNaN(settings.spyCount)
+    ) {
+      alert("Lütfen tüm alanları doldurun.");
+      return;
+    }
+
     const roomCode = await gameLogic.createRoom({
       creatorName,
       ...settings,
