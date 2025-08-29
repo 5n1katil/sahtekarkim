@@ -367,11 +367,34 @@ let lastVotingState = null;
           lastVotingState = votingStateKey;
         }
 
-        // Oylamayı başlat butonu
         const startBtn = document.getElementById("startVotingBtn");
+        const waitingEl = document.getElementById("waitingVoteStart");
+        const voteRequests = roomData.voteRequests || {};
+        const playersCount = Object.keys(roomData.players || {}).length;
+        const requestCount = Object.keys(voteRequests).length;
+        const hasRequested = !!voteRequests[currentUid];
+        const isWaiting =
+          !roomData.votingStarted && hasRequested && requestCount < playersCount;
+
         if (startBtn) {
-          startBtn.classList.toggle("hidden", isVotingPhase);
-          startBtn.disabled = false;
+          startBtn.classList.toggle("hidden", isVotingPhase || isWaiting);
+          startBtn.disabled = isWaiting;
+        }
+        if (waitingEl) {
+          waitingEl.classList.toggle("hidden", !isWaiting);
+          if (isWaiting) {
+            waitingEl.textContent =
+              "Oylamanın başlaması için diğer oyuncular bekleniyor...";
+          }
+        }
+        if (votingInstructionEl) {
+          if (!roomData.votingStarted && !hasRequested) {
+            votingInstructionEl.classList.remove("hidden");
+            votingInstructionEl.textContent =
+              "Her tur tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
+          } else {
+            votingInstructionEl.classList.add("hidden");
+          }
         }
 
         if (roomData.voteResult) {
