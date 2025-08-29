@@ -99,15 +99,22 @@ window.auth.onAuthStateChanged(async (user) => {
                 document
                   .getElementById("playerRoleInfo")
                   .classList.remove("hidden");
-                
+
                   const roleMessageEl = document.getElementById("roleMessage");
+                  const guessLabel = document.getElementById("guessLabel");
+                  const isCategory = roomData.settings?.gameType === "category";
                   if (myData.role && myData.role.includes("Sahtekar")) {
                     const safeLocations = myData.allLocations
                       .map(escapeHtml)
                       .join(", ");
                     roleMessageEl.innerHTML =
-                      `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
-                      `Olası konumlar: ${safeLocations}`;
+                      `🎭 Sen <b>SAHTEKAR</b>sın! ${isCategory ? "Rolü" : "Konumu"} bilmiyorsun.<br>` +
+                      `${isCategory ? "Olası roller" : "Olası konumlar"}: ${safeLocations}`;
+                    if (guessLabel) {
+                      guessLabel.textContent = isCategory
+                        ? "Rolü tahmin et:"
+                        : "Konumu tahmin et:";
+                    }
                   } else if (myData.role) {
                     const safeLocation = escapeHtml(myData.location);
                     const safeRole = escapeHtml(myData.role);
@@ -287,7 +294,7 @@ let lastGuessEvent = null;
               ? roomData.lastGuess.guess
               : null;
           const guessWord =
-            roomData.gameType === "category" ? "rolü" : "konumu";
+            roomData.settings?.gameType === "category" ? "rolü" : "konumu";
           showSpyWinOverlay(roomData.spies, guessed, guessWord);
           window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
           return;
@@ -320,7 +327,7 @@ let lastGuessEvent = null;
           guessSelect.innerHTML = myData.allLocations
             .map((loc) => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`)
             .join("");
-          if (roomData.gameType === "category") {
+          if (roomData.settings?.gameType === "category") {
             roleMessageEl.innerHTML =
               `🎭 Sen <b>SAHTEKAR</b>sın! Rolü bilmiyorsun.<br>` +
               `Olası roller: ${safeLocations}`;
@@ -397,7 +404,9 @@ let lastGuessEvent = null;
             const spyName =
               playerUidMap[roomData.lastGuess.spy]?.name || "Sahtekar";
             const guessWord =
-              roomData.gameType === "category" ? "rolünü" : "konumunu";
+              roomData.settings?.gameType === "category"
+                ? "rolünü"
+                : "konumunu";
             alert(
               `${spyName} '${roomData.lastGuess.guess}' ${guessWord} tahmin etti ama yanıldı. Kalan hak: ${roomData.lastGuess.guessesLeft}`
             );
