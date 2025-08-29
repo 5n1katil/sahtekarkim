@@ -14,7 +14,7 @@ function escapeHtml(str) {
 }
 
 // Konumlar ve kategoriler için veri havuzları
-const POOLS = {
+export const POOLS = {
   locations: [
     "Havalimanı",
     "Hastane",
@@ -427,9 +427,8 @@ function samplePool(list, n) {
   return list.slice(0, n);
 }
 
-// Tüm oyunla ilgili mantık bu nesnede bulunur ve diğer betikler import etmeye gerek kalmadan
-// `window.gameLogic` üzerinden erişebilsin diye global olarak ortaya çıkarılır.
-const gameLogic = {
+// Tüm oyunla ilgili mantık bu nesnede bulunur.
+export const gameLogic = {
   getUid: async function () {
     if (!window.auth) return null;
     if (window.auth.currentUser && window.auth.currentUser.uid) {
@@ -937,6 +936,6 @@ const gameLogic = {
   },
 };
 
-// main.js import gerektirmeden erişebilsin diye global olarak açığa çıkar
+// Global fallback for compatibility
 gameLogic.POOLS = POOLS;
 window.gameLogic = gameLogic;
