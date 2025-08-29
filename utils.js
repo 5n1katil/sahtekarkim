@@ -9,3 +9,7 @@ export function escapeHtml(str) {
     }[ch])
   );
 }
+
+export function hasInvalidChars(name) {
+  return /[.#$\[\]\/]/.test(name);
+}
