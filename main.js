@@ -129,6 +129,7 @@ window.auth.onAuthStateChanged(async (user) => {
   });
 let lastVoteResult = null;
 let gameEnded = false;
+let lastGuessEvent = null;
 
   function showResultOverlay(isSpy, name, role, location) {
     const overlay = document.getElementById("resultOverlay");
@@ -303,12 +304,20 @@ let gameEnded = false;
           roleMessageEl.innerHTML =
             `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
             `Olası konumlar: ${safeLocations}`;
+
+          const guessSection = document.getElementById("guessSection");
+          guessSection.classList.remove("hidden");
+          const guessSelect = document.getElementById("guessSelect");
+          guessSelect.innerHTML = myData.allLocations
+            .map((loc) => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`)
+            .join("");
         } else {
           const safeLocation = escapeHtml(myData.location);
           const safeRole = escapeHtml(myData.role);
           roleMessageEl.innerHTML =
             `📍 Konum: <b>${safeLocation}</b><br>` +
             `🎭 Rolün: <b>${safeRole}</b>`;
+          document.getElementById("guessSection").classList.add("hidden");
         }
 
         const votingInstructionEl = document.getElementById("votingInstruction");
@@ -334,42 +343,7 @@ let gameEnded = false;
           }
           startBtn.disabled = hasRequested;
         }
-
-        const waitingEl = document.getElementById("waitingVoteStart");
-        if (hasRequested && !isVotingPhase) {
-          waitingEl.classList.remove("hidden");
-        } else {
-          waitingEl.classList.add("hidden");
-        }
-
-        const hasVoted =
-          roomData.votes && roomData.votes[currentUid] ? true : false;
-        document
-          .getElementById("votingSection")
-          .classList.toggle("hidden", !isVotingPhase || hasVoted);
-
-        const liveCountsEl = document.getElementById("liveVoteCounts");
-        const voteCountListEl = document.getElementById("voteCountList");
-        if (isVotingPhase) {
-          liveCountsEl.classList.remove("hidden");
-
-          const counts = {};
-          Object.values(roomData.votes || {}).forEach((t) => {
-            counts[t] = (counts[t] || 0) + 1;
-          });
-
-          voteCountListEl.innerHTML = Object.entries(playerUidMap)
-            .map(
-              ([uid, p]) =>
-                `<li>${escapeHtml(p.name)}: ${counts[uid] || 0}</li>`
-            )
-            .join("");
-        } else {
-          liveCountsEl.classList.add("hidden");
-        }
-        const resultEl = document.getElementById("voteResults");
-        if (roomData.voteResult) {
-          const outcomeEl = document.getElementById("voteOutcome");
+@@ -373,50 +382,64 @@ let gameEnded = false;
           if (roomData.voteResult.tie) {
             resultEl.classList.remove("hidden");
             outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
@@ -393,6 +367,20 @@ let gameEnded = false;
         } else {
           resultEl.classList.add("hidden");
           lastVoteResult = null;
+        }
+
+        if (roomData.lastGuess) {
+          const guessKey = JSON.stringify(roomData.lastGuess);
+          if (guessKey !== lastGuessEvent) {
+            lastGuessEvent = guessKey;
+            const spyName =
+              playerUidMap[roomData.lastGuess.spy]?.name || "Sahtekar";
+            alert(
+              `${spyName} '${roomData.lastGuess.guess}' konumunu tahmin etti ama yanıldı. Kalan hak: ${roomData.lastGuess.guessesLeft}`
+            );
+          }
+        } else {
+          lastGuessEvent = null;
         }
 
         if (
@@ -671,6 +659,48 @@ document.getElementById("copyRoleBtn").addEventListener("click", () => {
   const text = document.getElementById("roleMessage").innerText;
   navigator.clipboard
     .writeText(text)
+  }
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    await window.gameLogic.startGame(currentRoomCode);
+  } catch (error) {
+    alert("Oyunu başlatırken bir hata oluştu: " + (error.message || error));
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("startVotingBtn").addEventListener("click", () => {
+  window.gameLogic.startVote(currentRoomCode, currentUid);
+});
+
+// Oy ver
+document.getElementById("submitVoteBtn").addEventListener("click", () => {
+  const target = document.getElementById("voteSelect").value;
+  if (target) {
+    window.gameLogic.submitVote(currentRoomCode, currentUid, target);
+    document.getElementById("votingSection").classList.add("hidden");
+  }
+});
+
+document.getElementById("submitGuessBtn").addEventListener("click", () => {
+  const guess = document.getElementById("guessSelect").value;
+  if (guess) {
+    window.gameLogic.guessLocation(currentRoomCode, currentUid, guess);
+  }
+});
+
+// Sonraki tur
+document.getElementById("nextRoundBtn").addEventListener("click", () => {
+  window.gameLogic.nextRound(currentRoomCode);
+});
+
+// Rol bilgisini kopyalama
+document.getElementById("copyRoleBtn").addEventListener("click", () => {
+  const text = document.getElementById("roleMessage").innerText;
+  navigator.clipboard
+    .writeText(text)
     .then(() => alert("Rolünüz kopyalandı!"));
 });
 // Oyundan çık (ana ekrana dön)
@@ -684,14 +714,4 @@ document.getElementById("backToHomeBtn").addEventListener("click", () => {
       ? window.gameLogic.deleteRoom(roomCode)
       : playerName
       ? window.gameLogic.leaveRoom(roomCode)
-      : Promise.resolve();
-
-    Promise.resolve(action).then(() => {
-      localStorage.clear();
-      location.reload();
-    });
-  } else {
-    localStorage.clear();
-    location.reload();
-  }
-});
+      : Promise.resolve()
