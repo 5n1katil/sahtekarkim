@@ -1,17 +1,6 @@
-let anonymousSignInPromise = null;
+import { escapeHtml } from './utils.js';
 
-// Basit HTML kaçış fonksiyonu
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (ch) =>
-    ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    }[ch])
-  );
-}
+let anonymousSignInPromise = null;
 
 // Konumlar ve kategoriler için veri havuzları
 export const POOLS = {
