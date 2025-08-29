@@ -633,6 +633,7 @@ export const gameLogic = {
       votes: null,
       voteResult: null,
       votingStarted: false,
+      voteRequests: null,
     });
   },
 
@@ -739,9 +740,21 @@ export const gameLogic = {
     });
   },
 
-  // Oylamayı hemen başlat
-  startVote: function (roomCode) {
-    this.startVoting(roomCode);
+  // Oylamayı başlatma isteği kaydet
+  startVote: function (roomCode, uid) {
+    const requestRef = window.db.ref(`rooms/${roomCode}/voteRequests/${uid}`);
+    requestRef.set(true).then(() => {
+      const roomRef = window.db.ref(`rooms/${roomCode}`);
+      roomRef.get().then((snap) => {
+        if (!snap.exists()) return;
+        const data = snap.val();
+        const requests = data.voteRequests || {};
+        const players = data.players || {};
+        if (Object.keys(requests).length === Object.keys(players).length) {
+          this.startVoting(roomCode);
+        }
+      });
+    });
   },
 
   startVoting: function (roomCode) {
@@ -923,6 +936,7 @@ export const gameLogic = {
         votes: null,
         voteResult: null,
         votingStarted: false,
+        voteRequests: null,
       });
     });
   },
