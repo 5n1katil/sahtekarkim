@@ -168,10 +168,17 @@ let lastVotingState = null;
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
       if (isSpy) {
-        localStorage.clear();
-        location.href = "https://5n1katil.github.io/sahtekarkim/";
+        const finish = () => {
+          localStorage.clear();
+          showSetupJoin();
+        };
+        if (isCreator) {
+          window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
+        } else {
+          finish();
+        }
       } else {
-          window.gameLogic.endRound(currentRoomCode);
+        window.gameLogic.endRound(currentRoomCode);
       }
     }, 3000);
   }
@@ -215,15 +222,12 @@ let lastVotingState = null;
 
       const finish = () => {
         localStorage.clear();
-        location.href = "https://5n1katil.github.io/sahtekarkim/";
+        showSetupJoin();
       };
 
       if (isCreator) {
         window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
       } else {
-        document.getElementById("playerJoin").classList.remove("hidden");
-        document.getElementById("roomInfo").classList.add("hidden");
-        document.getElementById("playerRoleInfo").classList.add("hidden");
         finish();
       }
     }, 3000); // overlay 3 saniye sonra kapanır
@@ -359,9 +363,6 @@ let lastVotingState = null;
         // Oylama durumu
         const isVotingPhase =
           roomData.phase === "voting" || roomData.votingStarted === true;
-        const hasRequested = !!(
-          roomData.voteRequests && roomData.voteRequests[currentUid]
-        );
 
         const votingStateKey = JSON.stringify({
           votingStarted: roomData.votingStarted,
@@ -382,12 +383,8 @@ let lastVotingState = null;
         // Oylamayı başlat butonu
         const startBtn = document.getElementById("startVotingBtn");
         if (startBtn) {
-          if (isVotingPhase) {
-            startBtn.classList.add("hidden");
-          } else {
-            startBtn.classList.remove("hidden");
-          }
-          startBtn.disabled = hasRequested;
+          startBtn.classList.toggle("hidden", isVotingPhase);
+          startBtn.disabled = false;
         }
 
         if (roomData.voteResult) {
@@ -470,6 +467,14 @@ function showRoomUI(roomCode, playerName, isCreator) {
   }
   document.getElementById("leaveRoomBtn").classList.remove("hidden");
 
+}
+
+function showSetupJoin() {
+  document.getElementById("setup").classList.remove("hidden");
+  document.getElementById("playerJoin").classList.remove("hidden");
+  document.getElementById("roomInfo").classList.add("hidden");
+  document.getElementById("playerRoleInfo").classList.add("hidden");
+  document.getElementById("gameActions").classList.add("hidden");
 }
 
 /** ------------------------
