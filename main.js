@@ -467,11 +467,13 @@ async function prefillSettings() {
 
     const playerCountEl = document.getElementById("playerCount");
     const spyCountEl = document.getElementById("spyCount");
+    const spyGuessCountEl = document.getElementById("spyGuessCount");
     const poolSizeEl = document.getElementById("poolSize");
     const voteAnytimeEl = document.getElementById("voteAnytime");
 
     if (saved.playerCount) playerCountEl.value = saved.playerCount;
     if (saved.spyCount) spyCountEl.value = saved.spyCount;
+    if (saved.spyGuessLimit) spyGuessCountEl.value = saved.spyGuessLimit;
     if (saved.poolSize) poolSizeEl.value = saved.poolSize;
     if (typeof saved.voteAnytime !== "undefined")
       voteAnytimeEl.checked = saved.voteAnytime;
@@ -499,6 +501,7 @@ const saveSettingsBtn = document.getElementById("saveSettingsBtn");
 async function buildSettings() {
   const playerCount = parseInt(document.getElementById("playerCount").value);
   const spyCount = parseInt(document.getElementById("spyCount").value);
+  const spyGuessCount = parseInt(document.getElementById("spyGuessCount").value);
   const gameType = document.getElementById("gameType").value;
   let categoryName = null;
   if (gameType === "category") {
@@ -515,6 +518,7 @@ async function buildSettings() {
     categoryName,
     poolSize,
     voteAnytime,
+    spyGuessLimit: spyGuessCount,
     clueMode: "tek-kelime",
     creatorUid,
   };
