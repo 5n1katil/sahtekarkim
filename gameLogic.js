@@ -806,7 +806,11 @@ const gameLogic = {
       }
       if (!correctAnswer) return;
       if (guess === correctAnswer) {
-        ref.update({ status: "finished", winner: "spy", lastGuess: null });
+        ref.update({
+          status: "finished",
+          winner: "spy",
+          lastGuess: { spy: spyUid, guess, correct: true },
+        });
       } else {
         guessesLeft -= 1;
         const updates = {};
