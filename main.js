@@ -1,5 +1,5 @@
 import { gameLogic, POOLS } from './gameLogic.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, hasInvalidChars } from './utils.js';
 
 console.log('main.js yüklendi');
 
