@@ -360,6 +360,15 @@ let lastGuessEvent = null;
           roomData.voteRequests && roomData.voteRequests[currentUid]
         );
 
+        const votingSection = document.getElementById("votingSection");
+        if (votingSection) {
+          const hasVoted = roomData.votes && roomData.votes[currentUid];
+          votingSection.classList.toggle(
+            "hidden",
+            !(roomData.votingStarted && !hasVoted)
+          );
+        }
+
         // Oylamayı başlat butonu
         const startBtn = document.getElementById("startVotingBtn");
         if (startBtn) {
@@ -677,7 +686,6 @@ document.getElementById("submitVoteBtn").addEventListener("click", () => {
   const target = document.getElementById("voteSelect").value;
   if (target) {
     window.gameLogic.submitVote(currentRoomCode, currentUid, target);
-    document.getElementById("votingSection").classList.add("hidden");
   }
 });
 
