@@ -1,3 +1,5 @@
+import { gameLogic, POOLS } from './gameLogic.js';
+
 console.log('main.js yüklendi');
 
 // Basit HTML kaçış yardımcısı
@@ -12,8 +14,6 @@ function escapeHtml(str) {
     }[ch])
   );
 }
-
-// Bu betikten önce window.gameLogic global olarak yüklenir
 
 // Kullanıcının anonim şekilde doğrulandığından emin ol
 if (window.auth && !window.auth.currentUser) {
@@ -74,7 +74,7 @@ window.auth.onAuthStateChanged(async (user) => {
 
           showRoomUI(currentRoomCode, currentPlayerName, isCreator);
           listenPlayersAndRoom(currentRoomCode);
-          window.gameLogic.listenRoom(currentRoomCode);
+          gameLogic.listenRoom(currentRoomCode);
 
           window.db
             .ref("rooms/" + currentRoomCode)
@@ -173,12 +173,12 @@ let lastVotingState = null;
           showSetupJoin();
         };
         if (isCreator) {
-          window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
+          gameLogic.deleteRoom(currentRoomCode).finally(finish);
         } else {
           finish();
         }
       } else {
-        window.gameLogic.endRound(currentRoomCode);
+        gameLogic.endRound(currentRoomCode);
       }
     }, 3000);
   }
@@ -226,7 +226,7 @@ let lastVotingState = null;
       };
 
       if (isCreator) {
-        window.gameLogic.deleteRoom(currentRoomCode).finally(finish);
+        gameLogic.deleteRoom(currentRoomCode).finally(finish);
       } else {
         finish();
       }
@@ -254,7 +254,7 @@ let lastVotingState = null;
    * ------------------------ */
   function listenPlayersAndRoom(roomCode) {
     // Oyuncu listesi
-    window.gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
+    gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
       // İsim dizisini kullanarak UI'da oyuncu listesini ve oyuncu sayısını güncelle
       updatePlayerList(playerNames);
       
@@ -438,7 +438,7 @@ let lastVotingState = null;
           Object.keys(roomData.votes).length === currentPlayers.length &&
           !roomData.voteResult
         ) {
-          window.gameLogic.tallyVotes(currentRoomCode);
+          gameLogic.tallyVotes(currentRoomCode);
         }
       }
     });
@@ -484,9 +484,9 @@ const gameTypeSelect = document.getElementById("gameType");
 const categoryLabel = document.getElementById("categoryLabel");
 const categorySelect = document.getElementById("categoryName");
 
-if (categorySelect && window.gameLogic && window.gameLogic.POOLS) {
+if (categorySelect) {
   categorySelect.innerHTML = "";
-  Object.keys(window.gameLogic.POOLS)
+  Object.keys(POOLS)
     .filter((key) => key !== "locations")
     .forEach((key) => {
       const opt = document.createElement("option");
@@ -504,9 +504,9 @@ gameTypeSelect.addEventListener("change", () => {
 });
 
 async function prefillSettings() {
-  if (!window.gameLogic || !window.gameLogic.loadSettings) return;
+  if (!gameLogic.loadSettings) return;
   try {
-    const saved = await window.gameLogic.loadSettings();
+    const saved = await gameLogic.loadSettings();
     if (!saved) return;
 
     const playerCountEl = document.getElementById("playerCount");
@@ -542,24 +542,7 @@ const createRoomBtn = document.getElementById("createRoomBtn");
 const createRoomLoading = document.getElementById("createRoomLoading");
 const saveSettingsBtn = document.getElementById("saveSettingsBtn");
 
-async function ensureGameLogicLoaded(timeout = 3000) {
-  if (window.gameLogic) return;
-  await new Promise((resolve, reject) => {
-    const start = Date.now();
-    (function check() {
-      if (window.gameLogic) {
-        resolve();
-      } else if (Date.now() - start >= timeout) {
-        reject(new Error("gameLogic yüklenemedi"));
-      } else {
-        setTimeout(check, 50);
-      }
-    })();
-  });
-}
-
 async function buildSettings() {
-  await ensureGameLogicLoaded();
   const playerCount = parseInt(document.getElementById("playerCount").value);
   const spyCount = parseInt(document.getElementById("spyCount").value);
   const spyGuessCount = parseInt(document.getElementById("spyGuessCount").value);
@@ -571,7 +554,7 @@ async function buildSettings() {
   }
   const poolSize = parseInt(document.getElementById("poolSize").value);
   const voteAnytime = document.getElementById("voteAnytime").checked;
-  const creatorUid = await window.gameLogic.getUid();
+  const creatorUid = await gameLogic.getUid();
   return {
     playerCount,
     spyCount,
@@ -588,20 +571,13 @@ async function buildSettings() {
 saveSettingsBtn.addEventListener("click", async () => {
   const settings = await buildSettings();
   try {
-    await window.gameLogic.saveSettings(settings);
+    await gameLogic.saveSettings(settings);
     alert("Ayarlar kaydedildi!");
   } catch (err) {
     alert(err.message || err);
   }
 });
 createRoomBtn.addEventListener("click", async () => {
-  try {
-    await ensureGameLogicLoaded();
-  } catch {
-    alert("Oyun mantığı yüklenemedi. Lütfen sayfayı yeniden yükleyin.");
-    return;
-  }
-
   const creatorName = document
     .getElementById("creatorName")
     .value.trim();
@@ -619,7 +595,7 @@ createRoomBtn.addEventListener("click", async () => {
   createRoomBtn.disabled = true;
   createRoomLoading.classList.remove("hidden");
   try {
-    const roomCode = await window.gameLogic.createRoom({
+    const roomCode = await gameLogic.createRoom({
       creatorName,
       ...settings,
     });
@@ -636,7 +612,7 @@ createRoomBtn.addEventListener("click", async () => {
 
     showRoomUI(roomCode, creatorName, true);
     listenPlayersAndRoom(roomCode);
-    window.gameLogic.listenRoom(roomCode);
+    gameLogic.listenRoom(roomCode);
   } catch (err) {
     alert(err.message || err);
   } finally {
@@ -646,13 +622,6 @@ createRoomBtn.addEventListener("click", async () => {
 });
 
 document.getElementById("joinRoomBtn").addEventListener("click", async () => {
-  try {
-    await ensureGameLogicLoaded();
-  } catch {
-    alert("Oyun mantığı yüklenemedi. Lütfen sayfayı yeniden yükleyin.");
-    return;
-  }
-
   const joinName = document.getElementById("joinName").value.trim();
   const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
 
@@ -667,7 +636,7 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
   }
 
   try {
-    const players = await window.gameLogic.joinRoom(joinName, joinCode);
+    const players = await gameLogic.joinRoom(joinName, joinCode);
 
     currentRoomCode = joinCode;
     currentPlayerName = joinName;
@@ -679,7 +648,7 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
 
     showRoomUI(joinCode, joinName, false);
     listenPlayersAndRoom(joinCode);
-    window.gameLogic.listenRoom(joinCode);
+    gameLogic.listenRoom(joinCode);
   } catch (err) {
     alert(err.message);
     return;
@@ -688,8 +657,8 @@ document.getElementById("joinRoomBtn").addEventListener("click", async () => {
 
 document.getElementById("leaveRoomBtn").addEventListener("click", () => {
   const action = isCreator
-    ? window.gameLogic.deleteRoom(currentRoomCode)
-    : window.gameLogic.leaveRoom(currentRoomCode);
+    ? gameLogic.deleteRoom(currentRoomCode)
+    : gameLogic.leaveRoom(currentRoomCode);
 
   Promise.resolve(action).then(() => {
     localStorage.clear();
@@ -705,7 +674,7 @@ document.getElementById("startGameBtn").addEventListener("click", async (e) => {
   const btn = e.currentTarget;
   btn.disabled = true;
   try {
-    await window.gameLogic.startGame(currentRoomCode);
+    await gameLogic.startGame(currentRoomCode);
   } catch (error) {
     alert("Oyunu başlatırken bir hata oluştu: " + (error.message || error));
   } finally {
@@ -714,27 +683,27 @@ document.getElementById("startGameBtn").addEventListener("click", async (e) => {
 });
 
 document.getElementById("startVotingBtn").addEventListener("click", () => {
-  window.gameLogic.startVote(currentRoomCode, currentUid);
+  gameLogic.startVote(currentRoomCode, currentUid);
 });
 
 // Oy ver
 document.getElementById("submitVoteBtn").addEventListener("click", () => {
   const target = document.getElementById("voteSelect").value;
   if (target) {
-    window.gameLogic.submitVote(currentRoomCode, currentUid, target);
+    gameLogic.submitVote(currentRoomCode, currentUid, target);
   }
 });
 
 document.getElementById("submitGuessBtn").addEventListener("click", () => {
   const guess = document.getElementById("guessSelect").value;
   if (guess) {
-    window.gameLogic.guessLocation(currentRoomCode, currentUid, guess);
+    gameLogic.guessLocation(currentRoomCode, currentUid, guess);
   }
 });
 
 // Sonraki tur
 document.getElementById("nextRoundBtn").addEventListener("click", () => {
-  window.gameLogic.nextRound(currentRoomCode);
+  gameLogic.nextRound(currentRoomCode);
 });
 
 // Rol bilgisini kopyalama
@@ -753,9 +722,9 @@ document.getElementById("backToHomeBtn").addEventListener("click", () => {
 
   if (roomCode) {
     const action = isCreator
-      ? window.gameLogic.deleteRoom(roomCode)
+      ? gameLogic.deleteRoom(roomCode)
       : playerName
-      ? window.gameLogic.leaveRoom(roomCode)
+      ? gameLogic.leaveRoom(roomCode)
       : Promise.resolve();
     Promise.resolve(action).then(() => {
       localStorage.clear();
