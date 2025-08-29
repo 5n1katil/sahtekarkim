@@ -613,16 +613,6 @@ const gameLogic = {
     await window.db.ref().update(updates);
   },
 
-  decrementGuessesLeft: function (roomCode, uid) {
-    const ref = window.db.ref(`rooms/${roomCode}/playerRoles/${uid}/guessesLeft`);
-    return ref.transaction((current) => {
-      if (current === null || current <= 0) {
-        return 0;
-      }
-      return current - 1;
-    });
-  },
-
   startGame: async function (roomCode) {
     const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
@@ -794,6 +784,43 @@ const gameLogic = {
   startVoting: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref.update({ votingStarted: true, votes: null, voteResult: null });
+  },
+
+  guessLocation: function (roomCode, spyUid, guess) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref.get().then((snap) => {
+      if (!snap.exists()) return;
+      const data = snap.val();
+      const roles = data.playerRoles || {};
+      const spyRole = roles[spyUid];
+      if (!spyRole) return;
+      let guessesLeft = spyRole.guessesLeft || 0;
+      if (guessesLeft <= 0) return;
+      let correctLocation = null;
+      for (const uid in roles) {
+        const r = roles[uid];
+        if (r && !r.isSpy) {
+          correctLocation = r.location;
+          break;
+        }
+      }
+      if (!correctLocation) return;
+      if (guess === correctLocation) {
+        ref.update({ status: "finished", winner: "spy", lastGuess: null });
+      } else {
+        guessesLeft -= 1;
+        const updates = {};
+        updates[`playerRoles/${spyUid}/guessesLeft`] = guessesLeft;
+        if (guessesLeft <= 0) {
+          updates.status = "finished";
+          updates.winner = "innocent";
+          updates.lastGuess = null;
+        } else {
+          updates.lastGuess = { spy: spyUid, guess, guessesLeft };
+        }
+        ref.update(updates);
+      }
+    });
   },
 
   submitVote: function (roomCode, voter, target) {
