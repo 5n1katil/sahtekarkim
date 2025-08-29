@@ -397,6 +397,34 @@ let lastVotingState = null;
           }
         }
 
+        const liveVoteCounts = document.getElementById("liveVoteCounts");
+        const voteCountList = document.getElementById("voteCountList");
+
+        if (!roomData.votingStarted || roomData.voteResult) {
+          liveVoteCounts?.classList.add("hidden");
+          if (voteCountList) voteCountList.innerHTML = "";
+        } else {
+          liveVoteCounts?.classList.remove("hidden");
+          const tally = {};
+          Object.values(roomData.votes || {}).forEach((uid) => {
+            tally[uid] = (tally[uid] || 0) + 1;
+          });
+          const ranked = Object.entries(playerUidMap).map(([uid, p]) => ({
+            uid,
+            name: p.name,
+            count: tally[uid] || 0,
+          }));
+          ranked.sort((a, b) => b.count - a.count);
+          if (voteCountList) {
+            voteCountList.innerHTML = ranked
+              .map(
+                (p, i) =>
+                  `<li>${i + 1}) ${escapeHtml(p.name)} – ${p.count}</li>`
+              )
+              .join("");
+          }
+        }
+
         if (roomData.voteResult) {
           if (roomData.voteResult.tie) {
             resultEl.classList.remove("hidden");
