@@ -461,7 +461,10 @@ const gameLogic = {
     if (!uid) {
       throw new Error("Kimlik doğrulaması tamamlanamadı");
     }
-    return window.db.ref(`savedSettings/${uid}`).set(settings);
+    const { spyGuessLimit, ...rest } = settings;
+    return window.db
+      .ref(`savedSettings/${uid}`)
+      .set({ ...rest, spyGuessLimit });
   },
 
   loadSettings: async function () {
@@ -476,6 +479,7 @@ const gameLogic = {
   createRoom: async function (options) {
     const {
       creatorName,
+      spyGuessLimit,
       ...settings
     } = options || {};
     const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -487,7 +491,7 @@ const gameLogic = {
     }
 
     const updates = {};
-    updates[`rooms/${roomCode}/settings`] = settings;
+    updates[`rooms/${roomCode}/settings`] = { ...settings, spyGuessLimit };
     updates[`rooms/${roomCode}/players/${uid}`] = {
       name: creatorName,
       isCreator: true,
