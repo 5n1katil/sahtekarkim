@@ -274,6 +274,22 @@ let lastVotingState = null;
     // Oyun başlama durumunu canlı dinle
     window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
       const roomData = snapshot.val();
+      if (roomData && roomData.players) {
+        playerUidMap = roomData.players;
+        currentPlayers = Object.values(playerUidMap)
+          .map((p) => p.name)
+          .filter((p) => p && p.trim() !== "");
+        updatePlayerList(currentPlayers);
+        const selectEl = document.getElementById("voteSelect");
+        if (selectEl) {
+          selectEl.innerHTML = Object.entries(playerUidMap)
+            .filter(([uid]) => uid !== currentUid)
+            .map(
+              ([uid, p]) => `<option value="${uid}">${escapeHtml(p.name)}</option>`
+            )
+            .join("");
+        }
+      }
       const leaveBtn = document.getElementById("leaveRoomBtn");
       const exitBtn = document.getElementById("backToHomeBtn");
         if (
@@ -409,7 +425,8 @@ let lastVotingState = null;
           Object.values(roomData.votes || {}).forEach((uid) => {
             tally[uid] = (tally[uid] || 0) + 1;
           });
-          const ranked = Object.entries(playerUidMap).map(([uid, p]) => ({
+          const playerMap = roomData.players || playerUidMap;
+          const ranked = Object.entries(playerMap).map(([uid, p]) => ({
             uid,
             name: p.name,
             count: tally[uid] || 0,
