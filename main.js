@@ -373,11 +373,20 @@ let lastVotingState = null;
         });
         if (votingStateKey !== lastVotingState) {
           const votingSection = document.getElementById("votingSection");
+          const hasVoted = roomData.votes && roomData.votes[currentUid];
           if (votingSection) {
-            const hasVoted = roomData.votes && roomData.votes[currentUid];
             votingSection.classList.toggle(
               "hidden",
               !(roomData.votingStarted && !hasVoted)
+            );
+          }
+          const submitVoteBtn = document.getElementById("submitVoteBtn");
+          if (submitVoteBtn) submitVoteBtn.disabled = !!hasVoted;
+          const votePendingMsg = document.getElementById("votePendingMsg");
+          if (votePendingMsg) {
+            votePendingMsg.classList.toggle(
+              "hidden",
+              !(hasVoted && !roomData.voteResult)
             );
           }
           lastVotingState = votingStateKey;
@@ -727,6 +736,10 @@ function initUI() {
   document.getElementById("submitVoteBtn").addEventListener("click", () => {
     const target = document.getElementById("voteSelect").value;
     if (target) {
+      const btn = document.getElementById("submitVoteBtn");
+      if (btn) btn.disabled = true;
+      const msg = document.getElementById("votePendingMsg");
+      if (msg) msg.classList.remove("hidden");
       gameLogic.submitVote(currentRoomCode, currentUid, target);
     }
   });
