@@ -572,6 +572,7 @@ const gameLogic = {
               role: "Sahtekar",
               location: null,
               allLocations: pool,
+              guessesLeft: settings.spyGuessLimit,
             }
           : {
               isSpy: false,
@@ -596,6 +597,7 @@ const gameLogic = {
               role: "Sahtekar",
               location: null,
               allLocations: pool,
+              guessesLeft: settings.spyGuessLimit,
             }
           : {
               isSpy: false,
@@ -609,6 +611,16 @@ const gameLogic = {
     }
 
     await window.db.ref().update(updates);
+  },
+
+  decrementGuessesLeft: function (roomCode, uid) {
+    const ref = window.db.ref(`rooms/${roomCode}/playerRoles/${uid}/guessesLeft`);
+    return ref.transaction((current) => {
+      if (current === null || current <= 0) {
+        return 0;
+      }
+      return current - 1;
+    });
   },
 
   startGame: async function (roomCode) {
