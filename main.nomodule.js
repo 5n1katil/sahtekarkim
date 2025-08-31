@@ -8060,8 +8060,8 @@
       msgDiv.className = "result-message";
       overlay.innerHTML = "";
       if (isSpy) {
-        var safeRole = escapeHtml(role || "");
-        msgDiv.textContent = "Sahtekar ".concat(safeRole, " elendi ve oyunu masumlar kazand\\u0131");
+        var safeName = escapeHtml(name || "");
+        msgDiv.textContent = "Sahtekar ".concat(safeName, " yakaland\u0131! Oyunu masumlar kazand\u0131...");
         var ga = document.getElementById("gameActions");
         if (ga) ga.classList.add("hidden");
       } else {
