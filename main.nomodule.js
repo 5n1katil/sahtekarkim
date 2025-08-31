@@ -7868,9 +7868,10 @@
           },
           votingStarted: false
         };
-        if (isSpy) {
-          updates.status = "finished";
-        }
+          if (isSpy) {
+            updates.status = "finished";
+            updates.winner = "innocents";
+          }
         ref.update(updates);
       });
     },
@@ -8050,29 +8051,32 @@
   var gameEnded = false;
   var lastGuessEvent = null;
   var lastVotingState = null;
-  function showResultOverlay(isSpy, name, role, location) {
-    var overlay = document.getElementById("resultOverlay");
-    var cls = isSpy ? "impostor-animation" : "innocent-animation";
-    var msgDiv = document.createElement("div");
-    msgDiv.className = "result-message";
-    if (isSpy) {
-      msgDiv.textContent = "".concat(name, " sahtekar \xE7\u0131kt\u0131!");
-    } else {
-      var innocentText = "".concat(name, " masumdu.");
-      if (role) {
-        innocentText += " Rol\xFC: ".concat(role);
-        if (location) {
-          innocentText += " (Konum: ".concat(location, ")");
+    function showResultOverlay(isSpy, name, role, location) {
+      var overlay = document.getElementById("resultOverlay");
+      var cls = isSpy ? "impostor-animation" : "innocent-animation";
+      var msgDiv = document.createElement("div");
+      msgDiv.className = "result-message";
+      overlay.innerHTML = "";
+      if (isSpy) {
+        var safeRole = escapeHtml(role || "");
+        msgDiv.textContent = "Sahtekar ".concat(safeRole, " elendi ve oyunu masumlar kazand\\u0131");
+        var ga = document.getElementById("gameActions");
+        if (ga) ga.classList.add("hidden");
+      } else {
+        var innocentText = "".concat(name, " masumdu.");
+        if (role) {
+          innocentText += " Rol\\xFC: ".concat(role);
+          if (location) {
+            innocentText += " (Konum: ".concat(location, ")");
+          }
         }
+        msgDiv.textContent = innocentText;
       }
-      msgDiv.textContent = innocentText;
-    }
-    overlay.innerHTML = "";
-    overlay.appendChild(msgDiv);
-    var btn = document.createElement("button");
-    btn.id = "continueBtn";
-    btn.textContent = "Oyuna Devam Et";
-    overlay.appendChild(btn);
+      overlay.appendChild(msgDiv);
+      var btn = document.createElement("button");
+      btn.id = "continueBtn";
+      btn.textContent = isSpy ? "Oyunu Bitir" : "Oyuna Devam Et";
+      overlay.appendChild(btn);
     overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
     overlay.classList.add(cls);
     btn.addEventListener("click", function () {
