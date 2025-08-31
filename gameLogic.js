@@ -833,6 +833,7 @@ export const gameLogic = {
         ref.get().then((snap) => {
           if (!snap.exists()) return;
           const data = snap.val();
+          if (voter !== data.settings?.creatorUid) return;
           const activePlayers = Object.keys(data.playerRoles || {});
           const votes = data.votes || {};
           const activeVoteCount = Object.keys(votes).filter((v) =>
