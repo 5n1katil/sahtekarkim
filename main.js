@@ -146,13 +146,17 @@ let lastVotingState = null;
     }
     overlay.innerHTML = "";
     overlay.appendChild(msgDiv);
+    const btn = document.createElement("button");
+    btn.id = "continueBtn";
+    btn.textContent = "Oyuna Devam Et";
+    overlay.appendChild(btn);
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
       "innocent-animation"
     );
     overlay.classList.add(cls);
-    setTimeout(() => {
+    btn.addEventListener("click", () => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
       if (isSpy) {
@@ -168,7 +172,7 @@ let lastVotingState = null;
       } else {
         gameLogic.endRound(currentRoomCode);
       }
-    }, 3000);
+    });
   }
 
   function showSpyWinOverlay(spyIds, guessed, guessWord) {
@@ -197,6 +201,10 @@ let lastVotingState = null;
       msgDiv.append(" kazandı! Oyun Bitti...");
     }
     overlay.appendChild(msgDiv);
+    const btn = document.createElement("button");
+    btn.id = "continueBtn";
+    btn.textContent = "Oyuna Devam Et";
+    overlay.appendChild(btn);
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
@@ -204,7 +212,7 @@ let lastVotingState = null;
     );
     overlay.classList.add("impostor-animation");
 
-    setTimeout(() => {
+    btn.addEventListener("click", () => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
 
@@ -218,7 +226,7 @@ let lastVotingState = null;
       } else {
         finish();
       }
-    }, 3000); // overlay 3 saniye sonra kapanır
+    });
   }
 
   /** ------------------------
