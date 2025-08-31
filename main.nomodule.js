@@ -8063,11 +8063,14 @@
         var ga = document.getElementById("gameActions");
         if (ga) ga.classList.add("hidden");
       } else {
-        var innocentText = "".concat(name, " masumdu.");
+        var safeName = escapeHtml(name || "");
+        var innocentText = "".concat(safeName, " masumdu.");
         if (role) {
-          innocentText += " Rol\\xFC: ".concat(role);
+          var safeRole2 = escapeHtml(role);
+          innocentText += " Rol\\xFC: ".concat(safeRole2);
           if (location) {
-            innocentText += " (Konum: ".concat(location, ")");
+            var safeLocation = escapeHtml(location);
+            innocentText += " (Konum: ".concat(safeLocation, ")");
           }
         }
         msgDiv.textContent = innocentText;
