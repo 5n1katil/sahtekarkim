@@ -615,6 +615,7 @@ function initUI() {
   const createRoomBtn = document.getElementById("createRoomBtn");
   const createRoomLoading = document.getElementById("createRoomLoading");
   const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+  const joinRoomBtn = document.getElementById("joinRoomBtn");
 
   saveSettingsBtn.addEventListener("click", async () => {
     const settings = await buildSettings();
@@ -626,12 +627,17 @@ function initUI() {
     }
   });
 
-  createRoomBtn.addEventListener("click", async () => {
+  let createRoomRunning = false;
+  async function handleCreateRoom() {
+    if (createRoomRunning) return;
+    createRoomRunning = true;
+
     const creatorName = document
       .getElementById("creatorName")
       .value.trim();
     if (hasInvalidChars(creatorName)) {
       alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
+      createRoomRunning = false;
       return;
     }
 
@@ -672,22 +678,35 @@ function initUI() {
     } catch (err) {
       alert(err.message || err);
     } finally {
+      createRoomRunning = false;
       createRoomBtn.disabled = false;
       createRoomLoading.classList.add("hidden");
     }
-  });
+  }
 
-  document.getElementById("joinRoomBtn").addEventListener("click", async () => {
+  createRoomBtn.addEventListener("click", handleCreateRoom);
+  createRoomBtn.addEventListener("pointerdown", handleCreateRoom);
+
+  let joinRoomRunning = false;
+  async function handleJoinRoom() {
+    if (joinRoomRunning) return;
+    joinRoomRunning = true;
+
     const joinName = document.getElementById("joinName").value.trim();
-    const joinCode = document.getElementById("joinCode").value.trim().toUpperCase();
+    const joinCode = document
+      .getElementById("joinCode")
+      .value.trim()
+      .toUpperCase();
 
     if (hasInvalidChars(joinName)) {
       alert("İsminizde geçersiz karakter (. # $ [ ] /) kullanılamaz.");
+      joinRoomRunning = false;
       return;
     }
 
     if (!joinName || !joinCode) {
       alert("Lütfen adınızı ve oda kodunu girin.");
+      joinRoomRunning = false;
       return;
     }
 
@@ -708,8 +727,13 @@ function initUI() {
     } catch (err) {
       alert(err.message);
       return;
+    } finally {
+      joinRoomRunning = false;
     }
-  });
+  }
+
+  joinRoomBtn.addEventListener("click", handleJoinRoom);
+  joinRoomBtn.addEventListener("pointerdown", handleJoinRoom);
 
   document.getElementById("leaveRoomBtn").addEventListener("click", () => {
     const action = isCreator
