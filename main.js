@@ -134,8 +134,8 @@ let lastVotingState = null;
     msgDiv.className = "result-message";
     overlay.innerHTML = "";
     if (isSpy) {
-      const safeRole = escapeHtml(role || "");
-      msgDiv.textContent = `Sahtekar ${safeRole} elendi ve oyunu masumlar kazandı`;
+      const safeName = escapeHtml(name || "");
+      msgDiv.textContent = `Sahtekar ${safeName} yakalandı! Oyunu masumlar kazandı...`;
       document.getElementById("gameActions")?.classList.add("hidden");
     } else {
       const safeName = escapeHtml(name || "");
