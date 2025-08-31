@@ -876,8 +876,13 @@ export const gameLogic = {
       const voted = top[0];
       const votedRole = data.playerRoles && data.playerRoles[voted];
       const isSpy = votedRole ? votedRole.isSpy : false;
-      const role = votedRole ? votedRole.role : null;
-      const location = votedRole ? votedRole.location : null;
+      // Falsy checks above may leave `role` or `location` as `undefined`,
+      // which causes Firebase's update to reject the payload. Force `null`
+      // when these properties are missing so the update always contains
+      // defined values.
+      const role = votedRole && votedRole.role !== undefined ? votedRole.role : null;
+      const location =
+        votedRole && votedRole.location !== undefined ? votedRole.location : null;
 
       console.log(
         `[tallyVotes] Player ${voted} received ${counts[voted]} votes. Eliminated: ${!isSpy}`
