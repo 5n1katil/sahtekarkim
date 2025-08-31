@@ -160,6 +160,7 @@ let lastVotingState = null;
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
       if (isSpy) {
+        gameEnded = true;
         const finish = () => {
           localStorage.clear();
           showSetupJoin();
@@ -185,7 +186,6 @@ let lastVotingState = null;
     overlay.innerHTML = "";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
-    if (guessed) {
       const safeGuess = escapeHtml(guessed);
       const word = guessWord || "konumu";
       msgDiv.textContent = `Sahtekar ${word} ${safeGuess} olarak doğru tahmin etti ve oyunu kazandı`;
