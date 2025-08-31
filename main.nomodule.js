@@ -7808,6 +7808,7 @@
         ref.get().then(function (snap) {
           if (!snap.exists()) return;
           var data = snap.val();
+          if (voter !== (data.settings && data.settings.creatorUid)) return;
           var activePlayers = Object.keys(data.playerRoles || {});
           var votes = data.votes || {};
           var activeVoteCount = Object.keys(votes).filter(function (v) {
