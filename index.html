@@ -74,7 +74,10 @@
       list-style-type: disc;
       padding-left: 1.2rem;
     }
-    .hidden { display: none !important; }
+    .hidden {
+      display: none !important;
+      pointer-events: none;
+    }
     .small-btn {
       background-color: #444;
       margin-top: 0.5rem;
@@ -113,6 +116,7 @@
     }
     .result-overlay.hidden {
       display: none;
+      pointer-events: none;
     }
     .result-message {
       background: #2c2a4a;
