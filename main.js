@@ -188,18 +188,20 @@ let lastVotingState = null;
     msgDiv.className = "result-message";
       const safeGuess = escapeHtml(guessed);
       const word = guessWord || "konumu";
-      msgDiv.textContent = `Sahtekar ${word} ${safeGuess} olarak doğru tahmin etti ve oyunu kazandı`;
-    } else {
-      msgDiv.append("Sahtekar");
-      if (names) {
-        msgDiv.appendChild(document.createElement("br"));
-        const span = document.createElement("span");
-        span.className = "impostor-name";
-        span.textContent = names;
-        msgDiv.appendChild(span);
+
+      if (safeGuess) {
+        msgDiv.textContent = `Sahtekar ${word} ${safeGuess} olarak doğru tahmin etti ve oyunu kazandı`;
+      } else {
+        msgDiv.append("Sahtekar");
+        if (names) {
+          msgDiv.appendChild(document.createElement("br"));
+          const span = document.createElement("span");
+          span.className = "impostor-name";
+          span.textContent = names;
+          msgDiv.appendChild(span);
+        }
+        msgDiv.append(" kazandı! Oyun Bitti...");
       }
-      msgDiv.append(" kazandı! Oyun Bitti...");
-    }
     overlay.appendChild(msgDiv);
     const btn = document.createElement("button");
     btn.id = "continueBtn";
