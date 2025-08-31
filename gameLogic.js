@@ -881,14 +881,16 @@ export const gameLogic = {
       console.log(
         `[tallyVotes] Player ${voted} received ${counts[voted]} votes. Eliminated: ${!isSpy}`
       );
-      ref.update({
+      const updates = {
         voteResult: { voted, isSpy, role, location },
         votingStarted: false,
-      });
+      };
 
       if (isSpy) {
-        ref.update({ status: "finished" });
+        updates.status = "finished";
       }
+
+      ref.update(updates);
     });
   },
 
