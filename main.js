@@ -307,7 +307,7 @@ let lastVotingState = null;
           window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
           return;
         }
-        if (!roomData || roomData.status !== "started") {
+        if (!roomData || (roomData.status !== "started" && !roomData.voteResult)) {
         document.getElementById("gameActions").classList.add("hidden");
         leaveBtn?.classList.remove("hidden");
         exitBtn?.classList.remove("hidden");
