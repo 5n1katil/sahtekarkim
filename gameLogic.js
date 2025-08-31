@@ -888,6 +888,7 @@ export const gameLogic = {
 
       if (isSpy) {
         updates.status = "finished";
+        updates.winner = "innocents";
       }
 
       ref.update(updates);
