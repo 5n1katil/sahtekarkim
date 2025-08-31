@@ -273,6 +273,8 @@ let lastVotingState = null;
 
     // Oyun başlama durumunu canlı dinle
     window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
+      const resultEl = document.getElementById("voteResults");
+      const outcomeEl = document.getElementById("voteOutcome");
       const roomData = snapshot.val();
       if (roomData && roomData.players) {
         playerUidMap = roomData.players;
