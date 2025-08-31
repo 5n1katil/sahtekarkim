@@ -138,11 +138,14 @@ let lastVotingState = null;
       msgDiv.textContent = `Sahtekar ${safeRole} elendi ve oyunu masumlar kazandı`;
       document.getElementById("gameActions")?.classList.add("hidden");
     } else {
-      let innocentText = `${name} masumdu.`;
+      const safeName = escapeHtml(name || "");
+      let innocentText = `${safeName} masumdu.`;
       if (role) {
-        innocentText += ` Rolü: ${role}`;
+        const safeRole = escapeHtml(role);
+        innocentText += ` Rolü: ${safeRole}`;
         if (location) {
-          innocentText += ` (Konum: ${location})`;
+          const safeLocation = escapeHtml(location);
+          innocentText += ` (Konum: ${safeLocation})`;
         }
       }
       msgDiv.textContent = innocentText;
