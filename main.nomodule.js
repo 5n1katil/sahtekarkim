@@ -7857,8 +7857,9 @@
         var voted = top[0];
         var votedRole = data.playerRoles && data.playerRoles[voted];
         var isSpy = votedRole ? votedRole.isSpy : false;
-        var role = votedRole ? votedRole.role : null;
-        var location = votedRole ? votedRole.location : null;
+        // Ensure undefined fields are sent as null to avoid Firebase update errors
+        var role = votedRole && votedRole.role !== void 0 ? votedRole.role : null;
+        var location = votedRole && votedRole.location !== void 0 ? votedRole.location : null;
         console.log("[tallyVotes] Player ".concat(voted, " received ").concat(counts[voted], " votes. Eliminated: ").concat(!isSpy));
         var updates = {
           voteResult: {
