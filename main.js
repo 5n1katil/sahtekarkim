@@ -132,8 +132,11 @@ let lastVotingState = null;
     const cls = isSpy ? "impostor-animation" : "innocent-animation";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
+    overlay.innerHTML = "";
     if (isSpy) {
-      msgDiv.textContent = `${name} sahtekar çıktı!`;
+      const safeRole = escapeHtml(role || "");
+      msgDiv.textContent = `Sahtekar ${safeRole} elendi ve oyunu masumlar kazandı`;
+      document.getElementById("gameActions")?.classList.add("hidden");
     } else {
       let innocentText = `${name} masumdu.`;
       if (role) {
@@ -144,11 +147,10 @@ let lastVotingState = null;
       }
       msgDiv.textContent = innocentText;
     }
-    overlay.innerHTML = "";
     overlay.appendChild(msgDiv);
     const btn = document.createElement("button");
     btn.id = "continueBtn";
-    btn.textContent = "Oyuna Devam Et";
+    btn.textContent = isSpy ? "Oyunu Bitir" : "Oyuna Devam Et";
     overlay.appendChild(btn);
     overlay.classList.remove(
       "hidden",
