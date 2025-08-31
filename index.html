@@ -178,8 +178,8 @@
 
     <label><input type="checkbox" id="voteAnytime" checked /> Oyuncular hazır olduğunda oylamaya izin ver.</label>
 
-    <button id="saveSettingsBtn">Ayarları Kaydet</button>
-    <button id="createRoomBtn">Odayı Oluştur</button>
+    <button type="button" id="saveSettingsBtn">Ayarları Kaydet</button>
+    <button type="button" id="createRoomBtn">Odayı Oluştur</button>
     <span id="createRoomLoading" class="hidden">Yükleniyor...</span>
   </div>
 
@@ -192,7 +192,7 @@
     <label>Oda kodunu girin:</label>
     <input id="joinCode" placeholder="ABCDE" maxlength="5" />
     
-    <button id="joinRoomBtn">Oyuna Katıl</button>
+    <button type="button" id="joinRoomBtn">Oyuna Katıl</button>
   </div>
 
   <!-- Oda bilgileri ekranı -->
@@ -204,29 +204,29 @@
     <h3>Oyuncu Sayısı (<span id="playerCountDisplay">0</span>)</h3>
     <ul id="playerList"></ul>
 
-    <button id="startGameBtn" class="hidden">Oyunu Başlat</button>
-    <button id="leaveRoomBtn">Odadan Çık</button>
+    <button type="button" id="startGameBtn" class="hidden">Oyunu Başlat</button>
+    <button type="button" id="leaveRoomBtn">Odadan Çık</button>
   </div>
 
   <!-- Rol bilgisi ekranı -->
   <div class="container hidden" id="playerRoleInfo">
     <h2>Rol Bilgisi</h2>
     <p id="roleMessage">(örnek) Rolünüz: Sahtekar.</p>
-    <button id="copyRoleBtn" class="small-btn">Rol Bilgisini Kopyala</button>
-    <button id="backToHomeBtn" class="small-btn">Oyundan Çık</button>
+    <button type="button" id="copyRoleBtn" class="small-btn">Rol Bilgisini Kopyala</button>
+    <button type="button" id="backToHomeBtn" class="small-btn">Oyundan Çık</button>
   </div>
 
   <!-- Oyun sırasında kullanılacak bölüm -->
   <div class="container hidden" id="gameActions">
     <h2>Sahtekarı Bul!</h2>
     <p id="votingInstruction">Her tur tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.</p>
-    <button id="startVotingBtn">Oylamayı Başlat</button>
+    <button type="button" id="startVotingBtn">Oylamayı Başlat</button>
     <p id="waitingVoteStart" class="hidden">Oylamanın başlaması için diğer oyuncular bekleniyor...</p>
 
     <div id="votingSection" class="hidden">
       <label>Şüphelendiğin kişiyi seç:</label>
       <select id="voteSelect"></select>
-      <button id="submitVoteBtn">Oy Ver</button>
+      <button type="button" id="submitVoteBtn">Oy Ver</button>
     </div>
     <p id="votePendingMsg" class="hidden">Oyunuzu verdiniz, oylamanın tamamlanması bekleniyor...</p>
 
@@ -238,11 +238,11 @@
     <div id="guessSection" class="hidden">
       <label id="guessLabel">Konumu tahmin et:</label>
       <select id="guessSelect"></select>
-      <button id="submitGuessBtn">Tahmin Et</button>
+      <button type="button" id="submitGuessBtn">Tahmin Et</button>
     </div>
     <div id="voteResults" class="hidden">
       <p id="voteOutcome"></p>
-      <button id="nextRoundBtn" class="hidden">Sıradaki Tur</button>
+      <button type="button" id="nextRoundBtn" class="hidden">Sıradaki Tur</button>
     </div>
   </div>
 
