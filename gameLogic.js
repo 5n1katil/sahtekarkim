@@ -809,7 +809,7 @@ export const gameLogic = {
         if (guessesLeft <= 0) {
           updates.status = "finished";
           updates.winner = "innocent";
-          updates.lastGuess = null;
+          updates.lastGuess = { spy: spyUid, guess, correct: false, guessesLeft: 0 };
         } else {
           updates.lastGuess = { spy: spyUid, guess, guessesLeft };
         }
