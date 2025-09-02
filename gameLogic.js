@@ -811,7 +811,7 @@ export const gameLogic = {
           updates.winner = "innocent";
           updates.lastGuess = { spy: spyUid, guess, correct: false, guessesLeft: 0 };
         } else {
-          updates.lastGuess = { spy: spyUid, guess, guessesLeft };
+          updates.lastGuess = { spy: spyUid, guess, correct: false, guessesLeft };
         }
         if (typeof preserveVotingStarted !== "undefined") {
           updates.votingStarted = preserveVotingStarted;
