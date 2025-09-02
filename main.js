@@ -237,6 +237,48 @@ let lastVotingState = null;
     });
   }
 
+  function showSpyFailOverlay(spyIds, guessWord) {
+    const overlay = document.getElementById("resultOverlay");
+    const names = (spyIds || [])
+      .map((id) => playerUidMap[id]?.name)
+      .filter((n) => n && currentPlayers.includes(n))
+      .join(", ");
+    gameEnded = true;
+    overlay.innerHTML = "";
+    const msgDiv = document.createElement("div");
+    msgDiv.className = "result-message";
+    const word = guessWord || "konumu";
+    const nameText = names ? `${names} ` : "";
+    msgDiv.textContent = `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı`;
+    overlay.appendChild(msgDiv);
+    const btn = document.createElement("button");
+    btn.id = "continueBtn";
+    btn.textContent = "Oyuna Devam Et";
+    overlay.appendChild(btn);
+    overlay.classList.remove(
+      "hidden",
+      "impostor-animation",
+      "innocent-animation"
+    );
+    overlay.classList.add("innocent-animation");
+
+    btn.addEventListener("click", () => {
+      overlay.classList.add("hidden");
+      overlay.classList.remove("impostor-animation", "innocent-animation");
+
+      const finish = () => {
+        localStorage.clear();
+        showSetupJoin();
+      };
+
+      if (isCreator) {
+        gameLogic.deleteRoom(currentRoomCode).finally(finish);
+      } else {
+        finish();
+      }
+    });
+  }
+
   /** ------------------------
    *  ODA OLUŞTUR
    * ------------------------ */
