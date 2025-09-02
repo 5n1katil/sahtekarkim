@@ -237,7 +237,7 @@ let lastVotingState = null;
     });
   }
 
-  function showSpyFailOverlay(spyIds, guessed, guessWord) {
+  function showSpyFailOverlay(spyIds, guessWord) {
     const overlay = document.getElementById("resultOverlay");
     const names = (spyIds || [])
       .map((id) => playerUidMap[id]?.name)
@@ -247,14 +247,10 @@ let lastVotingState = null;
     overlay.innerHTML = "";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
-    const safeGuess = escapeHtml(guessed);
     const word = guessWord || "konumu";
     const nameText = names ? `${names} ` : "";
-    if (safeGuess) {
-      msgDiv.textContent = `Sahtekar ${nameText}${word} ${safeGuess} olarak yanlış tahmin etti ve oyunu masumlar kazandı`;
-    } else {
-      msgDiv.textContent = `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı`;
-    }
+    // İmpostor'un yanlış tahmini durumunda sadece "konumu" veya "rolü" bilgisini göster
+    msgDiv.textContent = `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı`;
     overlay.appendChild(msgDiv);
     const btn = document.createElement("button");
     btn.id = "continueBtn";
@@ -380,8 +376,7 @@ let lastVotingState = null;
         ) {
           const guessWord =
             roomData.settings?.gameType === "category" ? "rolü" : "konumu";
-          const guessed = roomData.lastGuess ? roomData.lastGuess.guess : null;
-          showSpyFailOverlay(roomData.spies, guessed, guessWord);
+          showSpyFailOverlay(roomData.spies, guessWord);
           return;
         }
         if (!roomData || (roomData.status !== "started" && !roomData.voteResult)) {
