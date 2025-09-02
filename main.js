@@ -367,6 +367,17 @@ let lastVotingState = null;
           window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
           return;
         }
+        if (
+          roomData &&
+          roomData.status === "finished" &&
+          roomData.winner === "innocent" &&
+          !roomData.voteResult
+        ) {
+          const guessWord =
+            roomData.settings?.gameType === "category" ? "rolü" : "konumu";
+          showSpyFailOverlay(roomData.spies, guessWord);
+          return;
+        }
         if (!roomData || (roomData.status !== "started" && !roomData.voteResult)) {
         document.getElementById("gameActions").classList.add("hidden");
         leaveBtn?.classList.remove("hidden");
