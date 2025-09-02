@@ -8115,11 +8115,12 @@
     overlay.innerHTML = "";
     var msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
-    var safeGuess = escapeHtml(guessed);
-    var word = guessWord || "konumu";
-    if (safeGuess) {
-      msgDiv.textContent = "Sahtekar ".concat(word, " ").concat(safeGuess, " olarak do\u011Fru tahmin etti ve oyunu kazand\u0131");
-    } else {
+      var safeGuess = escapeHtml(guessed);
+      var word = guessWord || "konumu";
+      if (safeGuess) {
+        var playerNames = names ? "(".concat(names, ") ") : "";
+        msgDiv.textContent = "Sahtekar ".concat(playerNames).concat(word, " ").concat(safeGuess, " olarak do\\u011Fru tahmin etti ve oyunu kazand\\u0131");
+      } else {
       msgDiv.append("Sahtekar");
       if (names) {
         msgDiv.appendChild(document.createElement("br"));
