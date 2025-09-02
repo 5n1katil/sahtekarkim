@@ -380,7 +380,8 @@ let lastVotingState = null;
         ) {
           const guessWord =
             roomData.settings?.gameType === "category" ? "rolü" : "konumu";
-          showSpyFailOverlay(roomData.spies, guessWord);
+          const guessed = roomData.lastGuess ? roomData.lastGuess.guess : null;
+          showSpyFailOverlay(roomData.spies, guessed, guessWord);
           return;
         }
         if (!roomData || (roomData.status !== "started" && !roomData.voteResult)) {
