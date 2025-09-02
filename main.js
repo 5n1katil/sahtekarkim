@@ -195,7 +195,8 @@ let lastVotingState = null;
       const word = guessWord || "konumu";
 
       if (safeGuess) {
-        msgDiv.textContent = `Sahtekar ${word} ${safeGuess} olarak doğru tahmin etti ve oyunu kazandı`;
+        const playerNames = names ? `(${names}) ` : "";
+        msgDiv.textContent = `Sahtekar ${playerNames}${word} ${safeGuess} olarak doğru tahmin etti ve oyunu kazandı`;
       } else {
         msgDiv.append("Sahtekar");
         if (names) {
