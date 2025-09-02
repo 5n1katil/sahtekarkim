@@ -237,7 +237,7 @@ let lastVotingState = null;
     });
   }
 
-  function showSpyFailOverlay(spyIds, guessWord) {
+  function showSpyFailOverlay(spyIds, guessed, guessWord) {
     const overlay = document.getElementById("resultOverlay");
     const names = (spyIds || [])
       .map((id) => playerUidMap[id]?.name)
@@ -247,9 +247,14 @@ let lastVotingState = null;
     overlay.innerHTML = "";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
+    const safeGuess = escapeHtml(guessed);
     const word = guessWord || "konumu";
     const nameText = names ? `${names} ` : "";
-    msgDiv.textContent = `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı`;
+    if (safeGuess) {
+      msgDiv.textContent = `Sahtekar ${nameText}${word} ${safeGuess} olarak yanlış tahmin etti ve oyunu masumlar kazandı`;
+    } else {
+      msgDiv.textContent = `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı`;
+    }
     overlay.appendChild(msgDiv);
     const btn = document.createElement("button");
     btn.id = "continueBtn";
