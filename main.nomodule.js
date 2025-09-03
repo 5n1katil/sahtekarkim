@@ -8138,6 +8138,44 @@
     overlay.appendChild(btn);
     overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
     overlay.classList.add("impostor-animation");
+  btn.addEventListener("click", function () {
+      overlay.classList.add("hidden");
+      overlay.classList.remove("impostor-animation", "innocent-animation");
+      var finish = function finish() {
+        localStorage.clear();
+        showSetupJoin();
+      };
+      if (isCreator) {
+        gameLogic.deleteRoom(currentRoomCode).finally(finish);
+      } else {
+        finish();
+      }
+    });
+  }
+
+  function showSpyFailOverlay(spyIds, guessWord) {
+    var overlay = document.getElementById("resultOverlay");
+    var names = (spyIds || []).map(function (id) {
+      var _playerUidMap$id;
+      return (_playerUidMap$id = playerUidMap[id]) === null || _playerUidMap$id === void 0 ? void 0 : _playerUidMap$id.name;
+    }).filter(function (n) {
+      return n && currentPlayers.includes(n);
+    }).join(", ");
+    gameEnded = true;
+    overlay.innerHTML = "";
+    var msgDiv = document.createElement("div");
+    msgDiv.className = "result-message";
+    var word = guessWord || "konumu";
+    var nameText = names ? "".concat(names, " ") : "";
+    // İmpostor'un yanlış tahmini durumunda sadece "konumu" veya "rolü" bilgisini göster
+    msgDiv.textContent = nameText ? "Sahtekar ".concat(nameText).concat(word, " yanl\\u0131\\u015F tahmin etti ve oyunu masumlar kazand\\u0131") : "Sahtekar ".concat(word, " yanl\\u0131\\u015F tahmin etti ve oyunu masumlar kazand\\u0131");
+    overlay.appendChild(msgDiv);
+    var btn = document.createElement("button");
+    btn.id = "continueBtn";
+    btn.textContent = "Oyuna Devam Et";
+    overlay.appendChild(btn);
+    overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
+    overlay.classList.add("innocent-animation");
     btn.addEventListener("click", function () {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
@@ -8245,12 +8283,18 @@
         window.db.ref("rooms/".concat(roomCode, "/spyParityWin")).remove();
         return;
       }
-      if (!roomData || roomData.status !== "started" && !roomData.voteResult) {
-        document.getElementById("gameActions").classList.add("hidden");
-        leaveBtn === null || leaveBtn === void 0 || leaveBtn.classList.remove("hidden");
-        exitBtn === null || exitBtn === void 0 || exitBtn.classList.remove("hidden");
-        return;
-      }
+        if (roomData && roomData.status === "finished" && roomData.winner === "innocent" && !roomData.voteResult) {
+          var _roomData$settings3;
+          var guessWord = ((_roomData$settings3 = roomData.settings) === null || _roomData$settings3 === void 0 ? void 0 : _roomData$settings3.gameType) === "category" ? "rolü" : "konumu";
+          showSpyFailOverlay(roomData.spies, guessWord);
+          return;
+        }
+        if (!roomData || roomData.status !== "started" && !roomData.voteResult) {
+          document.getElementById("gameActions").classList.add("hidden");
+          leaveBtn === null || leaveBtn === void 0 || leaveBtn.classList.remove("hidden");
+          exitBtn === null || exitBtn === void 0 || exitBtn.classList.remove("hidden");
+          return;
+        }
       leaveBtn === null || leaveBtn === void 0 || leaveBtn.classList.add("hidden");
       exitBtn === null || exitBtn === void 0 || exitBtn.classList.remove("hidden");
       if (roomData.playerRoles && roomData.playerRoles[currentUid]) {
