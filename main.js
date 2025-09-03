@@ -555,11 +555,8 @@ let lastVotingState = null;
           const guessKey = JSON.stringify(roomData.lastGuess);
           if (guessKey !== lastGuessEvent) {
             lastGuessEvent = guessKey;
-            const guessWord =
-              roomData.settings?.gameType === "category" ? "rolü" : "konumu";
-            alert(
-              `Sahtekar ${guessWord} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`
-            );
+            const guessWord = roomData.settings?.gameType === "category" ? "rolü" : "konumu";
+            alert(`Sahtekar ${guessWord} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`);
           }
         } else {
           lastGuessEvent = null;
