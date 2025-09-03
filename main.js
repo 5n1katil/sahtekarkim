@@ -553,14 +553,10 @@ let lastVotingState = null;
           const guessKey = JSON.stringify(roomData.lastGuess);
           if (guessKey !== lastGuessEvent) {
             lastGuessEvent = guessKey;
-            const spyName =
-              playerUidMap[roomData.lastGuess.spy]?.name || "Sahtekar";
             const guessWord =
-              roomData.settings?.gameType === "category"
-                ? "rolünü"
-                : "konumunu";
+              roomData.settings?.gameType === "category" ? "rolü" : "konumu";
             alert(
-              `${spyName} '${roomData.lastGuess.guess}' ${guessWord} tahmin etti ama yanıldı. Kalan hak: ${roomData.lastGuess.guessesLeft}`
+              `Sahtekar ${guessWord} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`
             );
           }
         } else {
