@@ -8388,11 +8388,10 @@
         if (roomData.lastGuess) {
           var guessKey = JSON.stringify(roomData.lastGuess);
           if (guessKey !== lastGuessEvent) {
-            var _playerUidMap$roomDat2, _roomData$settings4;
+            var _roomData$settings4;
             lastGuessEvent = guessKey;
-            var spyName = ((_playerUidMap$roomDat2 = playerUidMap[roomData.lastGuess.spy]) === null || _playerUidMap$roomDat2 === void 0 ? void 0 : _playerUidMap$roomDat2.name) || "Sahtekar";
-            var _guessWord = ((_roomData$settings4 = roomData.settings) === null || _roomData$settings4 === void 0 ? void 0 : _roomData$settings4.gameType) === "category" ? "rolünü" : "konumunu";
-            alert("".concat(spyName, " '").concat(roomData.lastGuess.guess, "' ").concat(_guessWord, " tahmin etti ama yan\u0131ld\u0131. Kalan hak: ").concat(roomData.lastGuess.guessesLeft));
+            var _guessWord = ((_roomData$settings4 = roomData.settings) === null || _roomData$settings4 === void 0 ? void 0 : _roomData$settings4.gameType) === "category" ? "rolü" : "konumu";
+            alert("Sahtekar ".concat(_guessWord, " tahmin etti ama yan\u0131ld\u0131. Kalan tahmin hakk\u0131: ").concat(roomData.lastGuess.guessesLeft));
           }
         } else {
           lastGuessEvent = null;
