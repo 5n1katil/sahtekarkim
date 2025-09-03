@@ -250,7 +250,7 @@ let lastVotingState = null;
     const word = guessWord || "konumu";
     const nameText = names ? `${names} ` : "";
     // İmpostor'un yanlış tahmini durumunda sadece "konumu" veya "rolü" bilgisini göster
-    msgDiv.textContent = `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı`;
+    msgDiv.textContent = `Sahtekar ${playerNames}${word} ${safeGuess} olarak yanlış tahmin etti ve oyunu masumlar kazandı`;
     overlay.appendChild(msgDiv);
     const btn = document.createElement("button");
     btn.id = "continueBtn";
