@@ -137,6 +137,10 @@ let parityHandled = false;
     spyNames = ""
   ) {
     const overlay = document.getElementById("resultOverlay");
+    if (!overlay) {
+      console.error("resultOverlay element not found");
+      return;
+    }
     const cls = isSpy || spyWin ? "impostor-animation" : "innocent-animation";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
