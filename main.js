@@ -127,6 +127,7 @@ let gameEnded = false;
 let lastGuessEvent = null;
 let lastVotingState = null;
 let parityHandled = false;
+let lastRoomStatus = null;
 
   function showResultOverlay(
     isSpy,
@@ -424,6 +425,23 @@ let parityHandled = false;
       const resultEl = document.getElementById("voteResults");
       const outcomeEl = document.getElementById("voteOutcome");
       const roomData = snapshot.val();
+      const prevStatus = lastRoomStatus;
+      lastRoomStatus = roomData ? roomData.status : null;
+      if (
+        roomData &&
+        roomData.status === "started" &&
+        prevStatus !== "started"
+      ) {
+        const overlay = document.getElementById("resultOverlay");
+        if (overlay) {
+          overlay.classList.add("hidden");
+          overlay.classList.remove("impostor-animation", "innocent-animation");
+        }
+        gameEnded = false;
+        lastVoteResult = null;
+        lastGuessEvent = null;
+        parityHandled = false;
+      }
       if (roomData && roomData.players) {
         playerUidMap = roomData.players;
         currentPlayers = Object.values(playerUidMap)
