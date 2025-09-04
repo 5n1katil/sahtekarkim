@@ -8053,9 +8053,13 @@
   var gameEnded = false;
   var lastGuessEvent = null;
   var lastVotingState = null;
-    function showResultOverlay(isSpy, name, role, location) {
+    function showResultOverlay(isSpy, name, role, location, spyWin, spyNames) {
       var overlay = document.getElementById("resultOverlay");
-      var cls = isSpy ? "impostor-animation" : "innocent-animation";
+      if (!overlay) {
+        console.error("resultOverlay element not found");
+        return;
+      }
+      var cls = isSpy || spyWin ? "impostor-animation" : "innocent-animation";
       var msgDiv = document.createElement("div");
       msgDiv.className = "result-message";
       overlay.innerHTML = "";
@@ -8064,6 +8068,12 @@
         msgDiv.textContent = "Sahtekar ".concat(safeName, " yakaland\u0131! Oyunu masumlar kazand\u0131...");
         var ga = document.getElementById("gameActions");
         if (ga) ga.classList.add("hidden");
+      } else if (spyWin) {
+        var safeName = escapeHtml(name || "");
+        var spies = escapeHtml(spyNames || "");
+        msgDiv.textContent = "".concat(safeName, " masumdu... Oyun bitti! Sahtekar ").concat(spies, " kazand\u0131.");
+        var ga2 = document.getElementById("gameActions");
+        if (ga2) ga2.classList.add("hidden");
       } else {
         var safeName = escapeHtml(name || "");
         var innocentText = "".concat(safeName, " masumdu.");
@@ -8080,39 +8090,57 @@
       overlay.appendChild(msgDiv);
       var btn = document.createElement("button");
       btn.id = "continueBtn";
-      btn.textContent = isSpy ? "Oyunu Bitir" : "Oyuna Devam Et";
+      btn.textContent = isSpy || spyWin ? "Oyunu Bitir" : "Oyuna Devam Et";
       overlay.appendChild(btn);
-    overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
-    overlay.classList.add(cls);
-    btn.addEventListener("click", function () {
-      overlay.classList.add("hidden");
-      overlay.classList.remove("impostor-animation", "innocent-animation");
-      if (isSpy) {
-        gameEnded = true;
-        var finish = function finish() {
-          localStorage.clear();
-          showSetupJoin();
-        };
-        if (isCreator) {
-          gameLogic.deleteRoom(currentRoomCode).finally(finish);
+      overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
+      overlay.classList.add(cls);
+      btn.addEventListener("click", function () {
+        overlay.classList.add("hidden");
+        overlay.classList.remove("impostor-animation", "innocent-animation");
+        if (isSpy) {
+          gameEnded = true;
+          var finish = function finish() {
+            localStorage.clear();
+            showSetupJoin();
+          };
+          if (isCreator) {
+            gameLogic.deleteRoom(currentRoomCode).finally(finish);
+          } else {
+            finish();
+          }
+        } else if (spyWin) {
+          parityHandled = true;
+          gameEnded = true;
+          var finish = function finish() {
+            localStorage.clear();
+            showSetupJoin();
+          };
+          gameLogic.endRound(currentRoomCode).finally(function () {
+            if (isCreator) {
+              gameLogic.deleteRoom(currentRoomCode).finally(finish);
+            } else {
+              finish();
+            }
+          });
         } else {
-          finish();
+          gameLogic.endRound(currentRoomCode);
         }
-      } else {
-        gameLogic.endRound(currentRoomCode);
+      });
+    }
+    function showSpyWinOverlay(spyIds, guessed, guessWord) {
+      var overlay = document.getElementById("resultOverlay");
+      if (!overlay) {
+        console.error("resultOverlay element not found");
+        return;
       }
-    });
-  }
-  function showSpyWinOverlay(spyIds, guessed, guessWord) {
-    var overlay = document.getElementById("resultOverlay");
-    var names = (spyIds || []).map(function (id) {
+      var names = (spyIds || []).map(function (id) {
       var _playerUidMap$id;
       return (_playerUidMap$id = playerUidMap[id]) === null || _playerUidMap$id === void 0 ? void 0 : _playerUidMap$id.name;
     }).filter(function (n) {
       return n && currentPlayers.includes(n);
     }).join(", ");
-    gameEnded = true;
-    overlay.innerHTML = "";
+      gameEnded = true;
+      overlay.innerHTML = "";
     var msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
       var safeGuess = escapeHtml(guessed);
@@ -8153,16 +8181,20 @@
     });
   }
 
-  function showSpyFailOverlay(spyIds, guessWord) {
-    var overlay = document.getElementById("resultOverlay");
-    var names = (spyIds || []).map(function (id) {
+    function showSpyFailOverlay(spyIds, guessWord) {
+      var overlay = document.getElementById("resultOverlay");
+      if (!overlay) {
+        console.error("resultOverlay element not found");
+        return;
+      }
+      var names = (spyIds || []).map(function (id) {
       var _playerUidMap$id;
       return (_playerUidMap$id = playerUidMap[id]) === null || _playerUidMap$id === void 0 ? void 0 : _playerUidMap$id.name;
     }).filter(function (n) {
       return n && currentPlayers.includes(n);
     }).join(", ");
-    gameEnded = true;
-    overlay.innerHTML = "";
+      gameEnded = true;
+      overlay.innerHTML = "";
     var msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
     var word = guessWord || "konumu";
