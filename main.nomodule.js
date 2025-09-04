@@ -7573,34 +7573,89 @@
       }
       return startGame;
     }(),
+    restartGame: function () {
+      var _restartGame = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee8(roomCode) {
+        var roomRef, settingsRef, playersRef, _yield$Promise$all5, _yield$Promise$all6, settingsSnap, playersSnap, settings, players, playerCount;
+        return _regenerator().w(function (_context8) {
+          while (1) switch (_context8.n) {
+            case 0:
+              roomRef = window.db.ref("rooms/".concat(roomCode));
+              settingsRef = roomRef.child("settings");
+              playersRef = roomRef.child("players");
+              _context8.n = 1;
+              return Promise.all([settingsRef.get(), playersRef.get()]);
+            case 1:
+              _yield$Promise$all5 = _context8.v;
+              _yield$Promise$all6 = _slicedToArray(_yield$Promise$all5, 2);
+              settingsSnap = _yield$Promise$all6[0];
+              playersSnap = _yield$Promise$all6[1];
+              settings = settingsSnap.val();
+              players = playersSnap.val() || {};
+              playerCount = Object.keys(players).length;
+              if (!(playerCount < 3)) {
+                _context8.n = 2;
+                break;
+              }
+              throw new Error("Oyun en az 3 oyuncu ile başlamalı.");
+            case 2:
+              _context8.n = 3;
+              return settingsRef.update({ playerCount: playerCount });
+            case 3:
+              _context8.n = 4;
+              return roomRef.update({
+                status: "waiting",
+                round: 0,
+                votes: null,
+                voteResult: null,
+                votingStarted: false,
+                voteRequests: null,
+                spies: null,
+                playerRoles: null,
+                winner: null,
+                spyParityWin: null,
+                lastGuess: null
+              });
+            case 4:
+              _context8.n = 5;
+              return this.startGame(roomCode);
+            case 5:
+              return _context8.a(2);
+          }
+        }, _callee8, this);
+      }));
+      function restartGame(_x7) {
+        return _restartGame.apply(this, arguments);
+      }
+      return restartGame;
+    }(),
     /** Odayı sil */
     deleteRoom: function deleteRoom(roomCode) {
       return window.db.ref("rooms/" + roomCode).remove();
     },
     /** Odadan çık */
     leaveRoom: function () {
-      var _leaveRoom = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee8(roomCode) {
+      var _leaveRoom = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee9(roomCode) {
         var uid, playerRef;
-        return _regenerator().w(function (_context8) {
-          while (1) switch (_context8.n) {
+        return _regenerator().w(function (_context9) {
+          while (1) switch (_context9.n) {
             case 0:
-              _context8.n = 1;
+              _context9.n = 1;
               return this.getUid();
             case 1:
-              uid = _context8.v;
+              uid = _context9.v;
               if (uid) {
-                _context8.n = 2;
+                _context9.n = 2;
                 break;
               }
-              return _context8.a(2, Promise.resolve());
+              return _context9.a(2, Promise.resolve());
             case 2:
               playerRef = window.db.ref("rooms/".concat(roomCode, "/players/").concat(uid));
               localStorage.clear();
-              return _context8.a(2, playerRef.remove());
+              return _context9.a(2, playerRef.remove());
           }
-        }, _callee8, this);
+        }, _callee9, this);
       }));
-      function leaveRoom(_x7) {
+      function leaveRoom(_x8) {
         return _leaveRoom.apply(this, arguments);
       }
       return leaveRoom;
@@ -8088,44 +8143,46 @@
         msgDiv.textContent = innocentText;
       }
       overlay.appendChild(msgDiv);
-      var btn = document.createElement("button");
-      btn.id = "continueBtn";
-      btn.textContent = isSpy || spyWin ? "Oyunu Bitir" : "Oyuna Devam Et";
-      overlay.appendChild(btn);
       overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
       overlay.classList.add(cls);
-      btn.addEventListener("click", function () {
-        overlay.classList.add("hidden");
-        overlay.classList.remove("impostor-animation", "innocent-animation");
-        if (isSpy) {
-          gameEnded = true;
-          var finish = function finish() {
-            localStorage.clear();
+      if (isSpy || spyWin) {
+        var restartBtn = document.createElement("button");
+        restartBtn.id = "restartBtn";
+        restartBtn.textContent = "Yeniden oyna";
+        var exitBtn = document.createElement("button");
+        exitBtn.id = "exitBtn";
+        exitBtn.textContent = "Odadan ayrıl";
+        overlay.appendChild(restartBtn);
+        overlay.appendChild(exitBtn);
+        var hideOverlay = function hideOverlay() {
+          overlay.classList.add("hidden");
+          overlay.classList.remove("impostor-animation", "innocent-animation");
+        };
+        restartBtn.addEventListener("click", function () {
+          hideOverlay();
+          gameEnded = false;
+          parityHandled = false;
+          lastVoteResult = null;
+          lastGuessEvent = null;
+          gameLogic.restartGame(currentRoomCode);
+        });
+        exitBtn.addEventListener("click", function () {
+          hideOverlay();
+          gameLogic.leaveRoom(currentRoomCode).finally(function () {
             showSetupJoin();
-          };
-          if (isCreator) {
-            gameLogic.deleteRoom(currentRoomCode).finally(finish);
-          } else {
-            finish();
-          }
-        } else if (spyWin) {
-          parityHandled = true;
-          gameEnded = true;
-          var finish = function finish() {
-            localStorage.clear();
-            showSetupJoin();
-          };
-          gameLogic.endRound(currentRoomCode).finally(function () {
-            if (isCreator) {
-              gameLogic.deleteRoom(currentRoomCode).finally(finish);
-            } else {
-              finish();
-            }
           });
-        } else {
+        });
+      } else {
+        var btn = document.createElement("button");
+        btn.id = "continueBtn";
+        btn.textContent = "Oyuna Devam Et";
+        overlay.appendChild(btn);
+        btn.addEventListener("click", function () {
+          overlay.classList.add("hidden");
+          overlay.classList.remove("impostor-animation", "innocent-animation");
           gameLogic.endRound(currentRoomCode);
-        }
-      });
+        });
+      }
     }
     function showSpyWinOverlay(spyIds, guessed, guessWord) {
       var overlay = document.getElementById("resultOverlay");
@@ -8160,24 +8217,33 @@
       msgDiv.append(" kazandı! Oyun Bitti...");
     }
     overlay.appendChild(msgDiv);
-    var btn = document.createElement("button");
-    btn.id = "continueBtn";
-    btn.textContent = "Oyuna Devam Et";
-    overlay.appendChild(btn);
+    var restartBtn = document.createElement("button");
+    restartBtn.id = "restartBtn";
+    restartBtn.textContent = "Yeniden oyna";
+    var exitBtn = document.createElement("button");
+    exitBtn.id = "exitBtn";
+    exitBtn.textContent = "Odadan ayrıl";
+    overlay.appendChild(restartBtn);
+    overlay.appendChild(exitBtn);
     overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
     overlay.classList.add("impostor-animation");
-  btn.addEventListener("click", function () {
+    var hideOverlay2 = function hideOverlay2() {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
-      var finish = function finish() {
-        localStorage.clear();
+    };
+    restartBtn.addEventListener("click", function () {
+      hideOverlay2();
+      gameEnded = false;
+      parityHandled = false;
+      lastVoteResult = null;
+      lastGuessEvent = null;
+      gameLogic.restartGame(currentRoomCode);
+    });
+    exitBtn.addEventListener("click", function () {
+      hideOverlay2();
+      gameLogic.leaveRoom(currentRoomCode).finally(function () {
         showSetupJoin();
-      };
-      if (isCreator) {
-        gameLogic.deleteRoom(currentRoomCode).finally(finish);
-      } else {
-        finish();
-      }
+      });
     });
   }
 
@@ -8202,24 +8268,33 @@
     // İmpostor'un yanlış tahmini durumunda sadece "konumu" veya "rolü" bilgisini göster
     msgDiv.textContent = nameText ? "Sahtekar ".concat(nameText).concat(word, " yanl\\u0131\\u015F tahmin etti ve oyunu masumlar kazand\\u0131") : "Sahtekar ".concat(word, " yanl\\u0131\\u015F tahmin etti ve oyunu masumlar kazand\\u0131");
     overlay.appendChild(msgDiv);
-    var btn = document.createElement("button");
-    btn.id = "continueBtn";
-    btn.textContent = "Oyuna Devam Et";
-    overlay.appendChild(btn);
+    var restartBtn = document.createElement("button");
+    restartBtn.id = "restartBtn";
+    restartBtn.textContent = "Yeniden oyna";
+    var exitBtn = document.createElement("button");
+    exitBtn.id = "exitBtn";
+    exitBtn.textContent = "Odadan ayrıl";
+    overlay.appendChild(restartBtn);
+    overlay.appendChild(exitBtn);
     overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
     overlay.classList.add("innocent-animation");
-    btn.addEventListener("click", function () {
+    var hideOverlay3 = function hideOverlay3() {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
-      var finish = function finish() {
-        localStorage.clear();
+    };
+    restartBtn.addEventListener("click", function () {
+      hideOverlay3();
+      gameEnded = false;
+      parityHandled = false;
+      lastVoteResult = null;
+      lastGuessEvent = null;
+      gameLogic.restartGame(currentRoomCode);
+    });
+    exitBtn.addEventListener("click", function () {
+      hideOverlay3();
+      gameLogic.leaveRoom(currentRoomCode).finally(function () {
         showSetupJoin();
-      };
-      if (isCreator) {
-        gameLogic.deleteRoom(currentRoomCode).finally(finish);
-      } else {
-        finish();
-      }
+      });
     });
   }
 
