@@ -106,6 +106,7 @@
       width: 100%;
       height: 100%;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       background: rgba(0, 0, 0, 0.8);
@@ -117,6 +118,13 @@
     .result-overlay.hidden {
       display: none;
       pointer-events: none;
+    }
+
+    .result-overlay button,
+    .overlay-btn {
+      width: auto;
+      margin: 0.5rem auto 0;
+      min-width: 150px;
     }
     .result-message {
       background: #2c2a4a;
