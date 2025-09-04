@@ -8108,6 +8108,8 @@
   var gameEnded = false;
   var lastGuessEvent = null;
   var lastVotingState = null;
+  var parityHandled = false;
+  var lastRoomStatus = null;
     function showResultOverlay(isSpy, name, role, location, spyWin, spyNames) {
       var overlay = document.getElementById("resultOverlay");
       if (!overlay) {
@@ -8361,10 +8363,23 @@
 
     // Oyun başlama durumunu canlı dinle
     window.db.ref("rooms/" + roomCode).on("value", function (snapshot) {
-      var resultEl = document.getElementById("voteResults");
-      var outcomeEl = document.getElementById("voteOutcome");
-      var roomData = snapshot.val();
-      if (roomData && roomData.players) {
+        var resultEl = document.getElementById("voteResults");
+        var outcomeEl = document.getElementById("voteOutcome");
+        var roomData = snapshot.val();
+        var prevStatus = lastRoomStatus;
+        lastRoomStatus = roomData ? roomData.status : null;
+        if (roomData && roomData.status === "started" && prevStatus !== "started") {
+          var overlay = document.getElementById("resultOverlay");
+          if (overlay) {
+            overlay.classList.add("hidden");
+            overlay.classList.remove("impostor-animation", "innocent-animation");
+          }
+          gameEnded = false;
+          lastVoteResult = null;
+          lastGuessEvent = null;
+          parityHandled = false;
+        }
+        if (roomData && roomData.players) {
         playerUidMap = roomData.players;
         currentPlayers = Object.values(playerUidMap).map(function (p) {
           return p.name;
