@@ -626,7 +626,7 @@ let parityHandled = false;
           isCreator &&
           roomData.votingStarted &&
           roomData.votes &&
-          Object.keys(roomData.votes).length === currentPlayers.lengt
+          Object.keys(roomData.votes).length === currentPlayers.length &&
           !roomData.voteResult
         ) {
           gameLogic.tallyVotes(currentRoomCode);
