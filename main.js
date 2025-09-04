@@ -180,11 +180,13 @@ let parityHandled = false;
       if (isCreator) {
         restartBtn = document.createElement("button");
         restartBtn.id = "restartBtn";
+        restartBtn.classList.add("overlay-btn");
         restartBtn.textContent = "Yeniden oyna";
         overlay.appendChild(restartBtn);
       }
       const exitBtn = document.createElement("button");
       exitBtn.id = "exitBtn";
+      exitBtn.classList.add("overlay-btn");
       exitBtn.textContent = "Odadan ayrıl";
       overlay.appendChild(exitBtn);
 
@@ -214,6 +216,7 @@ let parityHandled = false;
     } else {
       const btn = document.createElement("button");
       btn.id = "continueBtn";
+      btn.classList.add("overlay-btn");
       btn.textContent = "Oyuna Devam Et";
       overlay.appendChild(btn);
       btn.addEventListener("click", () => {
@@ -260,11 +263,13 @@ let parityHandled = false;
     if (isCreator) {
       restartBtn = document.createElement("button");
       restartBtn.id = "restartBtn";
+      restartBtn.classList.add("overlay-btn");
       restartBtn.textContent = "Yeniden oyna";
       overlay.appendChild(restartBtn);
     }
     const exitBtn = document.createElement("button");
     exitBtn.id = "exitBtn";
+    exitBtn.classList.add("overlay-btn");
     exitBtn.textContent = "Odadan ayrıl";
     overlay.appendChild(exitBtn);
     overlay.classList.remove(
@@ -324,11 +329,13 @@ let parityHandled = false;
     if (isCreator) {
       restartBtn = document.createElement("button");
       restartBtn.id = "restartBtn";
+      restartBtn.classList.add("overlay-btn");
       restartBtn.textContent = "Yeniden oyna";
       overlay.appendChild(restartBtn);
     }
     const exitBtn = document.createElement("button");
     exitBtn.id = "exitBtn";
+    exitBtn.classList.add("overlay-btn");
     exitBtn.textContent = "Odadan ayrıl";
     overlay.appendChild(exitBtn);
     overlay.classList.remove(
@@ -354,7 +361,6 @@ let parityHandled = false;
         gameLogic.restartGame(currentRoomCode);
       });
     }
-
     exitBtn.addEventListener("click", () => {
       hideOverlay();
       gameLogic.leaveRoom(currentRoomCode).finally(() => {
