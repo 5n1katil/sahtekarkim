@@ -637,6 +637,37 @@ export const gameLogic = {
     });
   },
 
+  restartGame: async function (roomCode) {
+    const roomRef = window.db.ref(`rooms/${roomCode}`);
+    const settingsRef = roomRef.child("settings");
+    const playersRef = roomRef.child("players");
+    const [settingsSnap, playersSnap] = await Promise.all([
+      settingsRef.get(),
+      playersRef.get(),
+    ]);
+    const settings = settingsSnap.val();
+    const players = playersSnap.val() || {};
+    const playerCount = Object.keys(players).length;
+    if (playerCount < 3) {
+      throw new Error("Oyun en az 3 oyuncu ile başlamalı.");
+    }
+    await settingsRef.update({ playerCount });
+    await roomRef.update({
+      status: "waiting",
+      round: 0,
+      votes: null,
+      voteResult: null,
+      votingStarted: false,
+      voteRequests: null,
+      spies: null,
+      playerRoles: null,
+      winner: null,
+      spyParityWin: null,
+      lastGuess: null,
+    });
+    await this.startGame(roomCode);
+  },
+
   /** Odayı sil */
   deleteRoom: function (roomCode) {
     return window.db.ref("rooms/" + roomCode).remove();
