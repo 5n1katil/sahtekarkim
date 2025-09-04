@@ -523,6 +523,10 @@ function updateRoleDisplay(myData, settings) {
         document.getElementById("playerRoleInfo").classList.remove("hidden");
         document.getElementById("gameActions").classList.remove("hidden");
 
+        if (roomData.status === "started" && prevStatus !== "started") {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+
         updateRoleDisplay(myData, roomData.settings);
 
         if (myData && myData.role) {
@@ -547,7 +551,7 @@ function updateRoleDisplay(myData, settings) {
         const votingInstructionEl = document.getElementById("votingInstruction");
         if (votingInstructionEl) {
           votingInstructionEl.textContent =
-            "Her tur tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
+            "Her tur en az 1 tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
         }
 
         // Oylama durumu
