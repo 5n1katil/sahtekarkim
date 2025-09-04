@@ -126,16 +126,29 @@ let lastVoteResult = null;
 let gameEnded = false;
 let lastGuessEvent = null;
 let lastVotingState = null;
+let parityHandled = false;
 
-  function showResultOverlay(isSpy, name, role, location) {
+  function showResultOverlay(
+    isSpy,
+    name,
+    role,
+    location,
+    spyWin = false,
+    spyNames = ""
+  ) {
     const overlay = document.getElementById("resultOverlay");
-    const cls = isSpy ? "impostor-animation" : "innocent-animation";
+    const cls = isSpy || spyWin ? "impostor-animation" : "innocent-animation";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
     overlay.innerHTML = "";
     if (isSpy) {
       const safeName = escapeHtml(name || "");
       msgDiv.textContent = `Sahtekar ${safeName} yakalandı! Oyunu masumlar kazandı...`;
+      document.getElementById("gameActions")?.classList.add("hidden");
+    } else if (spyWin) {
+      const safeName = escapeHtml(name || "");
+      const spies = escapeHtml(spyNames || "");
+      msgDiv.textContent = `${safeName} masumdu... Oyun bitti! Sahtekar ${spies} kazandı.`;
       document.getElementById("gameActions")?.classList.add("hidden");
     } else {
       const safeName = escapeHtml(name || "");
@@ -153,7 +166,7 @@ let lastVotingState = null;
     overlay.appendChild(msgDiv);
     const btn = document.createElement("button");
     btn.id = "continueBtn";
-    btn.textContent = isSpy ? "Oyunu Bitir" : "Oyuna Devam Et";
+    btn.textContent = isSpy || spyWin ? "Oyunu Bitir" : "Oyuna Devam Et";
     overlay.appendChild(btn);
     overlay.classList.remove(
       "hidden",
@@ -175,6 +188,20 @@ let lastVotingState = null;
         } else {
           finish();
         }
+      } else if (spyWin) {
+        parityHandled = true;
+        gameEnded = true;
+        const finish = () => {
+          localStorage.clear();
+          showSetupJoin();
+        };
+        gameLogic.endRound(currentRoomCode).finally(() => {
+          if (isCreator) {
+            gameLogic.deleteRoom(currentRoomCode).finally(finish);
+          } else {
+            finish();
+          }
+        });
       } else {
         gameLogic.endRound(currentRoomCode);
       }
@@ -366,7 +393,9 @@ let lastVotingState = null;
               : null;
           const guessWord =
             roomData.settings?.gameType === "category" ? "rolü" : "konumu";
-          showSpyWinOverlay(roomData.spies, guessed, guessWord);
+          if (!parityHandled) {
+            showSpyWinOverlay(roomData.spies, guessed, guessWord);
+          }
           window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
           return;
         }
@@ -534,14 +563,34 @@ let lastVotingState = null;
             const key = JSON.stringify(roomData.voteResult);
             if (key !== lastVoteResult) {
               lastVoteResult = key;
+              const votedUid = roomData.voteResult.voted;
               const votedName =
-                playerUidMap[roomData.voteResult.voted]?.name ||
-                roomData.voteResult.voted;
+                playerUidMap[votedUid]?.name || votedUid;
+              let spyWin = false;
+              let spyNames = "";
+              if (!roomData.voteResult.isSpy) {
+                const remaining = Object.keys(roomData.players || {}).filter(
+                  (uid) => uid !== votedUid
+                );
+                const activeSpies = (roomData.spies || []).filter((s) =>
+                  remaining.includes(s)
+                );
+                const innocentCount = remaining.length - activeSpies.length;
+                if (innocentCount <= 1) {
+                  spyWin = true;
+                  spyNames = activeSpies
+                    .map((id) => playerUidMap[id]?.name)
+                    .filter(Boolean)
+                    .join(", ");
+                }
+              }
               showResultOverlay(
                 roomData.voteResult.isSpy,
                 votedName,
                 roomData.voteResult.role,
-                roomData.voteResult.location
+                roomData.voteResult.location,
+                spyWin,
+                spyNames
               );
             }
             resultEl.classList.add("hidden");
@@ -566,7 +615,7 @@ let lastVotingState = null;
           isCreator &&
           roomData.votingStarted &&
           roomData.votes &&
-          Object.keys(roomData.votes).length === currentPlayers.length &&
+          Object.keys(roomData.votes).length === currentPlayers.lengt
           !roomData.voteResult
         ) {
           gameLogic.tallyVotes(currentRoomCode);
