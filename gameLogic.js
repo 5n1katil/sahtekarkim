@@ -642,13 +642,30 @@ export const gameLogic = {
     const roomRef = window.db.ref(`rooms/${roomCode}`);
     const settingsRef = roomRef.child("settings");
     const playersRef = roomRef.child("players");
-    const [settingsSnap, playersSnap] = await Promise.all([
+    const eliminatedRef = roomRef.child("eliminated");
+    const [settingsSnap, playersSnap, eliminatedSnap] = await Promise.all([
       settingsRef.get(),
       playersRef.get(),
+      eliminatedRef.get(),
     ]);
     const settings = settingsSnap.val();
     const players = playersSnap.val() || {};
-    const playerCount = Object.keys(players).length;
+    const eliminatedPlayers = eliminatedSnap.val() || {};
+
+    // Re-add eliminated players before restarting
+    await Promise.all(
+      Object.entries(eliminatedPlayers).map(([uid, pdata]) =>
+        playersRef.child(uid).set(pdata)
+      )
+    );
+
+    // Clear eliminated list
+    if (Object.keys(eliminatedPlayers).length > 0) {
+      await eliminatedRef.remove();
+    }
+
+    const allPlayers = { ...players, ...eliminatedPlayers };
+    const playerCount = Object.keys(allPlayers).length;
     if (playerCount < 3) {
       throw new Error("Oyun en az 3 oyuncu ile başlamalı.");
     }
@@ -667,6 +684,7 @@ export const gameLogic = {
       lastGuess: null,
       eliminated: null,
     });
+    // Start game after players have been restored and room reset
     await this.startGame(roomCode);
   },
 
@@ -946,14 +964,21 @@ export const gameLogic = {
       if (!snap.exists()) return;
       const data = snap.val();
       const vote = data.voteResult;
-      const removals = [];
+      const tasks = [];
       if (vote && vote.voted) {
-        removals.push(ref.child(`players/${vote.voted}`).remove());
-        removals.push(ref.child(`playerRoles/${vote.voted}`).remove());
-        removals.push(ref.child(`eliminated/${vote.voted}`).set(true));
+        const votedUid = vote.voted;
+        const playerInfo = (data.players || {})[votedUid] || {};
+        const { name = null, isCreator = false } = playerInfo;
+        tasks.push(ref.child(`players/${votedUid}`).remove());
+        tasks.push(ref.child(`playerRoles/${votedUid}`).remove());
+        tasks.push(
+          ref
+            .child(`eliminated/${votedUid}`)
+            .set({ name, isCreator })
+        );
       }
 
-      Promise.all(removals).then(() => {
+      Promise.all(tasks).then(() => {
         if (vote && vote.isSpy) {
           return; // oyun zaten bitti
         }
