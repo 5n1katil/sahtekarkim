@@ -176,13 +176,16 @@ let parityHandled = false;
     overlay.classList.add(cls);
 
     if (isSpy || spyWin) {
-      const restartBtn = document.createElement("button");
-      restartBtn.id = "restartBtn";
-      restartBtn.textContent = "Yeniden oyna";
+      let restartBtn;
+      if (isCreator) {
+        restartBtn = document.createElement("button");
+        restartBtn.id = "restartBtn";
+        restartBtn.textContent = "Yeniden oyna";
+        overlay.appendChild(restartBtn);
+      }
       const exitBtn = document.createElement("button");
       exitBtn.id = "exitBtn";
       exitBtn.textContent = "Odadan ayrıl";
-      overlay.appendChild(restartBtn);
       overlay.appendChild(exitBtn);
 
       const hideOverlay = () => {
@@ -190,14 +193,17 @@ let parityHandled = false;
         overlay.classList.remove("impostor-animation", "innocent-animation");
       };
 
-      restartBtn.addEventListener("click", () => {
-        hideOverlay();
-        gameEnded = false;
-        parityHandled = false;
-        lastVoteResult = null;
-        lastGuessEvent = null;
-        gameLogic.restartGame(currentRoomCode);
-      });
+      if (restartBtn) {
+        restartBtn.addEventListener("click", () => {
+          hideOverlay();
+          gameEnded = false;
+          parityHandled = false;
+          lastVoteResult = null;
+          lastGuessEvent = null;
+          restartBtn.disabled = true;
+          gameLogic.restartGame(currentRoomCode);
+        });
+      }
 
       exitBtn.addEventListener("click", () => {
         hideOverlay();
@@ -250,13 +256,16 @@ let parityHandled = false;
         msgDiv.append(" kazandı! Oyun Bitti...");
       }
     overlay.appendChild(msgDiv);
-    const restartBtn = document.createElement("button");
-    restartBtn.id = "restartBtn";
-    restartBtn.textContent = "Yeniden oyna";
+    let restartBtn;
+    if (isCreator) {
+      restartBtn = document.createElement("button");
+      restartBtn.id = "restartBtn";
+      restartBtn.textContent = "Yeniden oyna";
+      overlay.appendChild(restartBtn);
+    }
     const exitBtn = document.createElement("button");
     exitBtn.id = "exitBtn";
     exitBtn.textContent = "Odadan ayrıl";
-    overlay.appendChild(restartBtn);
     overlay.appendChild(exitBtn);
     overlay.classList.remove(
       "hidden",
@@ -270,14 +279,17 @@ let parityHandled = false;
       overlay.classList.remove("impostor-animation", "innocent-animation");
     };
 
-    restartBtn.addEventListener("click", () => {
-      hideOverlay();
-      gameEnded = false;
-      parityHandled = false;
-      lastVoteResult = null;
-      lastGuessEvent = null;
-      gameLogic.restartGame(currentRoomCode);
-    });
+    if (restartBtn) {
+      restartBtn.addEventListener("click", () => {
+        hideOverlay();
+        gameEnded = false;
+        parityHandled = false;
+        lastVoteResult = null;
+        lastGuessEvent = null;
+        restartBtn.disabled = true;
+        gameLogic.restartGame(currentRoomCode);
+      });
+    }
 
     exitBtn.addEventListener("click", () => {
       hideOverlay();
@@ -308,13 +320,16 @@ let parityHandled = false;
       ? `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı`
       : `Sahtekar ${word} yanlış tahmin etti ve oyunu masumlar kazandı`;
     overlay.appendChild(msgDiv);
-    const restartBtn = document.createElement("button");
-    restartBtn.id = "restartBtn";
-    restartBtn.textContent = "Yeniden oyna";
+    let restartBtn;
+    if (isCreator) {
+      restartBtn = document.createElement("button");
+      restartBtn.id = "restartBtn";
+      restartBtn.textContent = "Yeniden oyna";
+      overlay.appendChild(restartBtn);
+    }
     const exitBtn = document.createElement("button");
     exitBtn.id = "exitBtn";
     exitBtn.textContent = "Odadan ayrıl";
-    overlay.appendChild(restartBtn);
     overlay.appendChild(exitBtn);
     overlay.classList.remove(
       "hidden",
@@ -328,14 +343,17 @@ let parityHandled = false;
       overlay.classList.remove("impostor-animation", "innocent-animation");
     };
 
-    restartBtn.addEventListener("click", () => {
-      hideOverlay();
-      gameEnded = false;
-      parityHandled = false;
-      lastVoteResult = null;
-      lastGuessEvent = null;
-      gameLogic.restartGame(currentRoomCode);
-    });
+    if (restartBtn) {
+      restartBtn.addEventListener("click", () => {
+        hideOverlay();
+        gameEnded = false;
+        parityHandled = false;
+        lastVoteResult = null;
+        lastGuessEvent = null;
+        restartBtn.disabled = true;
+        gameLogic.restartGame(currentRoomCode);
+      });
+    }
 
     exitBtn.addEventListener("click", () => {
       hideOverlay();
