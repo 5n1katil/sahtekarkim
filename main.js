@@ -87,31 +87,7 @@ window.auth.onAuthStateChanged(async (user) => {
                 document
                   .getElementById("playerRoleInfo")
                   .classList.remove("hidden");
-
-                  const roleMessageEl = document.getElementById("roleMessage");
-                  const guessLabel = document.getElementById("guessLabel");
-                  const isCategory = roomData.settings?.gameType === "category";
-                  if (myData.role && myData.role.includes("Sahtekar")) {
-                    const safeLocations = myData.allLocations
-                      .map(escapeHtml)
-                      .join(", ");
-                    roleMessageEl.innerHTML =
-                      `🎭 Sen <b>SAHTEKAR</b>sın! ${isCategory ? "Rolü" : "Konumu"} bilmiyorsun.<br>` +
-                      `${isCategory ? "Olası roller" : "Olası konumlar"}: ${safeLocations}`;
-                    if (guessLabel) {
-                      guessLabel.textContent = isCategory
-                        ? "Rolü tahmin et:"
-                        : "Konumu tahmin et:";
-                    }
-                  } else if (myData.role) {
-                    const safeLocation = escapeHtml(myData.location);
-                    const safeRole = escapeHtml(myData.role);
-                    roleMessageEl.innerHTML =
-                      `📍 Konum: <b>${safeLocation}</b><br>` +
-                      `🎭 Rolün: <b>${safeRole}</b>`;
-                  } else {
-                    roleMessageEl.textContent = "Rol bilgisi bulunamadı.";
-                  }
+                updateRoleDisplay(myData, roomData.settings);
               }
             });
         });
@@ -128,6 +104,48 @@ let lastGuessEvent = null;
 let lastVotingState = null;
 let parityHandled = false;
 let lastRoomStatus = null;
+
+function updateRoleDisplay(myData, settings) {
+  const roleMessageEl = document.getElementById("roleMessage");
+  const guessLabel = document.getElementById("guessLabel");
+  const poolInfo = document.getElementById("poolInfo");
+  const poolSummary = document.getElementById("poolSummary");
+  const poolListEl = document.getElementById("poolList");
+  const isCategory = settings?.gameType === "category";
+  const poolLabel = isCategory
+    ? "Sahtekarın gördüğü roller"
+    : "Sahtekarın gördüğü konumlar";
+
+  if (myData && myData.role && myData.role.includes("Sahtekar")) {
+    const safeLocations = (myData.allLocations || [])
+      .map(escapeHtml)
+      .join(", ");
+    roleMessageEl.innerHTML =
+      `🎭 Sen <b>SAHTEKAR</b>sın! ${isCategory ? "Rolü" : "Konumu"} bilmiyorsun.<br>` +
+      `${isCategory ? "Olası roller" : "Olası konumlar"}: ${safeLocations}`;
+    if (guessLabel) {
+      guessLabel.textContent = isCategory
+        ? "Rolü tahmin et:"
+        : "Konumu tahmin et:";
+    }
+  } else if (myData && myData.role) {
+    const safeLocation = escapeHtml(myData.location);
+    const safeRole = escapeHtml(myData.role);
+    roleMessageEl.innerHTML =
+      `📍 Konum: <b>${safeLocation}</b><br>` +
+      `🎭 Rolün: <b>${safeRole}</b>`;
+  } else {
+    roleMessageEl.textContent = "Rol bilgisi bulunamadı.";
+    poolInfo.classList.add("hidden");
+    return;
+  }
+
+  poolSummary.textContent = poolLabel;
+  poolListEl.textContent = (myData.allLocations || [])
+    .map(escapeHtml)
+    .join(", ");
+  poolInfo.classList.remove("hidden");
+}
 
   function showResultOverlay(
     isSpy,
@@ -499,42 +517,29 @@ let lastRoomStatus = null;
 
       if (roomData.playerRoles && roomData.playerRoles[currentUid]) {
         const myData = roomData.playerRoles[currentUid];
-        const roleMessageEl = document.getElementById("roleMessage");
 
         document.getElementById("roomInfo").classList.add("hidden");
         document.getElementById("playerRoleInfo").classList.remove("hidden");
         document.getElementById("gameActions").classList.remove("hidden");
 
-        const guessesLeft = myData.guessesLeft ?? 0;
-        const isSpy = myData.role.includes("Sahtekar");
-        if (isSpy && guessesLeft > 0) {
-          const safeLocations = myData.allLocations
-            .map(escapeHtml)
-            .join(", ");
-          const guessSection = document.getElementById("guessSection");
-          const guessLabel = document.getElementById("guessLabel");
-          guessSection.classList.remove("hidden");
-          const guessSelect = document.getElementById("guessSelect");
-          guessSelect.innerHTML = myData.allLocations
-            .map((loc) => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`)
-            .join("");
-          if (roomData.settings?.gameType === "category") {
-            roleMessageEl.innerHTML =
-              `🎭 Sen <b>SAHTEKAR</b>sın! Rolü bilmiyorsun.<br>` +
-              `Olası roller: ${safeLocations}`;
-            if (guessLabel) guessLabel.textContent = "Rolü tahmin et:";
+        updateRoleDisplay(myData, roomData.settings);
+
+        if (myData && myData.role) {
+          const guessesLeft = myData.guessesLeft ?? 0;
+          const isSpy = myData.role.includes("Sahtekar");
+          if (isSpy && guessesLeft > 0) {
+            const guessSection = document.getElementById("guessSection");
+            guessSection.classList.remove("hidden");
+            const guessSelect = document.getElementById("guessSelect");
+            guessSelect.innerHTML = myData.allLocations
+              .map(
+                (loc) => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`
+              )
+              .join("");
           } else {
-            roleMessageEl.innerHTML =
-              `🎭 Sen <b>SAHTEKAR</b>sın! Konumu bilmiyorsun.<br>` +
-              `Olası konumlar: ${safeLocations}`;
-            if (guessLabel) guessLabel.textContent = "Konumu tahmin et:";
+            document.getElementById("guessSection").classList.add("hidden");
           }
         } else {
-          const safeLocation = escapeHtml(myData.location);
-          const safeRole = escapeHtml(myData.role);
-          roleMessageEl.innerHTML =
-            `📍 Konum: <b>${safeLocation}</b><br>` +
-            `🎭 Rolün: <b>${safeRole}</b>`;
           document.getElementById("guessSection").classList.add("hidden");
         }
 
