@@ -945,24 +945,26 @@ export const gameLogic = {
     ref.get().then((snap) => {
       if (!snap.exists()) return;
       const data = snap.val();
+      const vote = data.voteResult;
       const removals = [];
-      if (data.voteResult && data.voteResult.voted && !data.voteResult.isSpy) {
-        removals.push(ref.child(`players/${data.voteResult.voted}`).remove());
-        removals.push(ref.child(`playerRoles/${data.voteResult.voted}`).remove());
-        removals.push(
-          ref.child(`eliminated/${data.voteResult.voted}`).set(true)
-        );
+      if (vote && vote.voted) {
+        removals.push(ref.child(`players/${vote.voted}`).remove());
+        removals.push(ref.child(`playerRoles/${vote.voted}`).remove());
+        removals.push(ref.child(`eliminated/${vote.voted}`).set(true));
       }
 
       Promise.all(removals).then(() => {
+        if (vote && vote.isSpy) {
+          return; // oyun zaten bitti
+        }
         this.checkSpyWin(roomCode).then((spyWon) => {
           if (spyWon) {
             ref.update({ status: "finished" });
             return;
           }
-            ref.update({ voteResult: null }).then(() => {
-              this.nextRound(roomCode);
-            });
+          ref.update({ voteResult: null }).then(() => {
+            this.nextRound(roomCode);
+          });
         });
       });
     });
