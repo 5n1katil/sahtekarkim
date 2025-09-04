@@ -634,6 +634,7 @@ export const gameLogic = {
       voteResult: null,
       votingStarted: false,
       voteRequests: null,
+      eliminated: null,
     });
   },
 
@@ -664,6 +665,7 @@ export const gameLogic = {
       winner: null,
       spyParityWin: null,
       lastGuess: null,
+      eliminated: null,
     });
     await this.startGame(roomCode);
   },
@@ -944,10 +946,13 @@ export const gameLogic = {
       if (!snap.exists()) return;
       const data = snap.val();
       const removals = [];
-        if (data.voteResult && data.voteResult.voted && !data.voteResult.isSpy) {
-          removals.push(ref.child(`players/${data.voteResult.voted}`).remove());
-          removals.push(ref.child(`playerRoles/${data.voteResult.voted}`).remove());
-        }
+      if (data.voteResult && data.voteResult.voted && !data.voteResult.isSpy) {
+        removals.push(ref.child(`players/${data.voteResult.voted}`).remove());
+        removals.push(ref.child(`playerRoles/${data.voteResult.voted}`).remove());
+        removals.push(
+          ref.child(`eliminated/${data.voteResult.voted}`).set(true)
+        );
+      }
 
       Promise.all(removals).then(() => {
         this.checkSpyWin(roomCode).then((spyWon) => {
