@@ -214,6 +214,10 @@ let parityHandled = false;
 
   function showSpyWinOverlay(spyIds, guessed, guessWord) {
     const overlay = document.getElementById("resultOverlay");
+    if (!overlay) {
+      console.error("resultOverlay element not found");
+      return;
+    }
     const names = (spyIds || [])
       .map((id) => playerUidMap[id]?.name)
       .filter((n) => n && currentPlayers.includes(n))
@@ -270,6 +274,10 @@ let parityHandled = false;
 
   function showSpyFailOverlay(spyIds, guessWord) {
     const overlay = document.getElementById("resultOverlay");
+    if (!overlay) {
+      console.error("resultOverlay element not found");
+      return;
+    }
     const names = (spyIds || [])
       .map((id) => playerUidMap[id]?.name)
       .filter((n) => n && currentPlayers.includes(n))
@@ -295,7 +303,6 @@ let parityHandled = false;
       "innocent-animation"
     );
     overlay.classList.add("innocent-animation");
-
     btn.addEventListener("click", () => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
