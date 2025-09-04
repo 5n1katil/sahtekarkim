@@ -8148,9 +8148,11 @@
       if (isSpy || spyWin) {
         var restartBtn = document.createElement("button");
         restartBtn.id = "restartBtn";
+        restartBtn.classList.add("overlay-btn");
         restartBtn.textContent = "Yeniden oyna";
         var exitBtn = document.createElement("button");
         exitBtn.id = "exitBtn";
+        exitBtn.classList.add("overlay-btn");
         exitBtn.textContent = "Odadan ayrıl";
         overlay.appendChild(restartBtn);
         overlay.appendChild(exitBtn);
@@ -8175,6 +8177,7 @@
       } else {
         var btn = document.createElement("button");
         btn.id = "continueBtn";
+        btn.classList.add("overlay-btn");
         btn.textContent = "Oyuna Devam Et";
         overlay.appendChild(btn);
         btn.addEventListener("click", function () {
@@ -8219,9 +8222,11 @@
     overlay.appendChild(msgDiv);
     var restartBtn = document.createElement("button");
     restartBtn.id = "restartBtn";
+    restartBtn.classList.add("overlay-btn");
     restartBtn.textContent = "Yeniden oyna";
     var exitBtn = document.createElement("button");
     exitBtn.id = "exitBtn";
+    exitBtn.classList.add("overlay-btn");
     exitBtn.textContent = "Odadan ayrıl";
     overlay.appendChild(restartBtn);
     overlay.appendChild(exitBtn);
@@ -8270,9 +8275,11 @@
     overlay.appendChild(msgDiv);
     var restartBtn = document.createElement("button");
     restartBtn.id = "restartBtn";
+    restartBtn.classList.add("overlay-btn");
     restartBtn.textContent = "Yeniden oyna";
     var exitBtn = document.createElement("button");
     exitBtn.id = "exitBtn";
+    exitBtn.classList.add("overlay-btn");
     exitBtn.textContent = "Odadan ayrıl";
     overlay.appendChild(restartBtn);
     overlay.appendChild(exitBtn);
@@ -8297,7 +8304,6 @@
       });
     });
   }
-
   /** ------------------------
    *  ODA OLUŞTUR
    * ------------------------ */
