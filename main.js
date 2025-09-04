@@ -176,16 +176,7 @@ function updateRoleDisplay(myData, settings) {
       document.getElementById("gameActions")?.classList.add("hidden");
     } else {
       const safeName = escapeHtml(name || "");
-      let innocentText = `${safeName} masumdu.`;
-      if (role) {
-        const safeRole = escapeHtml(role);
-        innocentText += ` Rolü: ${safeRole}`;
-        if (location) {
-          const safeLocation = escapeHtml(location);
-          innocentText += ` (Konum: ${safeLocation})`;
-        }
-      }
-      msgDiv.textContent = innocentText;
+      msgDiv.textContent = `${safeName} masumdu.`;
     }
     overlay.appendChild(msgDiv);
     overlay.classList.remove(
