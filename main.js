@@ -26,6 +26,7 @@ let isCreator = localStorage.getItem("isCreator") === "true";
 let currentPlayers = [];
 let playerUidMap = {};
 let currentUid = null;
+let wasEliminated = false;
 window.auth.onAuthStateChanged(async (user) => {
     currentUid = user ? user.uid : null;
     if (user) {
@@ -45,7 +46,32 @@ window.auth.onAuthStateChanged(async (user) => {
             return;
           }
 
+          const roomData = roomSnap.val();
           const uid = user.uid;
+
+          if (
+            roomData?.eliminated &&
+            roomData.eliminated[uid] &&
+            roomData.status !== "finished"
+          ) {
+            wasEliminated = true;
+            showRoomUI(currentRoomCode, currentPlayerName, isCreator);
+            const overlay = document.getElementById("resultOverlay");
+            if (overlay) {
+              overlay.innerHTML =
+                "<div class='result-message'>Elendin! Oyun devam ediyor...</div>";
+              overlay.classList.remove(
+                "hidden",
+                "impostor-animation",
+                "innocent-animation"
+              );
+            }
+            document.getElementById("gameActions")?.classList.add("hidden");
+            listenPlayersAndRoom(currentRoomCode);
+            gameLogic.listenRoom(currentRoomCode);
+            return;
+          }
+
           const playerRef = window.db.ref(
             `rooms/${currentRoomCode}/players/${uid}`
           );
@@ -441,6 +467,42 @@ function updateRoleDisplay(myData, settings) {
       const roomData = snapshot.val();
       const prevStatus = lastRoomStatus;
       lastRoomStatus = roomData ? roomData.status : null;
+
+      if (
+        roomData?.eliminated &&
+        roomData.eliminated[currentUid] &&
+        roomData.status !== "finished"
+      ) {
+        wasEliminated = true;
+        const overlay = document.getElementById("resultOverlay");
+        if (overlay) {
+          overlay.innerHTML =
+            "<div class='result-message'>Elendin! Oyun devam ediyor...</div>";
+          overlay.classList.remove(
+            "hidden",
+            "impostor-animation",
+            "innocent-animation"
+          );
+        }
+        document.getElementById("gameActions")?.classList.add("hidden");
+        return;
+      } else if (
+        wasEliminated &&
+        (!roomData?.eliminated || !roomData.eliminated[currentUid]) &&
+        roomData?.status !== "finished"
+      ) {
+        wasEliminated = false;
+        if (currentPlayerName) {
+          window.db
+            .ref(`rooms/${roomCode}/players/${currentUid}`)
+            .set({ name: currentPlayerName, isCreator });
+        }
+        const overlay = document.getElementById("resultOverlay");
+        if (overlay) {
+          overlay.classList.add("hidden");
+          overlay.classList.remove("impostor-animation", "innocent-animation");
+        }
+      }
       if (
         roomData &&
         roomData.status === "started" &&
