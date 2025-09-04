@@ -128,23 +128,24 @@ function updateRoleDisplay(myData, settings) {
         ? "Rolü tahmin et:"
         : "Konumu tahmin et:";
     }
+    poolInfo.classList.add("hidden");
+    return;
   } else if (myData && myData.role) {
     const safeLocation = escapeHtml(myData.location);
     const safeRole = escapeHtml(myData.role);
     roleMessageEl.innerHTML =
       `📍 Konum: <b>${safeLocation}</b><br>` +
       `🎭 Rolün: <b>${safeRole}</b>`;
+    poolSummary.textContent = poolLabel;
+    poolListEl.textContent = (myData.allLocations || [])
+      .map(escapeHtml)
+      .join(", ");
+    poolInfo.classList.remove("hidden");
   } else {
     roleMessageEl.textContent = "Rol bilgisi bulunamadı.";
     poolInfo.classList.add("hidden");
     return;
   }
-
-  poolSummary.textContent = poolLabel;
-  poolListEl.textContent = (myData.allLocations || [])
-    .map(escapeHtml)
-    .join(", ");
-  poolInfo.classList.remove("hidden");
 }
 
   function showResultOverlay(
