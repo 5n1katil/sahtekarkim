@@ -168,48 +168,54 @@ let parityHandled = false;
       msgDiv.textContent = innocentText;
     }
     overlay.appendChild(msgDiv);
-    const btn = document.createElement("button");
-    btn.id = "continueBtn";
-    btn.textContent = isSpy || spyWin ? "Oyunu Bitir" : "Oyuna Devam Et";
-    overlay.appendChild(btn);
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
       "innocent-animation"
     );
     overlay.classList.add(cls);
-    btn.addEventListener("click", () => {
-      overlay.classList.add("hidden");
-      overlay.classList.remove("impostor-animation", "innocent-animation");
-      if (isSpy) {
-        gameEnded = true;
-        const finish = () => {
-          localStorage.clear();
+
+    if (isSpy || spyWin) {
+      const restartBtn = document.createElement("button");
+      restartBtn.id = "restartBtn";
+      restartBtn.textContent = "Yeniden oyna";
+      const exitBtn = document.createElement("button");
+      exitBtn.id = "exitBtn";
+      exitBtn.textContent = "Odadan ayrıl";
+      overlay.appendChild(restartBtn);
+      overlay.appendChild(exitBtn);
+
+      const hideOverlay = () => {
+        overlay.classList.add("hidden");
+        overlay.classList.remove("impostor-animation", "innocent-animation");
+      };
+
+      restartBtn.addEventListener("click", () => {
+        hideOverlay();
+        gameEnded = false;
+        parityHandled = false;
+        lastVoteResult = null;
+        lastGuessEvent = null;
+        gameLogic.restartGame(currentRoomCode);
+      });
+
+      exitBtn.addEventListener("click", () => {
+        hideOverlay();
+        gameLogic.leaveRoom(currentRoomCode).finally(() => {
           showSetupJoin();
-        };
-        if (isCreator) {
-          gameLogic.deleteRoom(currentRoomCode).finally(finish);
-        } else {
-          finish();
-        }
-      } else if (spyWin) {
-        parityHandled = true;
-        gameEnded = true;
-        const finish = () => {
-          localStorage.clear();
-          showSetupJoin();
-        };
-        gameLogic.endRound(currentRoomCode).finally(() => {
-          if (isCreator) {
-            gameLogic.deleteRoom(currentRoomCode).finally(finish);
-          } else {
-            finish();
-          }
         });
-      } else {
+      });
+    } else {
+      const btn = document.createElement("button");
+      btn.id = "continueBtn";
+      btn.textContent = "Oyuna Devam Et";
+      overlay.appendChild(btn);
+      btn.addEventListener("click", () => {
+        overlay.classList.add("hidden");
+        overlay.classList.remove("impostor-animation", "innocent-animation");
         gameLogic.endRound(currentRoomCode);
-      }
-    });
+      });
+    }
   }
 
   function showSpyWinOverlay(spyIds, guessed, guessWord) {
@@ -244,10 +250,14 @@ let parityHandled = false;
         msgDiv.append(" kazandı! Oyun Bitti...");
       }
     overlay.appendChild(msgDiv);
-    const btn = document.createElement("button");
-    btn.id = "continueBtn";
-    btn.textContent = "Oyuna Devam Et";
-    overlay.appendChild(btn);
+    const restartBtn = document.createElement("button");
+    restartBtn.id = "restartBtn";
+    restartBtn.textContent = "Yeniden oyna";
+    const exitBtn = document.createElement("button");
+    exitBtn.id = "exitBtn";
+    exitBtn.textContent = "Odadan ayrıl";
+    overlay.appendChild(restartBtn);
+    overlay.appendChild(exitBtn);
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
@@ -255,20 +265,25 @@ let parityHandled = false;
     );
     overlay.classList.add("impostor-animation");
 
-    btn.addEventListener("click", () => {
+    const hideOverlay = () => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
+    };
 
-      const finish = () => {
-        localStorage.clear();
+    restartBtn.addEventListener("click", () => {
+      hideOverlay();
+      gameEnded = false;
+      parityHandled = false;
+      lastVoteResult = null;
+      lastGuessEvent = null;
+      gameLogic.restartGame(currentRoomCode);
+    });
+
+    exitBtn.addEventListener("click", () => {
+      hideOverlay();
+      gameLogic.leaveRoom(currentRoomCode).finally(() => {
         showSetupJoin();
-      };
-
-      if (isCreator) {
-        gameLogic.deleteRoom(currentRoomCode).finally(finish);
-      } else {
-        finish();
-      }
+      });
     });
   }
 
@@ -293,30 +308,40 @@ let parityHandled = false;
       ? `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı`
       : `Sahtekar ${word} yanlış tahmin etti ve oyunu masumlar kazandı`;
     overlay.appendChild(msgDiv);
-    const btn = document.createElement("button");
-    btn.id = "continueBtn";
-    btn.textContent = "Oyuna Devam Et";
-    overlay.appendChild(btn);
+    const restartBtn = document.createElement("button");
+    restartBtn.id = "restartBtn";
+    restartBtn.textContent = "Yeniden oyna";
+    const exitBtn = document.createElement("button");
+    exitBtn.id = "exitBtn";
+    exitBtn.textContent = "Odadan ayrıl";
+    overlay.appendChild(restartBtn);
+    overlay.appendChild(exitBtn);
     overlay.classList.remove(
       "hidden",
       "impostor-animation",
       "innocent-animation"
     );
     overlay.classList.add("innocent-animation");
-    btn.addEventListener("click", () => {
+
+    const hideOverlay = () => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
+    };
 
-      const finish = () => {
-        localStorage.clear();
+    restartBtn.addEventListener("click", () => {
+      hideOverlay();
+      gameEnded = false;
+      parityHandled = false;
+      lastVoteResult = null;
+      lastGuessEvent = null;
+      gameLogic.restartGame(currentRoomCode);
+    });
+
+    exitBtn.addEventListener("click", () => {
+      hideOverlay();
+      gameLogic.leaveRoom(currentRoomCode).finally(() => {
         showSetupJoin();
-      };
-
-      if (isCreator) {
-        gameLogic.deleteRoom(currentRoomCode).finally(finish);
-      } else {
-        finish();
-      }
+      });
     });
   }
 
