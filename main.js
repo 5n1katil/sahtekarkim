@@ -154,13 +154,15 @@ function updateRoleDisplay(myData, settings) {
     role,
     location,
     spyWin = false,
-    spyNames = ""
+    spyNames = "",
+    votedUid
   ) {
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
       console.error("resultOverlay element not found");
       return;
     }
+    const isEliminatedPlayer = currentUid === votedUid;
     const cls = isSpy || spyWin ? "impostor-animation" : "innocent-animation";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
@@ -174,6 +176,8 @@ function updateRoleDisplay(myData, settings) {
       const spies = escapeHtml(spyNames || "");
       msgDiv.textContent = `${safeName} masumdu... Oyun bitti! Sahtekar ${spies} kazandı.`;
       document.getElementById("gameActions")?.classList.add("hidden");
+    } else if (isEliminatedPlayer) {
+      msgDiv.textContent = "Elendin, oyun devam ediyor...";
     } else {
       const safeName = escapeHtml(name || "");
       msgDiv.textContent = `${safeName} masumdu.`;
@@ -224,7 +228,7 @@ function updateRoleDisplay(myData, settings) {
           showSetupJoin();
         });
       });
-    } else {
+    } else if (!isEliminatedPlayer) {
       const btn = document.createElement("button");
       btn.id = "continueBtn";
       btn.classList.add("overlay-btn");
@@ -669,7 +673,8 @@ function updateRoleDisplay(myData, settings) {
                 roomData.voteResult.role,
                 roomData.voteResult.location,
                 spyWin,
-                spyNames
+                spyNames,
+                votedUid
               );
             }
             resultEl.classList.add("hidden");
