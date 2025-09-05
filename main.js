@@ -488,8 +488,9 @@ function updateRoleDisplay(myData, settings) {
         return;
       } else if (
         wasEliminated &&
-        (!roomData?.eliminated || !roomData.eliminated[currentUid]) &&
-        roomData?.status !== "finished"
+        prevStatus === "finished" &&
+        (roomData?.status === "waiting" || roomData?.status === "started") &&
+        (!roomData?.eliminated || !roomData.eliminated[currentUid])
       ) {
         wasEliminated = false;
         if (currentPlayerName) {
@@ -497,10 +498,29 @@ function updateRoleDisplay(myData, settings) {
             .ref(`rooms/${roomCode}/players/${currentUid}`)
             .set({ name: currentPlayerName, isCreator });
         }
+
         const overlay = document.getElementById("resultOverlay");
         if (overlay) {
           overlay.classList.add("hidden");
           overlay.classList.remove("impostor-animation", "innocent-animation");
+          overlay.innerHTML = "";
+        }
+
+        const roleMessageEl = document.getElementById("roleMessage");
+        const poolInfo = document.getElementById("poolInfo");
+        const poolSummary = document.getElementById("poolSummary");
+        const poolListEl = document.getElementById("poolList");
+        if (roleMessageEl) roleMessageEl.innerHTML = "";
+        if (poolSummary) poolSummary.textContent = "";
+        if (poolListEl) poolListEl.textContent = "";
+        poolInfo?.classList.add("hidden");
+
+        if (
+          roomData.status === "started" &&
+          roomData.playerRoles &&
+          roomData.playerRoles[currentUid]
+        ) {
+          updateRoleDisplay(roomData.playerRoles[currentUid], roomData.settings);
         }
       }
       if (
