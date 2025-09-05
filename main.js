@@ -502,6 +502,9 @@ function updateRoleDisplay(myData, settings) {
           overlay.classList.add("hidden");
           overlay.classList.remove("impostor-animation", "innocent-animation");
         }
+        document.getElementById("roomInfo").classList.remove("hidden");
+        document.getElementById("playerRoleInfo").classList.add("hidden");
+        document.getElementById("gameActions").classList.add("hidden");
       }
       if (
         roomData &&
@@ -573,9 +576,11 @@ function updateRoleDisplay(myData, settings) {
       leaveBtn?.classList.add("hidden");
       exitBtn?.classList.remove("hidden");
 
-      if (roomData.playerRoles && roomData.playerRoles[currentUid]) {
-        const myData = roomData.playerRoles[currentUid];
+      const myData = roomData.playerRoles
+        ? roomData.playerRoles[currentUid]
+        : null;
 
+      if (myData) {
         document.getElementById("roomInfo").classList.add("hidden");
         document.getElementById("playerRoleInfo").classList.remove("hidden");
         document.getElementById("gameActions").classList.remove("hidden");
@@ -583,8 +588,6 @@ function updateRoleDisplay(myData, settings) {
         if (roomData.status === "started" && prevStatus !== "started") {
           window.scrollTo({ top: 0, behavior: "smooth" });
         }
-
-        updateRoleDisplay(myData, roomData.settings);
 
         if (myData && myData.role) {
           const guessesLeft = myData.guessesLeft ?? 0;
@@ -595,7 +598,8 @@ function updateRoleDisplay(myData, settings) {
             const guessSelect = document.getElementById("guessSelect");
             guessSelect.innerHTML = myData.allLocations
               .map(
-                (loc) => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`
+                (loc) =>
+                  `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`
               )
               .join("");
           } else {
@@ -604,12 +608,19 @@ function updateRoleDisplay(myData, settings) {
         } else {
           document.getElementById("guessSection").classList.add("hidden");
         }
+      } else {
+        document.getElementById("guessSection").classList.add("hidden");
+      }
 
-        const votingInstructionEl = document.getElementById("votingInstruction");
-        if (votingInstructionEl) {
-          votingInstructionEl.textContent =
-            "Her tur en az 1 tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
-        }
+      if (roomData.status === "started") {
+        updateRoleDisplay(myData, roomData.settings);
+      }
+
+      const votingInstructionEl = document.getElementById("votingInstruction");
+      if (votingInstructionEl) {
+        votingInstructionEl.textContent =
+          "Her tur en az 1 tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
+      }
 
         // Oylama durumu
         const isVotingPhase =
