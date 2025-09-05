@@ -757,33 +757,33 @@ function updateRoleDisplay(myData, settings) {
           lastVoteResult = null;
         }
 
-        if (roomData.lastGuess) {
-          const guessKey = JSON.stringify(roomData.lastGuess);
-          if (guessKey !== lastGuessEvent) {
-            lastGuessEvent = guessKey;
-            const guessWord = roomData.settings?.gameType === "category" ? "rolü" : "konumu";
-            alert(`Sahtekar ${guessWord} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`);
-          }
-        } else {
-          lastGuessEvent = null;
+      if (roomData.lastGuess) {
+        const guessKey = JSON.stringify(roomData.lastGuess);
+        if (guessKey !== lastGuessEvent) {
+          lastGuessEvent = guessKey;
+          const guessWord = roomData.settings?.gameType === "category" ? "rolü" : "konumu";
+          alert(`Sahtekar ${guessWord} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`);
         }
-
-        if (
-          isCreator &&
-          roomData.votingStarted &&
-          roomData.votes &&
-          Object.keys(roomData.votes).length === currentPlayers.length &&
-          !roomData.voteResult
-        ) {
-          gameLogic.tallyVotes(currentRoomCode);
-        }
+      } else {
+        lastGuessEvent = null;
       }
-    });
-  }
 
-  /** ------------------------
-   *  ODA UI GÖSTER
-   * ------------------------ */
+      if (
+        isCreator &&
+        roomData.votingStarted &&
+        roomData.votes &&
+        Object.keys(roomData.votes).length === currentPlayers.length &&
+        !roomData.voteResult
+      ) {
+        gameLogic.tallyVotes(currentRoomCode);
+      }
+    }
+  });
+}
+
+/** ------------------------
+ *  ODA UI GÖSTER
+ * ------------------------ */
 function showRoomUI(roomCode, playerName, isCreator) {
   // UI güncelleme
   document.getElementById("setup").classList.add("hidden");
