@@ -181,7 +181,8 @@ function updateRoleDisplay(myData, settings) {
     location,
     spyWin = false,
     spyNames = "",
-    votedUid
+    votedUid,
+    lastSpy = false
   ) {
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
@@ -193,15 +194,20 @@ function updateRoleDisplay(myData, settings) {
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
     overlay.innerHTML = "";
-    if (isSpy) {
+    const actionsEl = document.getElementById("gameActions");
+    if (isSpy && lastSpy) {
       const safeName = escapeHtml(name || "");
       msgDiv.textContent = `Sahtekar ${safeName} yakalandı! Oyunu masumlar kazandı...`;
-      document.getElementById("gameActions")?.classList.add("hidden");
+      actionsEl?.classList.add("hidden");
+    } else if (isSpy && !lastSpy) {
+      const safeName = escapeHtml(name || "");
+      msgDiv.textContent = `Sahtekar ${safeName} yakalandı, oyun devam ediyor...`;
+      actionsEl?.classList.remove("hidden");
     } else if (spyWin) {
       const safeName = escapeHtml(name || "");
       const spies = escapeHtml(spyNames || "");
       msgDiv.textContent = `${safeName} masumdu... Oyun bitti! Sahtekar ${spies} kazandı.`;
-      document.getElementById("gameActions")?.classList.add("hidden");
+      actionsEl?.classList.add("hidden");
     } else if (isEliminatedPlayer) {
       msgDiv.textContent = "Elendin, oyun devam ediyor...";
     } else {
@@ -216,7 +222,7 @@ function updateRoleDisplay(myData, settings) {
     );
     overlay.classList.add(cls);
 
-    if (isSpy || spyWin) {
+    if ((isSpy && lastSpy) || spyWin) {
       let restartBtn;
       if (isCreator) {
         restartBtn = document.createElement("button");
@@ -731,15 +737,17 @@ function updateRoleDisplay(myData, settings) {
               const votedUid = roomData.voteResult.voted;
               const votedName =
                 playerUidMap[votedUid]?.name || votedUid;
+              const remaining = Object.keys(roomData.players || {}).filter(
+                (uid) => uid !== votedUid
+              );
+              const activeSpies = (roomData.spies || []).filter((id) =>
+                remaining.includes(id)
+              );
+              const lastSpy =
+                roomData.voteResult.isSpy && activeSpies.length === 0;
               let spyWin = false;
               let spyNames = "";
               if (!roomData.voteResult.isSpy) {
-                const remaining = Object.keys(roomData.players || {}).filter(
-                  (uid) => uid !== votedUid
-                );
-                const activeSpies = (roomData.spies || []).filter((s) =>
-                  remaining.includes(s)
-                );
                 const innocentCount = remaining.length - activeSpies.length;
                 if (innocentCount <= 1) {
                   spyWin = true;
@@ -756,7 +764,8 @@ function updateRoleDisplay(myData, settings) {
                 roomData.voteResult.location,
                 spyWin,
                 spyNames,
-                votedUid
+                votedUid,
+                lastSpy
               );
             }
             resultEl.classList.add("hidden");
