@@ -973,8 +973,8 @@ export const gameLogic = {
       const data = snap.val();
       const vote = data.voteResult;
       const tasks = [];
-      if (vote && vote.voted) {
-        const votedUid = vote.voted;
+      const votedUid = vote && vote.voted;
+      if (votedUid) {
         const playerInfo = (data.players || {})[votedUid] || {};
         const { name = null, isCreator = false } = playerInfo;
         tasks.push(ref.child(`players/${votedUid}`).remove());
@@ -987,8 +987,15 @@ export const gameLogic = {
       }
 
       Promise.all(tasks).then(() => {
-        if (vote && vote.isSpy) {
-          return; // oyun zaten bitti
+        const remainingPlayers = Object.keys(data.playerRoles || {}).filter(
+          (uid) => uid !== votedUid
+        );
+        const remainingSpies = (data.spies || []).filter((id) =>
+          remainingPlayers.includes(id)
+        );
+        if (remainingSpies.length === 0) {
+          ref.update({ status: "finished", winner: "innocents" });
+          return;
         }
         this.checkSpyWin(roomCode).then((spyWon) => {
           if (spyWon) {
