@@ -363,8 +363,8 @@ function updateRoleDisplay(myData, settings) {
     const nameText = names ? `${names} ` : "";
     // İmpostor'un yanlış tahmini durumunda sadece "konumu" veya "rolü" bilgisini göster
     msgDiv.textContent = nameText
-      ? `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı`
-      : `Sahtekar ${word} yanlış tahmin etti ve oyunu masumlar kazandı`;
+      ? `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı!`
+      : `Sahtekar ${word} yanlış tahmin etti ve oyunu masumlar kazandı!`;
     overlay.appendChild(msgDiv);
     let restartBtn;
     if (isCreator) {
