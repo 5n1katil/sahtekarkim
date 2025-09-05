@@ -797,7 +797,8 @@ function updateRoleDisplay(myData, settings) {
               roomData.settings && roomData.settings.gameType === "category"
                 ? "rolü"
                 : "konumu";
-            alert(`Sahtekar ${guessWord} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`);
+            const msg = `Sahtekar ${guessWord} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`;
+            alert(msg);
         }
       } else {
         lastGuessEvent = null;
