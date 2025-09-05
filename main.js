@@ -998,7 +998,8 @@ function initUI() {
   joinRoomBtn.addEventListener("click", handleJoinRoom);
   joinRoomBtn.addEventListener("pointerdown", handleJoinRoom);
 
-  document.getElementById("leaveRoomBtn").addEventListener("click", () => {
+  const leaveRoomBtn = document.getElementById("leaveRoomBtn");
+  leaveRoomBtn?.addEventListener("click", () => {
     const action = isCreator
       ? gameLogic.deleteRoom(currentRoomCode)
       : gameLogic.leaveRoom(currentRoomCode);
