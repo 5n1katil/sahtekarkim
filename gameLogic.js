@@ -927,6 +927,12 @@ export const gameLogic = {
       const voted = top[0];
       const votedRole = data.playerRoles && data.playerRoles[voted];
       const isSpy = votedRole ? votedRole.isSpy : false;
+      const remainingPlayers = Object.keys(data.playerRoles || {}).filter(
+        (uid) => uid !== voted
+      );
+      const remainingSpies = (data.spies || []).filter((id) =>
+        remainingPlayers.includes(id)
+      );
 
       console.log(
         `[tallyVotes] Player ${voted} received ${counts[voted]} votes. Eliminated: ${!isSpy}`
@@ -942,6 +948,8 @@ export const gameLogic = {
             : null;
         voteResult.role = role;
         voteResult.location = location;
+        voteResult.remainingSpies = remainingSpies;
+        voteResult.lastSpy = remainingSpies.length === 0;
       }
 
       const updates = {
@@ -949,7 +957,7 @@ export const gameLogic = {
         votingStarted: false,
       };
 
-      if (isSpy) {
+      if (isSpy && remainingSpies.length === 0) {
         updates.status = "finished";
         updates.winner = "innocents";
       }
