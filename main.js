@@ -351,7 +351,7 @@ function updateRoleDisplay(myData, settings) {
     });
   }
 
-  function showSpyFailOverlay(spyIds, guessWord) {
+  function showSpyFailOverlay(spyIds, guessWord, guessValue) {
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
       console.error("resultOverlay element not found");
@@ -367,10 +367,9 @@ function updateRoleDisplay(myData, settings) {
     msgDiv.className = "result-message";
     const word = guessWord || "konumu";
     const nameText = names ? `${names} ` : "";
+    const safeGuess = escapeHtml(guessValue || "");
     // İmpostor'un yanlış tahmini durumunda sadece "konumu" veya "rolü" bilgisini göster
-    msgDiv.textContent = nameText
-      ? `Sahtekar ${nameText}${word} yanlış tahmin etti ve oyunu masumlar kazandı!`
-      : `Sahtekar ${word} yanlış tahmin etti ve oyunu masumlar kazandı!`;
+    msgDiv.textContent = `Sahtekar ${nameText}${word} ${safeGuess} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
     overlay.appendChild(msgDiv);
     let restartBtn;
     if (isCreator) {
@@ -587,7 +586,11 @@ function updateRoleDisplay(myData, settings) {
         ) {
           const guessWord =
             roomData.settings?.gameType === "category" ? "rolü" : "konumu";
-          showSpyFailOverlay(roomData.spies, guessWord);
+          showSpyFailOverlay(
+            roomData.spies,
+            guessWord,
+            roomData.lastGuess?.guess
+          );
           return;
         }
         if (!roomData || (roomData.status !== "started" && !roomData.voteResult)) {
@@ -779,8 +782,11 @@ function updateRoleDisplay(myData, settings) {
           const guessKey = JSON.stringify(roomData.lastGuess);
           if (guessKey !== lastGuessEvent) {
             lastGuessEvent = guessKey;
-            const guessWord = roomData.settings?.gameType === "category" ? "rolü" : "konumu";
-            alert(`Sahtekar ${guessWord} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`);
+            const guessWord =
+              roomData.settings?.gameType === "category" ? "rolü" : "konumu";
+            alert(
+              `Sahtekar ${guessWord} ${roomData.lastGuess.guess} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`
+            );
           }
         } else {
           lastGuessEvent = null;
