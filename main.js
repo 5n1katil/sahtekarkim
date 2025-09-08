@@ -784,9 +784,11 @@ function updateRoleDisplay(myData, settings) {
             lastGuessEvent = guessKey;
             const guessWord =
               roomData.settings?.gameType === "category" ? "rolü" : "konumu";
-            alert(
-              `Sahtekar ${guessWord} ${roomData.lastGuess.guess} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`
-            );
+            const isSpyGuess = roomData.lastGuess.spy === currentUid;
+            const msg = isSpyGuess
+              ? `Yanlış tahmin ettin! ${guessWord} ${roomData.lastGuess.guess}. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`
+              : `Sahtekar ${guessWord} ${roomData.lastGuess.guess} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${roomData.lastGuess.guessesLeft}`;
+            alert(msg);
           }
         } else {
           lastGuessEvent = null;
