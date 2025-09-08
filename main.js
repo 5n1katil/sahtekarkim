@@ -607,7 +607,7 @@ function updateRoleDisplay(myData, settings) {
         document.getElementById("gameActions").classList.remove("hidden");
 
         if (roomData.status === "started" && prevStatus !== "started") {
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          setTimeout(() => window.scrollTo(0, 0), 0);
         }
 
         updateRoleDisplay(myData, roomData.settings);
@@ -821,6 +821,8 @@ function showRoomUI(roomCode, playerName, isCreator) {
     startGameBtn.classList.toggle("hidden", !isCreator);
   }
   document.getElementById("leaveRoomBtn").classList.remove("hidden");
+
+  setTimeout(() => window.scrollTo(0, 0), 0);
 
 }
 
