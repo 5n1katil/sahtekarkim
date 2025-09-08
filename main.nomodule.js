@@ -8254,7 +8254,7 @@
     });
   }
 
-    function showSpyFailOverlay(spyIds, guessWord) {
+    function showSpyFailOverlay(spyIds, guessWord, guessValue) {
       var overlay = document.getElementById("resultOverlay");
       if (!overlay) {
         console.error("resultOverlay element not found");
@@ -8270,10 +8270,11 @@
       overlay.innerHTML = "";
     var msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
-    var word = guessWord || "konumu";
-    var nameText = names ? "".concat(names, " ") : "";
-    // İmpostor'un yanlış tahmini durumunda sadece "konumu" veya "rolü" bilgisini göster
-    msgDiv.textContent = nameText ? "Sahtekar ".concat(nameText).concat(word, " yanl\\u0131\\u015F tahmin etti ve oyunu masumlar kazand\\u0131") : "Sahtekar ".concat(word, " yanl\\u0131\\u015F tahmin etti ve oyunu masumlar kazand\\u0131");
+      var word = guessWord || "konumu";
+      var nameText = names ? "".concat(names, " ") : "";
+      var safeGuess = escapeHtml(guessValue || "");
+      // İmpostor'un yanlış tahmini durumunda sadece "konumu" veya "rolü" bilgisini göster
+      msgDiv.textContent = "Sahtekar ".concat(nameText).concat(word, " ").concat(safeGuess, " olarak yanl\\u0131\\u015F tahmin etti ve oyunu masumlar kazand\\u0131!");
     overlay.appendChild(msgDiv);
     var restartBtn = document.createElement("button");
     restartBtn.id = "restartBtn";
@@ -8413,8 +8414,8 @@
       }
         if (roomData && roomData.status === "finished" && roomData.winner === "innocent" && !roomData.voteResult) {
           var _roomData$settings3;
-          var guessWord = ((_roomData$settings3 = roomData.settings) === null || _roomData$settings3 === void 0 ? void 0 : _roomData$settings3.gameType) === "category" ? "rolü" : "konumu";
-          showSpyFailOverlay(roomData.spies, guessWord);
+            var guessWord = ((_roomData$settings3 = roomData.settings) === null || _roomData$settings3 === void 0 ? void 0 : _roomData$settings3.gameType) === "category" ? "rolü" : "konumu";
+            showSpyFailOverlay(roomData.spies, guessWord, roomData.lastGuess && roomData.lastGuess.guess);
           return;
         }
         if (!roomData || roomData.status !== "started" && !roomData.voteResult) {
@@ -8562,7 +8563,7 @@
           if (guessKey !== lastGuessEvent) {
             var _roomData$settings4;
             lastGuessEvent = guessKey;
-            var _guessWord = ((_roomData$settings4 = roomData.settings) === null || _roomData$settings4 === void 0 ? void 0 : _roomData$settings4.gameType) === "category" ? "rolü" : "konumu"; alert("Sahtekar ".concat(_guessWord, " tahmin etti ama yan\u0131ld\u0131. Kalan tahmin hakk\u0131: ").concat(roomData.lastGuess.guessesLeft));
+              var _guessWord = ((_roomData$settings4 = roomData.settings) === null || _roomData$settings4 === void 0 ? void 0 : _roomData$settings4.gameType) === "category" ? "rolü" : "konumu"; alert("Sahtekar ".concat(_guessWord, " ").concat(roomData.lastGuess.guess, " tahmin etti ama yan\u0131ld\u0131. Kalan tahmin hakk\u0131: ").concat(roomData.lastGuess.guessesLeft));
           }
         } else {
           lastGuessEvent = null;
