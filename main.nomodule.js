@@ -8563,7 +8563,10 @@
           if (guessKey !== lastGuessEvent) {
             var _roomData$settings4;
             lastGuessEvent = guessKey;
-              var _guessWord = ((_roomData$settings4 = roomData.settings) === null || _roomData$settings4 === void 0 ? void 0 : _roomData$settings4.gameType) === "category" ? "rolü" : "konumu"; alert("Sahtekar ".concat(_guessWord, " ").concat(roomData.lastGuess.guess, " tahmin etti ama yan\u0131ld\u0131. Kalan tahmin hakk\u0131: ").concat(roomData.lastGuess.guessesLeft));
+              var _guessWord = ((_roomData$settings4 = roomData.settings) === null || _roomData$settings4 === void 0 ? void 0 : _roomData$settings4.gameType) === "category" ? "rolü" : "konumu";
+              var isSpyGuess = roomData.lastGuess.spy === currentUid;
+              var msg = isSpyGuess ? "Yanl\u0131\u015f tahmin ettin! " + _guessWord + " " + roomData.lastGuess.guess + ". Kalan tahmin hakk\u0131: " + roomData.lastGuess.guessesLeft : "Sahtekar " + _guessWord + " " + roomData.lastGuess.guess + " tahmin etti ama yan\u0131ld\u0131. Kalan tahmin hakk\u0131: " + roomData.lastGuess.guessesLeft;
+              alert(msg);
           }
         } else {
           lastGuessEvent = null;
