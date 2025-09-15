@@ -8416,7 +8416,7 @@
           showSpyFailOverlay(roomData.spies, guessWord, roomData.lastGuess && roomData.lastGuess.guess);
         return;
       }
-        if (!roomData || roomData.status !== "started" && !roomData.voteResult) {
+        if (!roomData || roomData.status !== "started") {
           document.getElementById("gameActions").classList.add("hidden");
           leaveBtn === null || leaveBtn === void 0 || leaveBtn.classList.remove("hidden");
           exitBtn === null || exitBtn === void 0 || exitBtn.classList.remove("hidden");
