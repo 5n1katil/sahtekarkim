@@ -963,7 +963,7 @@ export const gameLogic = {
 
       if (isSpy && remainingSpies.length === 0) {
         updates.status = "finished";
-        updates.winner = "innocents";
+        updates.winner = "innocent";
       }
 
       ref.update(updates);
@@ -998,7 +998,7 @@ export const gameLogic = {
           remainingPlayers.includes(id)
         );
         if (remainingSpies.length === 0) {
-          ref.update({ status: "finished", winner: "innocents" });
+          ref.update({ status: "finished", winner: "innocent" });
           return;
         }
         this.checkSpyWin(roomCode).then((spyWon) => {
