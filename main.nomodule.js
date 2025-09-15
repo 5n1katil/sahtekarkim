@@ -7836,19 +7836,29 @@
           if (guessesLeft <= 0) {
             updates.status = "finished";
             updates.winner = "innocent";
-            updates.lastGuess = null;
+            updates.votingStarted = false;
+            updates.votes = null;
+            updates.voteResult = null;
+            updates.voteRequests = null;
+            updates.lastGuess = {
+              spy: spyUid,
+              guess: guess,
+              correct: false,
+              guessesLeft: 0
+            };
           } else {
             updates.lastGuess = {
               spy: spyUid,
               guess: guess,
+              correct: false,
               guessesLeft: guessesLeft
             };
-          }
-          if (typeof preserveVotingStarted !== "undefined") {
-            updates.votingStarted = preserveVotingStarted;
-          }
-          if (typeof preserveVotes !== "undefined") {
-            updates.votes = preserveVotes;
+            if (typeof preserveVotingStarted !== "undefined") {
+              updates.votingStarted = preserveVotingStarted;
+            }
+            if (typeof preserveVotes !== "undefined") {
+              updates.votes = preserveVotes;
+            }
           }
           ref.update(updates);
         }
