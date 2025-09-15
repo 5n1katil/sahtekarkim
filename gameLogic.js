@@ -861,14 +861,18 @@ export const gameLogic = {
           updates.status = "finished";
           updates.winner = "innocent";
           updates.lastGuess = { spy: spyUid, guess, correct: false, guessesLeft: 0 };
+          updates.votingStarted = false;
+          updates.votes = null;
+          updates.voteResult = null;
+          updates.voteRequests = null;
         } else {
           updates.lastGuess = { spy: spyUid, guess, correct: false, guessesLeft };
-        }
-        if (typeof preserveVotingStarted !== "undefined") {
-          updates.votingStarted = preserveVotingStarted;
-        }
-        if (typeof preserveVotes !== "undefined") {
-          updates.votes = preserveVotes;
+          if (typeof preserveVotingStarted !== "undefined") {
+            updates.votingStarted = preserveVotingStarted;
+          }
+          if (typeof preserveVotes !== "undefined") {
+            updates.votes = preserveVotes;
+          }
         }
         ref.update(updates);
       }
