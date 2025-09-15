@@ -7927,7 +7927,7 @@
         };
           if (isSpy) {
             updates.status = "finished";
-            updates.winner = "innocents";
+            updates.winner = "innocent";
           }
         ref.update(updates);
       });
