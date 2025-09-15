@@ -592,7 +592,7 @@ function updateRoleDisplay(myData, settings) {
           );
           return;
         }
-        if (!roomData || (roomData.status !== "started" && !roomData.voteResult)) {
+        if (!roomData || roomData.status !== "started") {
         document.getElementById("gameActions").classList.add("hidden");
         leaveBtn?.classList.remove("hidden");
         exitBtn?.classList.remove("hidden");
