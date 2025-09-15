@@ -8412,12 +8412,12 @@
         window.db.ref("rooms/".concat(roomCode, "/spyParityWin")).remove();
         return;
       }
-        if (roomData && roomData.status === "finished" && roomData.winner === "innocent" && !roomData.voteResult) {
-          var _roomData$settings3;
-            var guessWord = ((_roomData$settings3 = roomData.settings) === null || _roomData$settings3 === void 0 ? void 0 : _roomData$settings3.gameType) === "category" ? "rolü" : "konumu";
-            showSpyFailOverlay(roomData.spies, guessWord, roomData.lastGuess && roomData.lastGuess.guess);
-          return;
-        }
+      if (roomData && roomData.status === "finished" && roomData.winner === "innocent") {
+        var _roomData$settings3;
+          var guessWord = ((_roomData$settings3 = roomData.settings) === null || _roomData$settings3 === void 0 ? void 0 : _roomData$settings3.gameType) === "category" ? "rolü" : "konumu";
+          showSpyFailOverlay(roomData.spies, guessWord, roomData.lastGuess && roomData.lastGuess.guess);
+        return;
+      }
         if (!roomData || roomData.status !== "started" && !roomData.voteResult) {
           document.getElementById("gameActions").classList.add("hidden");
           leaveBtn === null || leaveBtn === void 0 || leaveBtn.classList.remove("hidden");
