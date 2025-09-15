@@ -845,13 +845,11 @@ export const gameLogic = {
           status: "finished",
           winner: "spy",
           lastGuess: { spy: spyUid, guess, correct: true },
+          votingStarted: false,
+          votes: null,
+          voteResult: null,
+          voteRequests: null,
         };
-        if (typeof preserveVotingStarted !== "undefined") {
-          winUpdate.votingStarted = preserveVotingStarted;
-        }
-        if (typeof preserveVotes !== "undefined") {
-          winUpdate.votes = preserveVotes;
-        }
         ref.update(winUpdate);
       } else {
         guessesLeft -= 1;
