@@ -581,8 +581,7 @@ function updateRoleDisplay(myData, settings) {
         if (
           roomData &&
           roomData.status === "finished" &&
-          roomData.winner === "innocent" &&
-          !roomData.voteResult
+          roomData.winner === "innocent"
         ) {
           const guessWord =
             roomData.settings?.gameType === "category" ? "rolü" : "konumu";
