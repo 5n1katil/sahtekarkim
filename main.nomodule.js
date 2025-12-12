@@ -7368,7 +7368,7 @@
             case 2:
               roomData = snapshot.val();
               players = roomData.players || {};
-              if (!(Object.keys(players).length >= roomData.settings.playerCount)) {
+              if (!(Object.keys(players).length >= ROOM_PLAYER_LIMIT)) {
                 _context5.n = 3;
                 break;
               }
@@ -7538,22 +7538,16 @@
               throw new Error("Tüm oyuncuların bir adı olmalıdır.");
             case 2:
               playerCount = Object.keys(players).length;
-              if (!(playerCount < 3)) {
+              if (!(playerCount < MIN_PLAYERS)) {
                 _context7.n = 3;
                 break;
               }
-              throw new Error("Oyun en az 3 oyuncu ile başlamalı.");
+              throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
             case 3:
-              if (!(playerCount !== settings.playerCount)) {
-                _context7.n = 4;
-                break;
-              }
-              throw new Error("Belirlenen oyuncu sayısına ulaşılmadı.");
+              _context7.n = 4;
+              return this.assignRoles(roomCode);
             case 4:
               _context7.n = 5;
-              return this.assignRoles(roomCode);
-            case 5:
-              _context7.n = 6;
               return window.db.ref("rooms/".concat(roomCode)).update({
                 status: "started",
                 round: 1,
@@ -7563,6 +7557,9 @@
                 votingStarted: false,
                 voteRequests: null
               });
+            case 5:
+              _context7.n = 6;
+              break;
             case 6:
               return _context7.a(2);
           }
@@ -7592,16 +7589,13 @@
               settings = settingsSnap.val();
               players = playersSnap.val() || {};
               playerCount = Object.keys(players).length;
-              if (!(playerCount < 3)) {
+              if (!(playerCount < MIN_PLAYERS)) {
                 _context8.n = 2;
                 break;
               }
-              throw new Error("Oyun en az 3 oyuncu ile başlamalı.");
+              throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
             case 2:
               _context8.n = 3;
-              return settingsRef.update({ playerCount: playerCount });
-            case 3:
-              _context8.n = 4;
               return roomRef.update({
                 status: "waiting",
                 round: 0,
@@ -7615,6 +7609,9 @@
                 spyParityWin: null,
                 lastGuess: null
               });
+            case 3:
+              _context8.n = 4;
+              break;
             case 4:
               _context8.n = 5;
               return this.startGame(roomCode);
@@ -8012,6 +8009,9 @@
 
   console.log('main.js yüklendi');
 
+  var MIN_PLAYERS = 3;
+  var ROOM_PLAYER_LIMIT = 20;
+
   // Kullanıcının anonim şekilde doğrulandığından emin ol
   if (window.auth && !window.auth.currentUser) {
     window.auth.signInAnonymously().catch(function (err) {
@@ -8329,6 +8329,20 @@
       return "<li>".concat(escapeHtml(p), "</li>");
     }).join("");
     countEl.textContent = validPlayers.length;
+    updateStartButtonState(validPlayers.length);
+  }
+
+  function updateStartButtonState(joinedPlayerCount) {
+    var startGameBtn = document.getElementById("startGameBtn");
+    var warningEl = document.getElementById("startGameWarning");
+    if (!startGameBtn) return;
+    var hasEnoughPlayers = joinedPlayerCount >= MIN_PLAYERS;
+    startGameBtn.disabled = !hasEnoughPlayers;
+    startGameBtn.title = hasEnoughPlayers ? "" : "Oyunu başlatmak için en az 3 oyuncu gerekli.";
+    if (warningEl) {
+      var shouldShowWarning = !hasEnoughPlayers && isCreator && !startGameBtn.classList.contains("hidden");
+      warningEl.classList.toggle("hidden", hasEnoughPlayers || !shouldShowWarning);
+    }
   }
 
   /** ------------------------
@@ -8639,7 +8653,7 @@
     }
     function _prefillSettings() {
       _prefillSettings = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
-        var saved, playerCountEl, spyCountEl, spyGuessCountEl, poolSizeEl, voteAnytimeEl, show, _t3;
+        var saved, spyCountEl, spyGuessCountEl, poolSizeEl, voteAnytimeEl, show, _t3;
         return _regenerator().w(function (_context4) {
           while (1) switch (_context4.p = _context4.n) {
             case 0:
@@ -8660,12 +8674,10 @@
               }
               return _context4.a(2);
             case 3:
-              playerCountEl = document.getElementById("playerCount");
               spyCountEl = document.getElementById("spyCount");
               spyGuessCountEl = document.getElementById("spyGuessCount");
               poolSizeEl = document.getElementById("poolSize");
               voteAnytimeEl = document.getElementById("voteAnytime");
-              if (saved.playerCount) playerCountEl.value = saved.playerCount;
               if (saved.spyCount) spyCountEl.value = saved.spyCount;
               if (saved.spyGuessLimit) spyGuessCountEl.value = saved.spyGuessLimit;
               if (saved.poolSize) poolSizeEl.value = saved.poolSize;
@@ -8756,7 +8768,7 @@
               return buildSettings();
             case 4:
               settings = _context5.v;
-              if (!(!creatorName || isNaN(settings.playerCount) || isNaN(settings.spyCount) || isNaN(settings.spyGuessLimit))) {
+              if (!(!creatorName || isNaN(settings.spyCount) || isNaN(settings.spyGuessLimit))) {
                 _context5.n = 5;
                 break;
               }
@@ -8885,7 +8897,7 @@
     });
     document.getElementById("startGameBtn").addEventListener("click", /*#__PURE__*/function () {
       var _ref11 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3(e) {
-        var btn, _t2;
+        var btn, joinedPlayerCount, _t2;
         return _regenerator().w(function (_context3) {
           while (1) switch (_context3.p = _context3.n) {
             case 0:
@@ -8896,23 +8908,32 @@
               alert("Oda kodu bulunamadı!");
               return _context3.a(2);
             case 1:
+              joinedPlayerCount = currentPlayers.length;
+              if (!(joinedPlayerCount < MIN_PLAYERS)) {
+                _context3.n = 2;
+                break;
+              }
+              updateStartButtonState(joinedPlayerCount);
+              alert("Oyunu başlatmak için en az 3 oyuncu gerekli.");
+              return _context3.a(2);
+            case 2:
               btn = e.currentTarget;
               btn.disabled = true;
-              _context3.p = 2;
-              _context3.n = 3;
+              _context3.p = 3;
+              _context3.n = 4;
               return gameLogic.startGame(currentRoomCode);
-            case 3:
-              _context3.n = 5;
-              break;
             case 4:
-              _context3.p = 4;
-              _t2 = _context3.v;
-              alert("Oyunu başlatırken bir hata oluştu: " + (_t2.message || _t2));
+              _context3.n = 6;
+              break;
             case 5:
               _context3.p = 5;
-              btn.disabled = false;
-              return _context3.f(5);
+              _t2 = _context3.v;
+              alert("Oyunu başlatırken bir hata oluştu: " + (_t2.message || _t2));
             case 6:
+              _context3.p = 6;
+              btn.disabled = false;
+              return _context3.f(6);
+            case 7:
               return _context3.a(2);
           }
         }, _callee3, null, [[2, 4, 5, 6]]);
@@ -8979,11 +9000,10 @@
   }
   function _buildSettings() {
     _buildSettings = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee7() {
-      var playerCount, spyCount, spyGuessCount, gameType, categoryName, c, poolSize, voteAnytime, creatorUid;
+      var spyCount, spyGuessCount, gameType, categoryName, c, poolSize, voteAnytime, creatorUid;
       return _regenerator().w(function (_context7) {
         while (1) switch (_context7.n) {
           case 0:
-            playerCount = parseInt(document.getElementById("playerCount").value);
             spyCount = parseInt(document.getElementById("spyCount").value);
             spyGuessCount = parseInt(document.getElementById("spyGuessCount").value);
             gameType = document.getElementById("gameType").value;
@@ -8999,7 +9019,6 @@
           case 1:
             creatorUid = _context7.v;
             return _context7.a(2, {
-              playerCount: playerCount,
               spyCount: spyCount,
               gameType: gameType,
               categoryName: categoryName,
