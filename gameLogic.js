@@ -481,14 +481,31 @@ export const gameLogic = {
       return null;
     }
 
-    const updates = {};
-    updates[`rooms/${roomCode}/settings`] = { ...settings, spyGuessLimit };
-    updates[`rooms/${roomCode}/players/${uid}`] = {
-      name: creatorName,
-      isCreator: true,
+    const roomRef = window.db.ref(`rooms/${roomCode}`);
+    const roomData = {
+      creatorUid: uid,
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
+      status: "waiting",
+      settings: { ...settings, spyGuessLimit },
+      players: {
+        [uid]: {
+          name: creatorName,
+          isCreator: true,
+        },
+      },
     };
 
-    await window.db.ref().update(updates);
+    try {
+      await roomRef.set(roomData);
+    } catch (err) {
+      const code = err?.code || "";
+      if (code.includes("permission")) {
+        throw new Error(
+          "Oda oluşturma yetkisi reddedildi. Lütfen sayfayı yenileyip yeniden deneyin. Sorun devam ederse yönetici anonim girişi veya veritabanı kurallarını kontrol etmelidir."
+        );
+      }
+      throw err;
+    }
 
     localStorage.setItem("roomCode", roomCode);
     localStorage.setItem("playerName", creatorName);
