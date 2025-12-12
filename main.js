@@ -4,6 +4,7 @@ import { escapeHtml, hasInvalidChars } from './utils.js';
 console.log('main.js yüklendi');
 
 const MIN_PLAYERS = 3;
+const DEFAULT_PLAYER_COUNT = 20; // Eski güvenlik kurallarıyla uyum için oyuncu sayısını varsayılanla gönder
 
 function clearStoragePreservePromo() {
   const promoDismissedFlag = localStorage.getItem("promoModalDismissed");
@@ -1147,6 +1148,7 @@ function initUI() {
 document.addEventListener("DOMContentLoaded", initUI);
 
 async function buildSettings() {
+  const playerCount = DEFAULT_PLAYER_COUNT;
   const spyCount = parseInt(document.getElementById("spyCount").value);
   const spyGuessCount = parseInt(document.getElementById("spyGuessCount").value);
   const gameType = document.getElementById("gameType").value;
@@ -1159,6 +1161,7 @@ async function buildSettings() {
   const voteAnytime = document.getElementById("voteAnytime").checked;
   const creatorUid = await gameLogic.getUid();
   return {
+    playerCount,
     spyCount,
     gameType,
     categoryName,
