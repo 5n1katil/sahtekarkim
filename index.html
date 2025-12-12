@@ -4,6 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Sahtekar Kim? - Oyunu Başlat</title>
+
+  <!-- Google Analytics 4 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-5DKJ13EJSM"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-5DKJ13EJSM');
+  </script>
   
   <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
@@ -153,9 +162,148 @@
       50% { transform: scale(1.2); opacity: 1; }
       100% { transform: scale(1); }
     }
+
+    .top-bar {
+      position: sticky;
+      top: 0;
+      width: 100%;
+      background: rgba(17, 17, 26, 0.9);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.6rem 1rem;
+      box-sizing: border-box;
+      z-index: 900;
+      backdrop-filter: blur(6px);
+    }
+    .top-bar .brand {
+      font-weight: 700;
+      font-size: 1rem;
+      color: #f2e9ff;
+      white-space: nowrap;
+    }
+    .top-bar-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      background: linear-gradient(135deg, #7b5cff, #9d7bff);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      transition: transform 0.15s ease, opacity 0.15s ease;
+      white-space: nowrap;
+    }
+    .cta-btn.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    .cta-btn:active,
+    .cta-btn:hover {
+      transform: translateY(-1px);
+      opacity: 0.95;
+    }
+    @media (max-width: 480px) {
+      .top-bar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .top-bar-actions {
+        width: 100%;
+        flex-wrap: wrap;
+      }
+      .cta-btn {
+        flex: 1;
+      }
+    }
+
+    .promo-modal {
+      position: fixed;
+      right: 1rem;
+      bottom: 1rem;
+      background: rgba(17, 17, 26, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 1rem;
+      width: min(320px, 90vw);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      z-index: 850;
+      box-sizing: border-box;
+    }
+    .promo-modal__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .promo-modal__title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .promo-modal__close {
+      background: transparent;
+      color: #fff;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0.1rem 0.35rem;
+      line-height: 1;
+    }
+    .promo-modal__actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .promo-modal__actions .cta-btn {
+      flex: 1;
+      min-width: 120px;
+    }
+    @media (max-width: 480px) {
+      .promo-modal {
+        left: 1rem;
+        right: 1rem;
+        bottom: 0.75rem;
+      }
+    }
   </style>
 </head>
 <body>
+
+  <div class="top-bar" id="topBar">
+    <div class="brand">5N1Dedektif</div>
+    <div class="top-bar-actions">
+      <a
+        href="https://www.5n1dedektif.com/?utm_source=sahtekarkim&utm_medium=cta_bar&utm_campaign=traffic"
+        class="cta-btn secondary"
+        data-link-name="5N1Dedektif'e Git"
+        data-placement="top_bar"
+        target="_blank"
+        rel="noopener"
+      >5N1Dedektif'e Git</a>
+      <a
+        href="https://www.5n1dedektif.com/davalar?utm_source=sahtekarkim&utm_medium=cta_bar&utm_campaign=traffic"
+        class="cta-btn"
+        data-link-name="Davaları İncele"
+        data-placement="top_bar"
+        target="_blank"
+        rel="noopener"
+      >Davaları İncele</a>
+    </div>
+  </div>
 
   <!-- Kurucu için oyun ayarları ekranı -->
   <div class="container" id="setup">
@@ -264,6 +412,32 @@
 
   <div id="resultOverlay" class="hidden result-overlay"></div>
 
+  <div class="promo-modal hidden" id="promoModal">
+    <div class="promo-modal__header">
+      <p class="promo-modal__title">Oyunu sevdin mi?</p>
+      <button class="promo-modal__close" type="button" aria-label="Kapat">×</button>
+    </div>
+    <p>5N1Dedektif'te diğer davalara göz at.</p>
+    <div class="promo-modal__actions">
+      <a
+        href="https://www.5n1dedektif.com/?utm_source=sahtekarkim&utm_medium=cta_bar&utm_campaign=traffic"
+        class="cta-btn secondary"
+        data-link-name="5N1Dedektif'e Git"
+        data-placement="modal"
+        target="_blank"
+        rel="noopener"
+      >5N1Dedektif'e Git</a>
+      <a
+        href="https://www.5n1dedektif.com/davalar?utm_source=sahtekarkim&utm_medium=cta_bar&utm_campaign=traffic"
+        class="cta-btn"
+        data-link-name="Davaları İncele"
+        data-placement="modal"
+        target="_blank"
+        rel="noopener"
+      >Davaları İncele</a>
+    </div>
+  </div>
+
 <!-- Firebase CDN (compat) - klasik scriptler -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -279,5 +453,46 @@
 
 <!-- Modern tarayıcılar -->
 <script type="module" src="main.js"></script>
+
+<script>
+  function sendOutboundEvent(linkName, linkUrl, placement) {
+    if (typeof gtag === 'function') {
+      gtag('event', 'click_out_to_wix', {
+        link_name: linkName,
+        link_url: linkUrl,
+        placement: placement || 'unknown'
+      });
+    }
+  }
+
+  function attachCtaTracking(container) {
+    if (!container) return;
+    container.querySelectorAll('a[data-link-name]').forEach((link) => {
+      link.addEventListener('click', () => {
+        const linkName = link.getAttribute('data-link-name');
+        const placement = link.getAttribute('data-placement');
+        sendOutboundEvent(linkName, link.href, placement);
+      }, { passive: true });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const promoModal = document.getElementById('promoModal');
+    const modalClose = promoModal?.querySelector('.promo-modal__close');
+
+    attachCtaTracking(document.getElementById('topBar'));
+    attachCtaTracking(promoModal);
+
+    const dismissed = localStorage.getItem('promoModalDismissed') === 'true';
+    if (!dismissed && promoModal) {
+      promoModal.classList.remove('hidden');
+    }
+
+    modalClose?.addEventListener('click', () => {
+      promoModal.classList.add('hidden');
+      localStorage.setItem('promoModalDismissed', 'true');
+    });
+  });
+</script>
 </body>
 </html>
