@@ -3,6 +3,14 @@ import { escapeHtml, hasInvalidChars } from './utils.js';
 
 console.log('main.js yüklendi');
 
+function clearStoragePreservePromo() {
+  const promoDismissedFlag = localStorage.getItem("promoModalDismissed");
+  localStorage.clear();
+  if (promoDismissedFlag) {
+    localStorage.setItem("promoModalDismissed", promoDismissedFlag);
+  }
+}
+
 // Kullanıcının anonim şekilde doğrulandığından emin ol
 if (window.auth && !window.auth.currentUser) {
   window.auth.signInAnonymously().catch((err) => {
@@ -14,7 +22,7 @@ try {
   const nav = performance.getEntriesByType("navigation")[0];
   const isReload = nav ? nav.type === "reload" : performance.navigation.type === 1;
   if (!isReload) {
-    localStorage.clear();
+    clearStoragePreservePromo();
   }
 } catch (err) {
   console.warn("Gezinme performans kontrolü başarısız oldu:", err);
@@ -38,7 +46,7 @@ window.auth.onAuthStateChanged(async (user) => {
         const roomRef = window.db.ref("rooms/" + currentRoomCode);
         roomRef.get().then((roomSnap) => {
           if (!roomSnap.exists()) {
-            localStorage.clear();
+            clearStoragePreservePromo();
             currentRoomCode = null;
             currentPlayerName = null;
             isCreator = false;
@@ -460,7 +468,7 @@ function updateRoleDisplay(myData, settings) {
     // Oda silinirse herkesi at (oyun bitmediyse)
     window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
       if (!snapshot.exists() && !gameEnded) {
-        localStorage.clear();
+        clearStoragePreservePromo();
         location.reload();
       }
     });
@@ -1031,7 +1039,7 @@ function initUI() {
       : gameLogic.leaveRoom(currentRoomCode);
 
     Promise.resolve(action).then(() => {
-      localStorage.clear();
+      clearStoragePreservePromo();
       location.reload();
     });
   });
@@ -1101,11 +1109,11 @@ function initUI() {
         ? gameLogic.leaveRoom(roomCode)
         : Promise.resolve();
       Promise.resolve(action).then(() => {
-        localStorage.clear();
+        clearStoragePreservePromo();
         location.reload();
       });
     } else {
-      localStorage.clear();
+      clearStoragePreservePromo();
       location.reload();
     }
   });
