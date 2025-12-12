@@ -3,6 +3,8 @@ import { escapeHtml, hasInvalidChars } from './utils.js';
 
 console.log('main.js yüklendi');
 
+const MIN_PLAYERS = 3;
+
 function clearStoragePreservePromo() {
   const promoDismissedFlag = localStorage.getItem("promoModalDismissed");
   localStorage.clear();
@@ -436,6 +438,26 @@ function updateRoleDisplay(myData, settings) {
       .map((p) => `<li>${escapeHtml(p)}</li>`)
       .join("");
     countEl.textContent = validPlayers.length;
+
+    updateStartButtonState(validPlayers.length);
+  }
+
+  function updateStartButtonState(joinedPlayerCount) {
+    const startGameBtn = document.getElementById("startGameBtn");
+    const warningEl = document.getElementById("startGameWarning");
+    if (!startGameBtn) return;
+
+    const hasEnoughPlayers = joinedPlayerCount >= MIN_PLAYERS;
+    startGameBtn.disabled = !hasEnoughPlayers;
+    startGameBtn.title = hasEnoughPlayers
+      ? ""
+      : "Oyunu başlatmak için en az 3 oyuncu gerekli.";
+
+    if (warningEl) {
+      const shouldShowWarning =
+        !hasEnoughPlayers && isCreator && !startGameBtn.classList.contains("hidden");
+      warningEl.classList.toggle("hidden", hasEnoughPlayers || !shouldShowWarning);
+    }
   }
 
   /** ------------------------
@@ -857,7 +879,7 @@ function initUI() {
   const categoryLabel = document.getElementById("categoryLabel");
   const categorySelect = document.getElementById("categoryName");
 
-  if (categorySelect) {
+   if (categorySelect) {
     categorySelect.innerHTML = "";
     Object.keys(POOLS)
       .filter((key) => key !== "locations")
@@ -881,13 +903,11 @@ function initUI() {
       const saved = await gameLogic.loadSettings();
       if (!saved) return;
 
-      const playerCountEl = document.getElementById("playerCount");
       const spyCountEl = document.getElementById("spyCount");
       const spyGuessCountEl = document.getElementById("spyGuessCount");
       const poolSizeEl = document.getElementById("poolSize");
       const voteAnytimeEl = document.getElementById("voteAnytime");
 
-      if (saved.playerCount) playerCountEl.value = saved.playerCount;
       if (saved.spyCount) spyCountEl.value = saved.spyCount;
       if (saved.spyGuessLimit) spyGuessCountEl.value = saved.spyGuessLimit;
       if (saved.poolSize) poolSizeEl.value = saved.poolSize;
@@ -947,7 +967,6 @@ function initUI() {
       const settings = await buildSettings();
       if (
         !creatorName ||
-        isNaN(settings.playerCount) ||
         isNaN(settings.spyCount) ||
         isNaN(settings.spyGuessLimit)
       ) {
@@ -1049,6 +1068,12 @@ function initUI() {
       alert("Oda kodu bulunamadı!");
       return;
     }
+    const joinedPlayerCount = currentPlayers.length;
+    if (joinedPlayerCount < MIN_PLAYERS) {
+      updateStartButtonState(joinedPlayerCount);
+      alert("Oyunu başlatmak için en az 3 oyuncu gerekli.");
+      return;
+    }
     const btn = e.currentTarget;
     btn.disabled = true;
     try {
@@ -1122,7 +1147,6 @@ function initUI() {
 document.addEventListener("DOMContentLoaded", initUI);
 
 async function buildSettings() {
-  const playerCount = parseInt(document.getElementById("playerCount").value);
   const spyCount = parseInt(document.getElementById("spyCount").value);
   const spyGuessCount = parseInt(document.getElementById("spyGuessCount").value);
   const gameType = document.getElementById("gameType").value;
@@ -1135,7 +1159,6 @@ async function buildSettings() {
   const voteAnytime = document.getElementById("voteAnytime").checked;
   const creatorUid = await gameLogic.getUid();
   return {
-    playerCount,
     spyCount,
     gameType,
     categoryName,
