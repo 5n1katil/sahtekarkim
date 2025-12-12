@@ -2,6 +2,9 @@ import { escapeHtml } from './utils.js';
 
 let anonymousSignInPromise = null;
 
+const MIN_PLAYERS = 3;
+const ROOM_PLAYER_LIMIT = 20;
+
 // Konumlar ve kategoriler için veri havuzları
 export const POOLS = {
   locations: [
@@ -505,7 +508,7 @@ export const gameLogic = {
     const roomData = snapshot.val();
     const players = roomData.players || {};
 
-    if (Object.keys(players).length >= roomData.settings.playerCount) {
+    if (Object.keys(players).length >= ROOM_PLAYER_LIMIT) {
       throw new Error("Oda dolu!");
     }
 
@@ -618,11 +621,8 @@ export const gameLogic = {
     }
     const playerCount = Object.keys(players).length;
 
-    if (playerCount < 3) {
-      throw new Error("Oyun en az 3 oyuncu ile başlamalı.");
-    }
-    if (playerCount !== settings.playerCount) {
-      throw new Error("Belirlenen oyuncu sayısına ulaşılmadı.");
+    if (playerCount < MIN_PLAYERS) {
+      throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
     }
 
     await this.assignRoles(roomCode);
@@ -666,10 +666,9 @@ export const gameLogic = {
 
     const allPlayers = { ...players, ...eliminatedPlayers };
     const playerCount = Object.keys(allPlayers).length;
-    if (playerCount < 3) {
-      throw new Error("Oyun en az 3 oyuncu ile başlamalı.");
+    if (playerCount < MIN_PLAYERS) {
+      throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
     }
-    await settingsRef.update({ playerCount });
     await roomRef.update({
       status: "waiting",
       round: 0,
