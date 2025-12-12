@@ -93,6 +93,12 @@
       font-size: 0.9rem;
     }
 
+    .warning-text {
+      color: #ffbdbd;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+
     .impostor-name {
       font-family: 'Inter', sans-serif;
       font-size: 1.5rem;
@@ -311,9 +317,6 @@
     <h3>Oyun Ayarları</h3>
     <label>İsminizi girin (Kurucu):</label>
     <input id="creatorName" placeholder="Adınız" />
-    
-    <label>Kaç kişi oynayacak? (min 3 - max 20)</label>
-    <input id="playerCount" type="number" min="3" max="20" value="3" />
 
     <label>Kaç sahtekar olacak?</label>
     <input id="spyCount" type="number" min="1" max="3" value="1" />
@@ -365,6 +368,7 @@
     <ul id="playerList"></ul>
 
     <button type="button" id="startGameBtn" class="hidden">Oyunu Başlat</button>
+    <p id="startGameWarning" class="hidden warning-text">Oyunu başlatmak için en az 3 oyuncu gerekli.</p>
     <button type="button" id="leaveRoomBtn">Odadan Çık</button>
   </div>
 
