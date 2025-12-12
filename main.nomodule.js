@@ -8010,6 +8010,7 @@
   console.log('main.js yüklendi');
 
   var MIN_PLAYERS = 3;
+  var DEFAULT_PLAYER_COUNT = 20; // Eski güvenlik kurallarıyla uyum için oyuncu sayısını varsayılanla gönder
   var ROOM_PLAYER_LIMIT = 20;
 
   // Kullanıcının anonim şekilde doğrulandığından emin ol
@@ -9000,10 +9001,11 @@
   }
   function _buildSettings() {
     _buildSettings = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee7() {
-      var spyCount, spyGuessCount, gameType, categoryName, c, poolSize, voteAnytime, creatorUid;
+      var playerCount, spyCount, spyGuessCount, gameType, categoryName, c, poolSize, voteAnytime, creatorUid;
       return _regenerator().w(function (_context7) {
         while (1) switch (_context7.n) {
           case 0:
+            playerCount = DEFAULT_PLAYER_COUNT;
             spyCount = parseInt(document.getElementById("spyCount").value);
             spyGuessCount = parseInt(document.getElementById("spyGuessCount").value);
             gameType = document.getElementById("gameType").value;
@@ -9019,6 +9021,7 @@
           case 1:
             creatorUid = _context7.v;
             return _context7.a(2, {
+              playerCount: playerCount,
               spyCount: spyCount,
               gameType: gameType,
               categoryName: categoryName,
