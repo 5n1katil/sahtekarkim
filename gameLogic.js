@@ -421,6 +421,45 @@ function samplePool(list, n) {
 
 // Tüm oyunla ilgili mantık bu nesnede bulunur.
 export const gameLogic = {
+  /**
+   * Firebase bazen anonim oturumun süresi dolduğunda veya tarayıcı
+   * bağlamı değiştiğinde yazma isteğini PERMISSION_DENIED ile
+   * reddedebiliyor. Bu yardımcı, oturumu sıfırlayıp yeni bir anonim
+   * kullanıcı alarak basit bir yeniden deneme yapar.
+   */
+  forceReauth: async function () {
+    if (!window.auth) return null;
+
+    try {
+      if (window.auth.currentUser) {
+        await window.auth.signOut();
+      }
+    } catch (err) {
+      console.warn("Mevcut oturum kapatılamadı:", err);
+    }
+
+    try {
+      await window.auth.signInAnonymously();
+      return await new Promise((resolve, reject) => {
+        let unsubscribe = () => {};
+        const timeout = setTimeout(() => {
+          unsubscribe();
+          reject(new Error("Anonim oturum zaman aşımına uğradı"));
+        }, 5000);
+
+        unsubscribe = window.auth.onAuthStateChanged((user) => {
+          if (user && user.uid) {
+            clearTimeout(timeout);
+            unsubscribe();
+            resolve(user.uid);
+          }
+        });
+      });
+    } catch (err) {
+      console.error("Anonim yeniden oturum açma başarısız:", err);
+      return null;
+    }
+  },
   getUid: async function () {
     if (!window.auth) return null;
     if (window.auth.currentUser && window.auth.currentUser.uid) {
@@ -498,13 +537,33 @@ export const gameLogic = {
     try {
       await roomRef.set(roomData);
     } catch (err) {
-      const code = err?.code || "";
+      const code = (err?.code || "").toLowerCase();
       if (code.includes("permission")) {
-        throw new Error(
-          "Oda oluşturma yetkisi reddedildi. Lütfen sayfayı yenileyip yeniden deneyin. Sorun devam ederse yönetici anonim girişi veya veritabanı kurallarını kontrol etmelidir."
-        );
+        console.warn("Oda oluşturma isteği yetki hatasıyla reddedildi, yeniden denenecek", err);
+        const refreshedUid = await this.forceReauth();
+        if (refreshedUid) {
+          try {
+            roomData.creatorUid = refreshedUid;
+            roomData.players[refreshedUid] = roomData.players[uid];
+            delete roomData.players[uid];
+            await roomRef.set(roomData);
+          } catch (retryErr) {
+            const retryCode = (retryErr?.code || "").toLowerCase();
+            if (retryCode.includes("permission")) {
+              throw new Error(
+                "Oda oluşturma yetkisi reddedildi. Tarayıcı çerezlerini temizleyip sayfayı yenilemeyi deneyin veya yöneticiden veritabanı kurallarını doğrulamasını isteyin."
+              );
+            }
+            throw retryErr;
+          }
+        } else {
+          throw new Error(
+            "Oturum doğrulanamadı. Lütfen sayfayı yenileyip yeniden deneyin."
+          );
+        }
+      } else {
+        throw err;
       }
-      throw err;
     }
 
     localStorage.setItem("roomCode", roomCode);
