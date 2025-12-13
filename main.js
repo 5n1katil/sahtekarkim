@@ -540,6 +540,117 @@ function updateRoleDisplay(myData, settings) {
     }
   }
 
+  function buildVoteCandidates(source) {
+    return Object.entries(source || {})
+      .filter(([uid]) => uid !== currentUid)
+      .map(([uid, p]) => ({ uid, name: p?.name || uid }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function renderVoteOptions(candidates) {
+    const voteList = document.getElementById("voteList");
+    const selectEl = document.getElementById("voteSelect");
+    const items = candidates || [];
+
+    if (voteList) {
+      voteList.innerHTML = items
+        .map(
+          (p) =>
+            `<li><button type="button" class="vote-option" data-uid="${p.uid}">${escapeHtml(
+              p.name
+            )}</button></li>`
+        )
+        .join("");
+      if (selectedVoteUid) {
+        voteList
+          .querySelectorAll(".vote-option")
+          .forEach((btn) =>
+            btn.classList.toggle("active", btn.dataset.uid === selectedVoteUid)
+          );
+      }
+    }
+
+    if (selectEl) {
+      selectEl.innerHTML = items
+        .map((p) => `<option value="${p.uid}">${escapeHtml(p.name)}</option>`)
+        .join("");
+      if (selectedVoteUid) {
+        selectEl.value = selectedVoteUid;
+      }
+    }
+  }
+
+  function lockVoteCandidates(roomData) {
+    if (voteCandidatesSnapshot) return;
+    const source = roomData?.players || playerUidMap;
+    voteCandidatesSnapshot = buildVoteCandidates(source);
+    renderVoteOptions(voteCandidatesSnapshot);
+  }
+
+  function unlockVoteCandidates() {
+    voteCandidatesSnapshot = null;
+    renderVoteOptions(buildVoteCandidates(playerUidMap));
+  }
+
+  function updateSelectedVoteName() {
+    if (!selectedVoteUid) return;
+    const latestName =
+      playerUidMap[selectedVoteUid]?.name || selectedVoteName || selectedVoteUid;
+    if (latestName !== selectedVoteName) {
+      selectedVoteName = latestName;
+      const selectedNameEl = document.getElementById("selectedPlayerName");
+      if (selectedNameEl) selectedNameEl.textContent = selectedVoteName;
+      const confirmArea = document.getElementById("voteConfirmArea");
+      const confirmTextEl = document.getElementById("voteConfirmText");
+      const isConfirmVisible =
+        confirmArea && !confirmArea.classList.contains("hidden");
+      if (confirmTextEl && isConfirmVisible) {
+        confirmTextEl.textContent = `${selectedVoteName} kişisine oy veriyorsun. Onaylıyor musun?`;
+      }
+    }
+  }
+
+  function resetVoteSelection() {
+    selectedVoteUid = null;
+    selectedVoteName = null;
+    const selectionCard = document.getElementById("voteSelectionCard");
+    selectionCard?.classList.add("hidden");
+    const confirmArea = document.getElementById("voteConfirmArea");
+    confirmArea?.classList.add("hidden");
+    const confirmBtn = document.getElementById("confirmVoteBtn");
+    if (confirmBtn) confirmBtn.disabled = false;
+    const submitVoteBtn = document.getElementById("submitVoteBtn");
+    if (submitVoteBtn) submitVoteBtn.disabled = true;
+    const voteList = document.getElementById("voteList");
+    voteList
+      ?.querySelectorAll(".vote-option")
+      .forEach((btn) => btn.classList.remove("active"));
+  }
+
+  function setSelectedVote(uid, name) {
+    selectedVoteUid = uid;
+    selectedVoteName = name;
+    const selectionCard = document.getElementById("voteSelectionCard");
+    const selectedNameEl = document.getElementById("selectedPlayerName");
+    if (selectedNameEl) selectedNameEl.textContent = selectedVoteName;
+    selectionCard?.classList.remove("hidden");
+    const submitVoteBtn = document.getElementById("submitVoteBtn");
+    if (submitVoteBtn) submitVoteBtn.disabled = !selectedVoteUid;
+    const confirmArea = document.getElementById("voteConfirmArea");
+    confirmArea?.classList.add("hidden");
+    const confirmBtn = document.getElementById("confirmVoteBtn");
+    if (confirmBtn) confirmBtn.disabled = false;
+  }
+
+  function showVoteConfirmation() {
+    if (!selectedVoteUid || !selectedVoteName) return;
+    const confirmArea = document.getElementById("voteConfirmArea");
+    const confirmText = document.getElementById("voteConfirmText");
+    if (confirmText)
+      confirmText.textContent = `${selectedVoteName} kişisine oy veriyorsun. Onaylıyor musun?`;
+    confirmArea?.classList.remove("hidden");
+  }
+
   /** ------------------------
    *  ODA & OYUNCULARI DİNLE
    * ------------------------ */
@@ -555,16 +666,9 @@ function updateRoleDisplay(myData, settings) {
       // Geçerli oyuncuların (isimler) filtrelenmiş bir dizisini tut
       currentPlayers = (playerNames || []).filter((p) => p && p.trim() !== "");
 
-      const selectEl = document.getElementById("voteSelect");
-      if (selectEl) {
-        selectEl.innerHTML = Object.entries(playerUidMap)
-          .filter(([uid]) => uid !== currentUid)
-          .map(
-            ([uid, p]) =>
-              `<option value="${uid}">${escapeHtml(p.name)}</option>`
-          )
-          .join("");
-      }
+      const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
+      renderVoteOptions(candidates);
+      updateSelectedVoteName();
     });
 
     // Oda silinirse herkesi at (oyun bitmediyse)
@@ -653,22 +757,16 @@ function updateRoleDisplay(myData, settings) {
         lastGuessEvent = null;
         parityHandled = false;
       }
-      if (roomData && roomData.players) {
-        playerUidMap = roomData.players;
-        currentPlayers = Object.values(playerUidMap)
-          .map((p) => p.name)
-          .filter((p) => p && p.trim() !== "");
-        updatePlayerList(currentPlayers);
-        const selectEl = document.getElementById("voteSelect");
-        if (selectEl) {
-          selectEl.innerHTML = Object.entries(playerUidMap)
-            .filter(([uid]) => uid !== currentUid)
-            .map(
-              ([uid, p]) => `<option value="${uid}">${escapeHtml(p.name)}</option>`
-            )
-            .join("");
+        if (roomData && roomData.players) {
+          playerUidMap = roomData.players;
+          currentPlayers = Object.values(playerUidMap)
+            .map((p) => p.name)
+            .filter((p) => p && p.trim() !== "");
+          updatePlayerList(currentPlayers);
+          const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
+          renderVoteOptions(candidates);
+          updateSelectedVoteName();
         }
-      }
       const leaveBtn = document.getElementById("leaveRoomBtn");
       const exitBtn = document.getElementById("backToHomeBtn");
         if (
@@ -753,6 +851,13 @@ function updateRoleDisplay(myData, settings) {
         const isVotingPhase =
           roomData.phase === "voting" || roomData.votingStarted === true;
 
+        if (roomData.votingStarted) {
+          lockVoteCandidates(roomData);
+        } else {
+          unlockVoteCandidates();
+          resetVoteSelection();
+        }
+
         const votingStateKey = JSON.stringify({
           votingStarted: roomData.votingStarted,
           votes: roomData.votes,
@@ -767,7 +872,8 @@ function updateRoleDisplay(myData, settings) {
             );
           }
           const submitVoteBtn = document.getElementById("submitVoteBtn");
-          if (submitVoteBtn) submitVoteBtn.disabled = !!hasVoted;
+          if (submitVoteBtn)
+            submitVoteBtn.disabled = !!hasVoted || !selectedVoteUid;
           const votePendingMsg = document.getElementById("votePendingMsg");
           if (votePendingMsg) {
             votePendingMsg.classList.toggle(
@@ -775,8 +881,14 @@ function updateRoleDisplay(myData, settings) {
               !(hasVoted && !roomData.voteResult)
             );
           }
+          if (!roomData.votingStarted || hasVoted) {
+            const confirmArea = document.getElementById("voteConfirmArea");
+            confirmArea?.classList.add("hidden");
+          }
           lastVotingState = votingStateKey;
         }
+
+        updateSelectedVoteName();
 
         const startBtn = document.getElementById("startVotingBtn");
         const waitingEl = document.getElementById("waitingVoteStart");
@@ -1009,6 +1121,7 @@ function initUI() {
   }
 
   prefillSettings();
+  resetVoteSelection();
 
   const createRoomBtn = document.getElementById("createRoomBtn");
   const createRoomLoading = document.getElementById("createRoomLoading");
@@ -1169,21 +1282,56 @@ function initUI() {
     gameLogic.startVote(currentRoomCode, currentUid);
   });
 
+  const voteList = document.getElementById("voteList");
+  if (voteList) {
+    voteList.addEventListener("click", (event) => {
+      const targetBtn = event.target.closest(".vote-option");
+      if (!targetBtn) return;
+      const { uid } = targetBtn.dataset;
+      const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
+      const selected = candidates.find((c) => c.uid === uid);
+      if (selected) {
+        setSelectedVote(selected.uid, selected.name || selected.uid);
+        voteList
+          .querySelectorAll(".vote-option")
+          .forEach((btn) => btn.classList.toggle("active", btn.dataset.uid === uid));
+      }
+    });
+  }
+
   // Oy ver
   document.getElementById("submitVoteBtn").addEventListener("click", () => {
-    const target = document.getElementById("voteSelect").value;
-    if (target) {
-      const btn = document.getElementById("submitVoteBtn");
-      if (btn) btn.disabled = true;
-      const msg = document.getElementById("votePendingMsg");
-      if (msg) msg.classList.remove("hidden");
-      gameLogic.submitVote(currentRoomCode, currentUid, target);
+    if (!selectedVoteUid) {
+      alert("Lütfen oy vereceğin kişiyi seç.");
+      return;
     }
+
+    showVoteConfirmation();
   });
 
-  document.getElementById("submitGuessBtn").addEventListener("click", () => {
-    const guess = document.getElementById("guessSelect").value;
-    if (guess) {
+  document.getElementById("confirmVoteBtn").addEventListener("click", () => {
+    if (!selectedVoteUid) return;
+    const btn = document.getElementById("submitVoteBtn");
+    if (btn) btn.disabled = true;
+    const confirmBtn = document.getElementById("confirmVoteBtn");
+    if (confirmBtn) confirmBtn.disabled = true;
+    const msg = document.getElementById("votePendingMsg");
+    if (msg) msg.classList.remove("hidden");
+    const confirmArea = document.getElementById("voteConfirmArea");
+    confirmArea?.classList.add("hidden");
+    gameLogic.submitVote(currentRoomCode, currentUid, selectedVoteUid);
+  });
+
+  document.getElementById("cancelVoteBtn").addEventListener("click", () => {
+    const confirmArea = document.getElementById("voteConfirmArea");
+    confirmArea?.classList.add("hidden");
+    const confirmBtn = document.getElementById("confirmVoteBtn");
+    if (confirmBtn) confirmBtn.disabled = false;
+  });
+
+    document.getElementById("submitGuessBtn").addEventListener("click", () => {
+      const guess = document.getElementById("guessSelect").value;
+      if (guess) {
       gameLogic.guessLocation(currentRoomCode, currentUid, guess);
     }
   });
