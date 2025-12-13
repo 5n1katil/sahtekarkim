@@ -313,7 +313,7 @@ function updateRoleDisplay(myData, settings) {
       if (finalGuess?.isCorrect) {
         lines.push("Doğru tahmin!");
       } else if (actualAnswer) {
-        const actualLabel = isCategory ? "Doğru rol(ler):" : "Doğru konum:";
+        const actualLabel = isCategory ? "Doğru rol:" : "Doğru konum:";
         lines.push(`${actualLabel} ${escapeHtml(actualAnswer)}`);
       }
     }
