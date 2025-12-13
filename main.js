@@ -306,7 +306,7 @@ function updateRoleDisplay(myData, settings) {
     const hasGuess = Boolean(guessedValue);
     if (hasGuess) {
       const guessedLabel = isCategory
-        ? "Sahtekarın tahmin ettiği rol(ler):"
+        ? "Sahtekarın tahmin ettiği rol:"
         : "Sahtekarın tahmin ettiği konum:";
       lines.push(`${guessedLabel} ${escapeHtml(guessedValue)}`);
 
