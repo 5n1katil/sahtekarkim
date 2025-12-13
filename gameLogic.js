@@ -913,13 +913,23 @@ export const gameLogic = {
         }
       }
       if (!correctAnswer) return;
+      const finalGuess =
+        gameType === "category"
+          ? { guessedRole: guess, isCorrect: guess === correctAnswer }
+          : { guessedLocation: guess, isCorrect: guess === correctAnswer };
+      if (gameType === "category") {
+        finalGuess.actualRole = correctAnswer;
+      } else {
+        finalGuess.actualLocation = correctAnswer;
+      }
+
       const preserveVotingStarted = data.votingStarted;
       const preserveVotes = data.votes;
       if (guess === correctAnswer) {
         const winUpdate = {
           status: "finished",
           winner: "spy",
-          lastGuess: { spy: spyUid, guess, correct: true },
+          lastGuess: { spy: spyUid, guess, correct: true, finalGuess },
           votingStarted: false,
           votes: null,
           voteResult: null,
@@ -933,13 +943,19 @@ export const gameLogic = {
         if (guessesLeft <= 0) {
           updates.status = "finished";
           updates.winner = "innocent";
-          updates.lastGuess = { spy: spyUid, guess, correct: false, guessesLeft: 0 };
+          updates.lastGuess = {
+            spy: spyUid,
+            guess,
+            correct: false,
+            guessesLeft: 0,
+            finalGuess,
+          };
           updates.votingStarted = false;
           updates.votes = null;
           updates.voteResult = null;
           updates.voteRequests = null;
         } else {
-          updates.lastGuess = { spy: spyUid, guess, correct: false, guessesLeft };
+          updates.lastGuess = { spy: spyUid, guess, correct: false, guessesLeft, finalGuess };
           if (typeof preserveVotingStarted !== "undefined") {
             updates.votingStarted = preserveVotingStarted;
           }
