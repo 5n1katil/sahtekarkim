@@ -8127,7 +8127,7 @@
       var safeName = escapeHtml(eliminatedName || "");
       if (eliminatedIsImpostor) {
         return {
-          message: "Oylama sonucunda ".concat(safeName, " elendi. Elenen kişi sahtekardı — oyunu masumlar kazandı!"),
+          message: "Oylama sonucunda Sahtekar ".concat(safeName, " elendi ve oyunu masumlar kazandı!"),
           gameEnded: true,
           impostorVictory: false
         };
@@ -8158,6 +8158,30 @@
         gameEnded: false,
         impostorVictory: false
       };
+    }
+    function renderVoteResultOverlay(roomData) {
+      if (!roomData.voteResult || roomData.voteResult.tie) return false;
+      var key = JSON.stringify(roomData.voteResult);
+      if (key === lastVoteResult) return true;
+      lastVoteResult = key;
+      var votedUid = roomData.voteResult.voted;
+      var votedName = ((playerUidMap[votedUid] ? playerUidMap[votedUid].name : void 0) || votedUid);
+      var remaining = Object.keys(roomData.players || {}).filter(function (uid) {
+        return uid !== votedUid;
+      });
+      var activeSpies = (roomData.spies || []).filter(function (id) {
+        return remaining.includes(id);
+      });
+      var alivePlayersCount = remaining.length;
+      var aliveImpostorsCount = activeSpies.length;
+      showResultOverlay({
+        eliminatedIsImpostor: roomData.voteResult.isSpy,
+        eliminatedName: votedName,
+        alivePlayersCount: alivePlayersCount,
+        aliveImpostorsCount: aliveImpostorsCount,
+        votedUid: votedUid
+      });
+      return true;
     }
     function showResultOverlay(_ref1) {
       var eliminatedIsImpostor = _ref1.eliminatedIsImpostor,
@@ -8477,6 +8501,8 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
         return;
       }
       if (roomData && roomData.status === "finished" && roomData.winner === "innocent") {
+        var handledByVote = renderVoteResultOverlay(roomData);
+        if (handledByVote) return;
         var _roomData$settings3;
           var guessWord = ((_roomData$settings3 = roomData.settings) === null || _roomData$settings3 === void 0 ? void 0 : _roomData$settings3.gameType) === "category" ? "rolü" : "konumu";
           showSpyFailOverlay(roomData.spies, guessWord, roomData.lastGuess && roomData.lastGuess.guess);
@@ -8609,28 +8635,7 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
             outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
             document.getElementById("nextRoundBtn").classList.add("hidden");
           } else {
-            var key = JSON.stringify(roomData.voteResult);
-            if (key !== lastVoteResult) {
-              var _playerUidMap$roomDat;
-              lastVoteResult = key;
-              var votedUid = roomData.voteResult.voted;
-              var votedName = ((_playerUidMap$roomDat = playerUidMap[votedUid]) === null || _playerUidMap$roomDat === void 0 ? void 0 : _playerUidMap$roomDat.name) || votedUid;
-              var remaining = Object.keys(roomData.players || {}).filter(function (uid) {
-                return uid !== votedUid;
-              });
-              var activeSpies = (roomData.spies || []).filter(function (id) {
-                return remaining.includes(id);
-              });
-              var alivePlayersCount = remaining.length;
-              var aliveImpostorsCount = activeSpies.length;
-              showResultOverlay({
-                eliminatedIsImpostor: roomData.voteResult.isSpy,
-                eliminatedName: votedName,
-                alivePlayersCount: alivePlayersCount,
-                aliveImpostorsCount: aliveImpostorsCount,
-                votedUid: votedUid
-              });
-            }
+            renderVoteResultOverlay(roomData);
             resultEl.classList.add("hidden");
           }
         } else {
