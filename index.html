@@ -99,6 +99,60 @@
       margin-top: 0.5rem;
     }
 
+    .vote-list {
+      list-style: none;
+      padding: 0;
+      margin: 0.5rem 0 0;
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .vote-option {
+      width: 100%;
+      text-align: left;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+    }
+
+    .vote-option:active,
+    .vote-option:hover,
+    .vote-option.active {
+      background: rgba(123, 92, 255, 0.2);
+      border-color: rgba(123, 92, 255, 0.7);
+      transform: translateY(-1px);
+    }
+
+    .selection-card {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      background: rgba(123, 92, 255, 0.12);
+      border: 1px solid rgba(123, 92, 255, 0.35);
+      border-radius: 10px;
+    }
+
+    .vote-actions {
+      margin-top: 0.5rem;
+    }
+
+    .vote-confirm {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .vote-confirm-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
     .impostor-name {
       font-family: 'Inter', sans-serif;
       font-size: 1.5rem;
@@ -393,8 +447,21 @@
 
     <div id="votingSection" class="hidden">
       <label>Şüphelendiğin kişiyi seç:</label>
-      <select id="voteSelect"></select>
-      <button type="button" id="submitVoteBtn">Oy Ver</button>
+      <ul id="voteList" class="vote-list"></ul>
+      <select id="voteSelect" class="hidden"></select>
+      <div id="voteSelectionCard" class="hidden selection-card">
+        <p>Seçimin: <span id="selectedPlayerName"></span></p>
+      </div>
+      <div class="vote-actions">
+        <button type="button" id="submitVoteBtn" disabled>Oy Ver</button>
+      </div>
+      <div id="voteConfirmArea" class="hidden vote-confirm">
+        <p id="voteConfirmText"></p>
+        <div class="vote-confirm-actions">
+          <button type="button" id="confirmVoteBtn">Onayla</button>
+          <button type="button" id="cancelVoteBtn" class="small-btn">Vazgeç</button>
+        </div>
+      </div>
     </div>
     <p id="votePendingMsg" class="hidden">Oyunuzu verdiniz, oylamanın tamamlanması bekleniyor...</p>
 
