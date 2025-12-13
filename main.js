@@ -188,45 +188,84 @@ function updateRoleDisplay(myData, settings) {
   }
 }
 
-  function showResultOverlay(
-    isSpy,
-    name,
-    role,
-    location,
-    spyWin = false,
-    spyNames = "",
+  function buildVotingOutcomeMessage({
+    eliminatedName,
+    eliminatedIsImpostor,
+    alivePlayersCount,
+    aliveImpostorsCount,
+  }) {
+    const safeName = escapeHtml(eliminatedName || "");
+
+    if (eliminatedIsImpostor) {
+      return {
+        message: `Oylama sonucunda ${safeName} elendi. Elenen kişi sahtekardı — oyunu masumlar kazandı!`,
+        gameEnded: true,
+        impostorVictory: false,
+      };
+    }
+
+    if (alivePlayersCount > 2) {
+      return {
+        message: `Oylama sonucunda ${safeName} elendi. Elenen kişi masumdu — oyun devam ediyor.`,
+        gameEnded: false,
+        impostorVictory: false,
+      };
+    }
+
+    if (alivePlayersCount === 2) {
+      if (aliveImpostorsCount >= 1) {
+        return {
+          message: `Oylama sonucunda ${safeName} elendi. Elenen kişi masumdu — oyunu sahtekar(lar) kazandı!`,
+          gameEnded: true,
+          impostorVictory: true,
+        };
+      }
+
+      return {
+        message: `Oylama sonucunda ${safeName} elendi. Elenen kişi masumdu — oyunu masumlar kazandı!`,
+        gameEnded: true,
+        impostorVictory: false,
+      };
+    }
+
+    return {
+      message: `Oylama sonucunda ${safeName} elendi.`,
+      gameEnded: false,
+      impostorVictory: false,
+    };
+  }
+
+  function showResultOverlay({
+    eliminatedIsImpostor,
+    eliminatedName,
+    alivePlayersCount,
+    aliveImpostorsCount,
     votedUid,
-    lastSpy = false
-  ) {
+  }) {
+    const outcome = buildVotingOutcomeMessage({
+      eliminatedName,
+      eliminatedIsImpostor,
+      alivePlayersCount,
+      aliveImpostorsCount,
+    });
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
       console.error("resultOverlay element not found");
       return;
     }
     const isEliminatedPlayer = currentUid === votedUid;
-    const cls = isSpy || spyWin ? "impostor-animation" : "innocent-animation";
+    const cls = outcome.impostorVictory
+      ? "impostor-animation"
+      : "innocent-animation";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
     overlay.innerHTML = "";
     const actionsEl = document.getElementById("gameActions");
-    if (isSpy && lastSpy) {
-      const safeName = escapeHtml(name || "");
-      msgDiv.textContent = `Sahtekar ${safeName} yakalandı! Oyunu masumlar kazandı...`;
+    msgDiv.textContent = outcome.message;
+    if (outcome.gameEnded) {
       actionsEl?.classList.add("hidden");
-    } else if (isSpy && !lastSpy) {
-      const safeName = escapeHtml(name || "");
-      msgDiv.textContent = `Sahtekar ${safeName} yakalandı, oyun devam ediyor...`;
-      actionsEl?.classList.remove("hidden");
-    } else if (spyWin) {
-      const safeName = escapeHtml(name || "");
-      const spies = escapeHtml(spyNames || "");
-      msgDiv.textContent = `${safeName} masumdu... Oyun bitti! Sahtekar ${spies} kazandı.`;
-      actionsEl?.classList.add("hidden");
-    } else if (isEliminatedPlayer) {
-      msgDiv.textContent = "Elendin, oyun devam ediyor...";
     } else {
-      const safeName = escapeHtml(name || "");
-      msgDiv.textContent = `${safeName} masumdu.`;
+      actionsEl?.classList.remove("hidden");
     }
     overlay.appendChild(msgDiv);
     overlay.classList.remove(
@@ -236,7 +275,7 @@ function updateRoleDisplay(myData, settings) {
     );
     overlay.classList.add(cls);
 
-    if ((isSpy && lastSpy) || spyWin) {
+    if (outcome.gameEnded) {
       let restartBtn;
       if (isCreator) {
         restartBtn = document.createElement("button");
@@ -967,30 +1006,15 @@ function updateRoleDisplay(myData, settings) {
               const activeSpies = (roomData.spies || []).filter((id) =>
                 remaining.includes(id)
               );
-              const lastSpy =
-                roomData.voteResult.isSpy && activeSpies.length === 0;
-              let spyWin = false;
-              let spyNames = "";
-              if (!roomData.voteResult.isSpy) {
-                const innocentCount = remaining.length - activeSpies.length;
-                if (innocentCount <= 1) {
-                  spyWin = true;
-                  spyNames = activeSpies
-                    .map((id) => playerUidMap[id]?.name)
-                    .filter(Boolean)
-                    .join(", ");
-                }
-              }
-              showResultOverlay(
-                roomData.voteResult.isSpy,
-                votedName,
-                roomData.voteResult.role,
-                roomData.voteResult.location,
-                spyWin,
-                spyNames,
+              const alivePlayersCount = remaining.length;
+              const aliveImpostorsCount = activeSpies.length;
+              showResultOverlay({
+                eliminatedIsImpostor: roomData.voteResult.isSpy,
+                eliminatedName: votedName,
+                alivePlayersCount,
+                aliveImpostorsCount,
                 votedUid,
-                lastSpy
-              );
+              });
             }
             resultEl.classList.add("hidden");
           }
