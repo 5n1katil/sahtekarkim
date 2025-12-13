@@ -285,7 +285,51 @@ function updateRoleDisplay(myData, settings) {
     }
   }
 
-  function showSpyWinOverlay(spyIds, guessed, guessWord) {
+  function getActualAnswer(roomData) {
+    const isCategory = roomData?.settings?.gameType === "category";
+    const roles = roomData?.playerRoles || {};
+    for (const uid in roles) {
+      const role = roles[uid];
+      if (role && !role.isSpy) {
+        return isCategory ? role.role : role.location;
+      }
+    }
+    return null;
+  }
+
+  function buildGuessDetails(finalGuess, actualAnswer, gameType) {
+    const isCategory = gameType === "category";
+    const guessedValue =
+      finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
+    const lines = [];
+
+    const hasGuess = Boolean(guessedValue);
+    if (hasGuess) {
+      const guessedLabel = isCategory
+        ? "Sahtekarın tahmin ettiği rol(ler):"
+        : "Sahtekarın tahmin ettiği konum:";
+      lines.push(`${guessedLabel} ${escapeHtml(guessedValue)}`);
+
+      if (finalGuess?.isCorrect) {
+        lines.push("Doğru tahmin!");
+      } else if (actualAnswer) {
+        const actualLabel = isCategory ? "Doğru rol(ler):" : "Doğru konum:";
+        lines.push(`${actualLabel} ${escapeHtml(actualAnswer)}`);
+      }
+    }
+
+    return lines;
+  }
+
+  function appendGuessDetails(msgDiv, lines) {
+    lines.forEach((line) => {
+      const detail = document.createElement("div");
+      detail.innerHTML = line;
+      msgDiv.appendChild(detail);
+    });
+  }
+
+  function showSpyWinOverlay(spyIds, finalGuess, gameType, actualAnswer) {
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
       console.error("resultOverlay element not found");
@@ -299,23 +343,27 @@ function updateRoleDisplay(myData, settings) {
     overlay.innerHTML = "";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
-      const safeGuess = escapeHtml(guessed);
-      const word = guessWord || "konumu";
+    const guessWord = gameType === "category" ? "rolü" : "konumu";
+    const guessedValue =
+      finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
 
-      if (safeGuess) {
-        const playerNames = names ? `(${names}) ` : "";
-        msgDiv.textContent = `Sahtekar ${playerNames}${word} ${safeGuess} olarak doğru tahmin etti ve oyunu kazandı`;
-      } else {
-        msgDiv.append("Sahtekar");
-        if (names) {
-          msgDiv.appendChild(document.createElement("br"));
-          const span = document.createElement("span");
-          span.className = "impostor-name";
-          span.textContent = names;
-          msgDiv.appendChild(span);
-        }
-        msgDiv.append(" kazandı! Oyun Bitti...");
+    if (guessedValue) {
+      const playerNames = names ? `(${names}) ` : "";
+      msgDiv.textContent = `Sahtekar ${playerNames}${guessWord} ${guessedValue} olarak doğru tahmin etti ve oyunu kazandı`;
+    } else {
+      msgDiv.append("Sahtekar");
+      if (names) {
+        msgDiv.appendChild(document.createElement("br"));
+        const span = document.createElement("span");
+        span.className = "impostor-name";
+        span.textContent = names;
+        msgDiv.appendChild(span);
       }
+      msgDiv.append(" kazandı! Oyun Bitti...");
+    }
+
+    const detailLines = buildGuessDetails(finalGuess, actualAnswer, gameType);
+    appendGuessDetails(msgDiv, detailLines);
     overlay.appendChild(msgDiv);
     let restartBtn;
     if (isCreator) {
@@ -362,7 +410,7 @@ function updateRoleDisplay(myData, settings) {
     });
   }
 
-  function showSpyFailOverlay(spyIds, guessWord, guessValue) {
+  function showSpyFailOverlay(spyIds, finalGuess, gameType, actualAnswer) {
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
       console.error("resultOverlay element not found");
@@ -376,11 +424,13 @@ function updateRoleDisplay(myData, settings) {
     overlay.innerHTML = "";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
-    const word = guessWord || "konumu";
+    const guessWord = gameType === "category" ? "rolü" : "konumu";
+    const guessedValue =
+      finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
     const nameText = names ? `${names} ` : "";
-    const safeGuess = escapeHtml(guessValue || "");
-    // İmpostor'un yanlış tahmini durumunda sadece "konumu" veya "rolü" bilgisini göster
-    msgDiv.textContent = `Sahtekar ${nameText}${word} ${safeGuess} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
+    msgDiv.textContent = `Sahtekar ${nameText}${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
+    const detailLines = buildGuessDetails(finalGuess, actualAnswer, gameType);
+    appendGuessDetails(msgDiv, detailLines);
     overlay.appendChild(msgDiv);
     let restartBtn;
     if (isCreator) {
@@ -597,14 +647,11 @@ function updateRoleDisplay(myData, settings) {
           (roomData.spyParityWin ||
             (roomData.status === "finished" && roomData.winner === "spy"))
         ) {
-          const guessed =
-            roomData.lastGuess && roomData.lastGuess.correct
-              ? roomData.lastGuess.guess
-              : null;
-          const guessWord =
-            roomData.settings?.gameType === "category" ? "rolü" : "konumu";
+          const finalGuess = roomData.lastGuess?.finalGuess || null;
+          const actualAnswer = getActualAnswer(roomData);
+          const gameType = roomData.settings?.gameType;
           if (!parityHandled) {
-            showSpyWinOverlay(roomData.spies, guessed, guessWord);
+            showSpyWinOverlay(roomData.spies, finalGuess, gameType, actualAnswer);
           }
           window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
           return;
@@ -614,13 +661,10 @@ function updateRoleDisplay(myData, settings) {
           roomData.status === "finished" &&
           roomData.winner === "innocent"
         ) {
-          const guessWord =
-            roomData.settings?.gameType === "category" ? "rolü" : "konumu";
-          showSpyFailOverlay(
-            roomData.spies,
-            guessWord,
-            roomData.lastGuess?.guess
-          );
+          const finalGuess = roomData.lastGuess?.finalGuess || null;
+          const actualAnswer = getActualAnswer(roomData);
+          const gameType = roomData.settings?.gameType;
+          showSpyFailOverlay(roomData.spies, finalGuess, gameType, actualAnswer);
           return;
         }
         if (!roomData || roomData.status !== "started") {
