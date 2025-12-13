@@ -321,6 +321,32 @@ function updateRoleDisplay(myData, settings) {
     return lines;
   }
 
+  function normalizeFinalGuess(rawFinalGuess, roomData) {
+    const finalGuess = rawFinalGuess || {};
+    const hasGuessValue =
+      finalGuess.guessedRole || finalGuess.guessedLocation || finalGuess.guess;
+    if (hasGuessValue) {
+      return finalGuess;
+    }
+
+    const guessEntry = roomData?.lastGuess;
+    const guessValue = guessEntry?.guess;
+    if (!guessValue) return rawFinalGuess;
+
+    const isCategory = roomData?.settings?.gameType === "category";
+    const normalized = { isCorrect: !!guessEntry?.correct };
+
+    if (isCategory) {
+      normalized.guessedRole = guessValue;
+      normalized.actualRole = getActualAnswer(roomData);
+    } else {
+      normalized.guessedLocation = guessValue;
+      normalized.actualLocation = getActualAnswer(roomData);
+    }
+
+    return normalized;
+  }
+
   function appendGuessDetails(msgDiv, lines) {
     lines.forEach((line) => {
       const detail = document.createElement("div");
@@ -647,7 +673,10 @@ function updateRoleDisplay(myData, settings) {
           (roomData.spyParityWin ||
             (roomData.status === "finished" && roomData.winner === "spy"))
         ) {
-          const finalGuess = roomData.lastGuess?.finalGuess || null;
+          const finalGuess = normalizeFinalGuess(
+            roomData.lastGuess?.finalGuess || null,
+            roomData
+          );
           const actualAnswer = getActualAnswer(roomData);
           const gameType = roomData.settings?.gameType;
           if (!parityHandled) {
@@ -661,7 +690,10 @@ function updateRoleDisplay(myData, settings) {
           roomData.status === "finished" &&
           roomData.winner === "innocent"
         ) {
-          const finalGuess = roomData.lastGuess?.finalGuess || null;
+          const finalGuess = normalizeFinalGuess(
+            roomData.lastGuess?.finalGuess || null,
+            roomData
+          );
           const actualAnswer = getActualAnswer(roomData);
           const gameType = roomData.settings?.gameType;
           showSpyFailOverlay(roomData.spies, finalGuess, gameType, actualAnswer);
