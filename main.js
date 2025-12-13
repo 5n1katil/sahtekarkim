@@ -38,6 +38,9 @@ let currentPlayers = [];
 let playerUidMap = {};
 let currentUid = null;
 let wasEliminated = false;
+let voteCandidatesSnapshot = null;
+let selectedVoteUid = null;
+let selectedVoteName = null;
 window.auth.onAuthStateChanged(async (user) => {
     currentUid = user ? user.uid : null;
     if (user) {
