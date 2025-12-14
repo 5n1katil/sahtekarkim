@@ -8126,6 +8126,8 @@
   var gameEnded = false;
   var lastGuessEvent = null;
   var lastVotingState = null;
+  var lastGuessOptionsKey = null;
+  var lastGuessSelection = null;
   var parityHandled = false;
   var lastRoomStatus = null;
     function buildVotingOutcomeMessage(_ref0) {
@@ -8521,6 +8523,8 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
           document.getElementById("gameActions").classList.add("hidden");
           leaveBtn === null || leaveBtn === void 0 || leaveBtn.classList.remove("hidden");
           exitBtn === null || exitBtn === void 0 || exitBtn.classList.remove("hidden");
+          lastGuessOptionsKey = null;
+          lastGuessSelection = null;
           return;
         }
       leaveBtn === null || leaveBtn === void 0 || leaveBtn.classList.add("hidden");
@@ -8536,14 +8540,28 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
         var isSpy = myData.role.includes("Sahtekar");
         if (isSpy && guessesLeft > 0) {
           var _roomData$settings3;
-          var safeLocations = myData.allLocations.map(escapeHtml).join(", ");
+          var locations = myData.allLocations || [];
+          var locationsKey = JSON.stringify(locations);
+          var safeLocations = locations.map(escapeHtml).join(", ");
           var guessSection = document.getElementById("guessSection");
           var guessLabel = document.getElementById("guessLabel");
           guessSection.classList.remove("hidden");
           var guessSelect = document.getElementById("guessSelect");
-          guessSelect.innerHTML = myData.allLocations.map(function (loc) {
-            return "<option value=\"".concat(escapeHtml(loc), "\">").concat(escapeHtml(loc), "</option>");
-          }).join("");
+          var previousSelection = guessSelect.value || lastGuessSelection;
+          if (locationsKey !== lastGuessOptionsKey) {
+            guessSelect.innerHTML = locations.map(function (loc) {
+              return "<option value=\"".concat(escapeHtml(loc), "\">").concat(escapeHtml(loc), "</option>");
+            }).join("");
+            lastGuessOptionsKey = locationsKey;
+          }
+          var selectionToRestore = locations.includes(previousSelection) ? previousSelection : guessSelect.value;
+          if (selectionToRestore) {
+            guessSelect.value = selectionToRestore;
+          }
+          if (!guessSelect.value && guessSelect.options.length > 0) {
+            guessSelect.value = guessSelect.options[0].value;
+          }
+          lastGuessSelection = guessSelect.value || null;
           if (((_roomData$settings3 = roomData.settings) === null || _roomData$settings3 === void 0 ? void 0 : _roomData$settings3.gameType) === "category") {
             roleMessageEl.innerHTML = "\uD83C\uDFAD Sen <b>SAHTEKAR</b>s\u0131n! Rol\xFC bilmiyorsun.<br>" + "Olas\u0131 roller: ".concat(safeLocations);
             if (guessLabel) guessLabel.textContent = "Rolü tahmin et:";
@@ -8556,6 +8574,8 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
           var safeRole = escapeHtml(myData.role);
           roleMessageEl.innerHTML = "\uD83D\uDCCD Konum: <b>".concat(safeLocation, "</b><br>") + "\uD83C\uDFAD Rol\xFCn: <b>".concat(safeRole, "</b>");
           document.getElementById("guessSection").classList.add("hidden");
+          lastGuessOptionsKey = null;
+          lastGuessSelection = null;
         }
         var votingInstructionEl = document.getElementById("votingInstruction");
         if (votingInstructionEl) {
@@ -9029,7 +9049,11 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
       }
     });
     document.getElementById("submitGuessBtn").addEventListener("click", function () {
-      var guess = document.getElementById("guessSelect").value;
+      var guessSelect = document.getElementById("guessSelect");
+      var guess = guessSelect ? guessSelect.value : "";
+      if (guessSelect) {
+        lastGuessSelection = guessSelect.value || lastGuessSelection;
+      }
       if (guess) {
         gameLogic.guessLocation(currentRoomCode, currentUid, guess);
       }
