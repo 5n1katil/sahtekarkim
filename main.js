@@ -157,6 +157,8 @@ let lastGuessEvent = null;
 let lastVotingState = null;
 let parityHandled = false;
 let lastRoomStatus = null;
+let lastVotingFinalizedAt = null;
+let votingCleanupTimeout = null;
 
 function updateRoleDisplay(myData, settings) {
   const roleMessageEl = document.getElementById("roleMessage");
@@ -199,6 +201,25 @@ function updateRoleDisplay(myData, settings) {
     poolInfo.classList.add("hidden");
     return;
   }
+}
+
+function getResolvedVoteResult(roomData) {
+  const votingResult = roomData.voting?.result;
+  if (votingResult) {
+    if (votingResult.tie) return { tie: true };
+    if (votingResult.eliminatedUid) {
+      return {
+        tie: false,
+        voted: votingResult.eliminatedUid,
+        isSpy: !!votingResult.isSpy,
+        role: votingResult.role,
+        location: votingResult.location,
+        remainingSpies: votingResult.remainingSpies,
+        lastSpy: votingResult.lastSpy,
+      };
+    }
+  }
+  return roomData.voteResult || null;
 }
 
   function buildVotingOutcomeMessage({
@@ -249,13 +270,14 @@ function updateRoleDisplay(myData, settings) {
   }
 
   function renderVoteResultOverlay(roomData) {
-    if (!roomData.voteResult || roomData.voteResult.tie) return false;
+    const resolvedResult = getResolvedVoteResult(roomData);
+    if (!resolvedResult || resolvedResult.tie) return false;
 
-    const key = JSON.stringify(roomData.voteResult);
+    const key = JSON.stringify(resolvedResult);
     if (key === lastVoteResult) return true;
     lastVoteResult = key;
 
-    const votedUid = roomData.voteResult.voted;
+    const votedUid = resolvedResult.voted;
     const votedName = playerUidMap[votedUid]?.name || votedUid;
     const remaining = Object.keys(roomData.players || {}).filter(
       (uid) => uid !== votedUid
@@ -268,7 +290,7 @@ function updateRoleDisplay(myData, settings) {
 
     showResultOverlay(
       {
-        eliminatedIsImpostor: roomData.voteResult.isSpy,
+        eliminatedIsImpostor: resolvedResult.isSpy,
         eliminatedName: votedName,
         alivePlayersCount,
         aliveImpostorsCount,
@@ -1163,8 +1185,10 @@ function updateRoleDisplay(myData, settings) {
           }
         }
 
-        if (roomData.voteResult) {
-          if (roomData.voteResult.tie) {
+        const resolvedVoteResult = getResolvedVoteResult(roomData);
+
+        if (resolvedVoteResult) {
+          if (resolvedVoteResult.tie) {
             resultEl.classList.remove("hidden");
             outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
             document.getElementById("nextRoundBtn").classList.add("hidden");
@@ -1213,6 +1237,22 @@ function updateRoleDisplay(myData, settings) {
 
         if (shouldFinalizeByCount || shouldFinalizeByTimeout) {
           gameLogic.finalizeVoting(currentRoomCode);
+        }
+
+        const finalizedAt = votingResult?.finalizedAt;
+        const shouldScheduleCleanup =
+          finalizedAt &&
+          !roomData.voting?.active &&
+          roomData.status === "started" &&
+          !roomData.guess;
+        if (shouldScheduleCleanup && finalizedAt !== lastVotingFinalizedAt) {
+          lastVotingFinalizedAt = finalizedAt;
+          if (votingCleanupTimeout) clearTimeout(votingCleanupTimeout);
+          votingCleanupTimeout = setTimeout(() => {
+            gameLogic.resetVotingState(currentRoomCode);
+          }, 4000);
+        } else if (!finalizedAt) {
+          lastVotingFinalizedAt = null;
         }
       }
     });
