@@ -64,8 +64,35 @@ function normalizeWinnerValue(winner) {
   return winner;
 }
 
-function finalizeGameOver(roomCode, data, payload) {
-  const spies = deriveSpyDetails(data);
+async function ensureSpiesSnapshot(roomCode, data, spiesOverride) {
+  if (Array.isArray(data?.spiesSnapshot?.spies)) {
+    const cleaned = data.spiesSnapshot.spies.filter(
+      (s) => s && s.uid && s.name
+    );
+    if (cleaned.length > 0) return cleaned;
+  }
+
+  const spies = Array.isArray(spiesOverride)
+    ? spiesOverride
+    : deriveSpyDetails(data);
+  if (!spies.length) return spies;
+
+  const snapshotRef = window.db.ref(`rooms/${roomCode}/spiesSnapshot`);
+  await snapshotRef.transaction((current) => {
+    if (current && Array.isArray(current.spies) && current.spies.length > 0) {
+      return current;
+    }
+    return {
+      createdAt: window.firebase.database.ServerValue.TIMESTAMP,
+      spies,
+    };
+  });
+
+  return spies;
+}
+
+async function finalizeGameOver(roomCode, data, payload) {
+  const spies = await ensureSpiesSnapshot(roomCode, data);
   const winner = normalizeWinnerValue(payload?.winner);
   const gameOver = {
     ...payload,
@@ -761,7 +788,22 @@ export const gameLogic = {
       throw new Error("Bilinmeyen oyun türü");
     }
 
+    const spiesArr = spyUids
+      .map((uid) => ({ uid, name: players[uid]?.name || "" }))
+      .filter((s) => s.name);
+
     await window.db.ref().update(updates);
+    await window.db
+      .ref(`rooms/${roomCode}/spiesSnapshot`)
+      .transaction((current) => {
+        if (current && Array.isArray(current.spies) && current.spies.length) {
+          return current;
+        }
+        return {
+          createdAt: window.firebase.database.ServerValue.TIMESTAMP,
+          spies: spiesArr,
+        };
+      });
   },
 
   startGame: async function (roomCode) {
@@ -843,6 +885,7 @@ export const gameLogic = {
       voting: null,
       guess: null,
       spies: null,
+      spiesSnapshot: null,
       playerRoles: null,
       winner: null,
       spyParityWin: null,
