@@ -227,8 +227,15 @@ function getResolvedVoteResult(roomData) {
     eliminatedIsImpostor,
     alivePlayersCount,
     aliveImpostorsCount,
+    spyNames = [],
   }) {
     const safeName = escapeHtml(eliminatedName || "");
+    const impostorList = spyNames
+      .map((name) => escapeHtml(name || ""))
+      .filter(Boolean);
+    const impostorSuffix = impostorList.length
+      ? ` [${impostorList.join(", ")}]`
+      : "";
 
     if (eliminatedIsImpostor) {
       return {
@@ -249,7 +256,7 @@ function getResolvedVoteResult(roomData) {
     if (alivePlayersCount === 2) {
       if (aliveImpostorsCount >= 1) {
         return {
-          message: `Oylama sonucunda ${safeName} elendi. Elenen kişi masumdu — oyunu sahtekar(lar) kazandı!`,
+          message: `Oylama sonucunda ${safeName} elendi. Elenen kişi masumdu — oyunu sahtekar(lar)${impostorSuffix} kazandı!`,
           gameEnded: true,
           impostorVictory: true,
         };
@@ -317,6 +324,7 @@ function getResolvedVoteResult(roomData) {
       eliminatedIsImpostor,
       alivePlayersCount,
       aliveImpostorsCount,
+      spyNames: getSpyNames(roomData),
     });
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
