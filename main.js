@@ -159,6 +159,8 @@ let parityHandled = false;
 let lastRoomStatus = null;
 let lastVotingFinalizedAt = null;
 let votingCleanupTimeout = null;
+let lastGuessOptionsKey = null;
+let lastGuessSelection = null;
 
 function updateRoleDisplay(myData, settings) {
   const roleMessageEl = document.getElementById("roleMessage");
@@ -984,15 +986,17 @@ function getResolvedVoteResult(roomData) {
           return;
         }
         if (!roomData || roomData.status !== "started") {
-        document.getElementById("gameActions").classList.add("hidden");
-        leaveBtn?.classList.remove("hidden");
+          document.getElementById("gameActions").classList.add("hidden");
+          leaveBtn?.classList.remove("hidden");
+          exitBtn?.classList.remove("hidden");
+          lastGuessOptionsKey = null;
+          lastGuessSelection = null;
+          return;
+        }
+        leaveBtn?.classList.add("hidden");
         exitBtn?.classList.remove("hidden");
-        return;
-      }
-      leaveBtn?.classList.add("hidden");
-      exitBtn?.classList.remove("hidden");
 
-      if (roomData.playerRoles && roomData.playerRoles[currentUid]) {
+        if (roomData.playerRoles && roomData.playerRoles[currentUid]) {
         const myData = roomData.playerRoles[currentUid];
 
         document.getElementById("roomInfo").classList.add("hidden");
@@ -1012,16 +1016,39 @@ function getResolvedVoteResult(roomData) {
             const guessSection = document.getElementById("guessSection");
             guessSection.classList.remove("hidden");
             const guessSelect = document.getElementById("guessSelect");
-            guessSelect.innerHTML = myData.allLocations
-              .map(
-                (loc) => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`
-              )
-              .join("");
+            const locations = myData.allLocations || [];
+            const locationsKey = JSON.stringify(locations);
+            const previousSelection = guessSelect.value || lastGuessSelection;
+
+            if (locationsKey !== lastGuessOptionsKey) {
+              guessSelect.innerHTML = locations
+                .map(
+                  (loc) =>
+                    `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`
+                )
+                .join("");
+              lastGuessOptionsKey = locationsKey;
+            }
+
+            const selectionToRestore = locations.includes(previousSelection)
+              ? previousSelection
+              : guessSelect.value;
+            if (selectionToRestore) {
+              guessSelect.value = selectionToRestore;
+            }
+            if (!guessSelect.value && guessSelect.options.length > 0) {
+              guessSelect.value = guessSelect.options[0].value;
+            }
+            lastGuessSelection = guessSelect.value || null;
           } else {
             document.getElementById("guessSection").classList.add("hidden");
+            lastGuessOptionsKey = null;
+            lastGuessSelection = null;
           }
         } else {
           document.getElementById("guessSection").classList.add("hidden");
+          lastGuessOptionsKey = null;
+          lastGuessSelection = null;
         }
 
         const votingInstructionEl = document.getElementById("votingInstruction");
@@ -1599,7 +1626,11 @@ function initUI() {
   });
 
   document.getElementById("submitGuessBtn").addEventListener("click", () => {
-    const guess = document.getElementById("guessSelect").value;
+    const guessSelect = document.getElementById("guessSelect");
+    const guess = guessSelect ? guessSelect.value : "";
+    if (guessSelect) {
+      lastGuessSelection = guessSelect.value || lastGuessSelection;
+    }
     if (guess) {
       gameLogic.guessLocation(currentRoomCode, currentUid, guess);
     }
