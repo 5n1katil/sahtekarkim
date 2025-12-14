@@ -1052,6 +1052,10 @@ export const gameLogic = {
   },
 
   submitVote: function (roomCode, voter, target) {
+    if (target === voter) {
+      alert("Kendine oy veremezsin.");
+      return;
+    }
     const ref = window.db.ref("rooms/" + roomCode);
     ref
       .child(`votes/${voter}`)
