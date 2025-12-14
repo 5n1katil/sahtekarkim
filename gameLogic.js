@@ -710,6 +710,9 @@ export const gameLogic = {
       voteResult: null,
       votingStarted: false,
       voteRequests: null,
+      voteStartRequests: null,
+      voting: null,
+      guess: null,
       eliminated: null,
     });
   },
@@ -752,6 +755,9 @@ export const gameLogic = {
       voteResult: null,
       votingStarted: false,
       voteRequests: null,
+      voteStartRequests: null,
+      voting: null,
+      guess: null,
       spies: null,
       playerRoles: null,
       winner: null,
@@ -868,28 +874,71 @@ export const gameLogic = {
 
   // Oylamayı başlatma isteği kaydet
   startVote: function (roomCode, uid) {
-    const requestRef = window.db.ref(`rooms/${roomCode}/voteRequests/${uid}`);
+    const requestRef = window.db.ref(
+      `rooms/${roomCode}/voteStartRequests/${uid}`
+    );
     requestRef.set(true).then(() => {
       const roomRef = window.db.ref(`rooms/${roomCode}`);
       roomRef.get().then((snap) => {
         if (!snap.exists()) return;
         const data = snap.val();
-        const requests = data.voteRequests || {};
-        const players = data.players || {};
-        if (Object.keys(requests).length === Object.keys(players).length) {
-          this.startVoting(roomCode);
+        const requests = data.voteStartRequests || {};
+        const players = Object.entries(data.players || {})
+          .filter(([, p]) => p && p.name)
+          .map(([uid, p]) => ({ ...p, uid }));
+        const threshold = Math.ceil(players.length / 2);
+        if (Object.keys(requests).length >= threshold) {
+          this.startVoting(roomCode, players);
         }
       });
     });
   },
 
-  startVoting: function (roomCode) {
+  startVoting: function (roomCode, playersSnapshot) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.update({
-      votingStarted: true,
-      votes: null,
-      voteResult: null,
-      voteRequests: null,
+    const snapshotPromise = playersSnapshot
+      ? Promise.resolve(
+          (playersSnapshot || []).map((p) => ({
+            uid: p.uid || p.id,
+            name: p.name,
+          }))
+        )
+      : ref
+          .child("players")
+          .get()
+          .then((snap) => {
+            const players = snap.val() || {};
+            return Object.entries(players)
+              .filter(([, p]) => p && p.name)
+              .map(([uid, p]) => ({ uid, name: p.name }));
+          });
+
+    snapshotPromise.then((snapshotPlayers) => {
+      ref
+        .update({
+          votingStarted: true,
+          votes: null,
+          voteResult: null,
+          voteRequests: null,
+          voteStartRequests: null,
+          voting: {
+            active: true,
+            startedAt: window.firebase.database.ServerValue.TIMESTAMP,
+            endsAt: null,
+            result: null,
+            snapshotPlayers: snapshotPlayers || [],
+          },
+        })
+        .then(() => {
+          ref
+            .child("voting/startedAt")
+            .get()
+            .then((snap) => {
+              const startedAt = snap.val();
+              if (!startedAt) return;
+              ref.child("voting/endsAt").set(startedAt + 30000);
+            });
+        });
     });
   },
 
@@ -934,6 +983,7 @@ export const gameLogic = {
           votes: null,
           voteResult: null,
           voteRequests: null,
+          guess: null,
         };
         ref.update(winUpdate);
       } else {
@@ -954,6 +1004,7 @@ export const gameLogic = {
           updates.votes = null;
           updates.voteResult = null;
           updates.voteRequests = null;
+          updates.guess = null;
         } else {
           updates.lastGuess = { spy: spyUid, guess, correct: false, guessesLeft, finalGuess };
           if (typeof preserveVotingStarted !== "undefined") {
@@ -962,6 +1013,9 @@ export const gameLogic = {
           if (typeof preserveVotes !== "undefined") {
             updates.votes = preserveVotes;
           }
+        }
+        if (!updates.guess) {
+          updates.guess = null;
         }
         ref.update(updates);
       }
@@ -977,17 +1031,134 @@ export const gameLogic = {
         ref.get().then((snap) => {
           if (!snap.exists()) return;
           const data = snap.val();
-          if (voter !== data.settings?.creatorUid) return;
           const activePlayers = Object.keys(data.playerRoles || {});
           const votes = data.votes || {};
           const activeVoteCount = Object.keys(votes).filter((v) =>
             activePlayers.includes(v)
           ).length;
-          if (activeVoteCount >= activePlayers.length && !data.voteResult) {
-            this.tallyVotes(roomCode);
+          if (activeVoteCount >= activePlayers.length) {
+            this.finalizeVoting(roomCode);
           }
         });
       });
+  },
+
+  finalizeVoting: function (roomCode) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref.get().then((snap) => {
+      if (!snap.exists()) return;
+      const data = snap.val();
+      const votingState = data.voting || {};
+      if (votingState.result && votingState.result.finalizedAt) return;
+      if (!data.votingStarted && !votingState.active) return;
+
+      const players = Object.keys(data.playerRoles || {});
+      const votes = data.votes || {};
+      const voteEntries = Object.entries(votes).filter(([voter]) =>
+        players.includes(voter)
+      );
+      const counts = {};
+      voteEntries.forEach(([, t]) => {
+        if (players.includes(t)) {
+          counts[t] = (counts[t] || 0) + 1;
+        }
+      });
+      const hasVotes = Object.keys(counts).length > 0;
+      const max = hasVotes ? Math.max(...Object.values(counts)) : 0;
+      const top = hasVotes
+        ? Object.keys(counts).filter((p) => counts[p] === max)
+        : [];
+      const isTie = !hasVotes || top.length !== 1;
+
+      const snapshotPlayers = votingState.snapshotPlayers || [];
+      const getName = (uid) => {
+        const snap = snapshotPlayers.find((p) => p.uid === uid);
+        return snap?.name || (data.players?.[uid]?.name ?? uid);
+      };
+
+      const updates = {
+        votingStarted: false,
+        "voting/active": false,
+        "voting/result": {
+          voteCounts: counts,
+          finalizedAt: window.firebase.database.ServerValue.TIMESTAMP,
+        },
+      };
+
+      if (isTie) {
+        updates.voteResult = { tie: true };
+        updates["voting/result"].tie = true;
+        updates.guess = null;
+        ref.update(updates);
+        return;
+      }
+
+      const voted = top[0];
+      const votedRole = data.playerRoles && data.playerRoles[voted];
+      const isSpy = votedRole ? votedRole.isSpy : false;
+      const remainingPlayers = Object.keys(data.playerRoles || {}).filter(
+        (uid) => uid !== voted
+      );
+      const remainingSpies = (data.spies || []).filter((id) =>
+        remainingPlayers.includes(id)
+      );
+
+      const eliminatedName = getName(voted);
+      updates.voteResult = { voted, isSpy };
+      updates["voting/result"].eliminatedUid = voted;
+      updates["voting/result"].eliminatedName = eliminatedName;
+      updates["voting/result"].tie = false;
+
+      if (isSpy) {
+        const role =
+          votedRole && votedRole.role !== undefined ? votedRole.role : null;
+        const location =
+          votedRole && votedRole.location !== undefined
+            ? votedRole.location
+            : null;
+        updates.voteResult.role = role;
+        updates.voteResult.location = location;
+        updates.voteResult.remainingSpies = remainingSpies;
+        updates.voteResult.lastSpy = remainingSpies.length === 0;
+      }
+
+      const guessAllowance = (votedRole?.guessesLeft || 0) > 0;
+      if (guessAllowance) {
+        updates.guess = {
+          spyUid: voted,
+          endsAt: Date.now() + 30000,
+        };
+      } else {
+        updates.guess = null;
+      }
+
+      if (isSpy && remainingSpies.length === 0 && !guessAllowance) {
+        updates.status = "finished";
+        updates.winner = "innocent";
+      }
+
+      ref.update(updates);
+    });
+  },
+
+  finalizeGuessTimeout: function (roomCode) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    ref.get().then((snap) => {
+      if (!snap.exists()) return;
+      const data = snap.val();
+      if (data.status === "finished") return;
+      const guessState = data.guess;
+      if (!guessState || !guessState.endsAt) return;
+      if (Date.now() < guessState.endsAt) return;
+
+      const updates = { guess: null };
+      const votingResult = data.voting?.result;
+      if (votingResult && votingResult.eliminatedUid) {
+        updates.status = "finished";
+        updates.winner = "innocent";
+      }
+      ref.update(updates);
+    });
   },
 
   tallyVotes: function (roomCode) {
