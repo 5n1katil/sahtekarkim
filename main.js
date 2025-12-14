@@ -43,7 +43,8 @@ let selectedVoteUid = null;
 let selectedVoteName = null;
 let voteCountdownInterval = null;
 let guessCountdownInterval = null;
-window.auth.onAuthStateChanged(async (user) => {
+if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
+  window.auth.onAuthStateChanged(async (user) => {
     currentUid = user ? user.uid : null;
     if (user) {
       currentRoomCode = localStorage.getItem("roomCode") || null;
@@ -140,6 +141,10 @@ window.auth.onAuthStateChanged(async (user) => {
       showSetupJoin();
     }
   });
+} else {
+  console.warn("Firebase Auth yüklenmedi, temel arayüz başlatılıyor");
+  showSetupJoin();
+}
 let lastVoteResult = null;
 let gameEnded = false;
 let lastGuessEvent = null;
@@ -1101,7 +1106,7 @@ function updateRoleDisplay(myData, settings) {
             renderVoteResultOverlay(roomData);
             resultEl.classList.add("hidden");
           }
-@@ -1033,53 +1105,53 @@ function updateRoleDisplay(myData, settings) {
+@@ -1033,53 +1110,53 @@ function updateRoleDisplay(myData, settings) {
           resultEl.classList.add("hidden");
           lastVoteResult = null;
         }
