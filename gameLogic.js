@@ -155,9 +155,9 @@ async function getSpyNamesForMessage(roomCode, data, spiesOverride) {
 
 function buildSpyLabel(spyNames) {
   if (Array.isArray(spyNames) && spyNames.length > 0) {
-    return `Sahtekarlar (${spyNames.join(", ")})`;
+    return `Sahtekar(lar) (${spyNames.join(", ")})`;
   }
-  return "Sahtekarlar";
+  return "Sahtekar(lar)";
 }
 
 // Konumlar ve kategoriler için veri havuzları
