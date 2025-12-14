@@ -7862,6 +7862,10 @@
       });
     },
     submitVote: function submitVote(roomCode, voter, target) {
+      if (target === voter) {
+        alert("Kendine oy veremezsin.");
+        return;
+      }
       var _this3 = this;
       var ref = window.db.ref("rooms/" + roomCode);
       ref.child("votes/".concat(voter)).set(target).then(function () {
