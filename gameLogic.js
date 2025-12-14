@@ -5,20 +5,31 @@ let anonymousSignInPromise = null;
 const MIN_PLAYERS = 3;
 const ROOM_PLAYER_LIMIT = 20;
 
+function getSpyUids(spies) {
+  if (Array.isArray(spies)) return spies;
+  if (spies && typeof spies === "object") return Object.keys(spies);
+  return [];
+}
+
 function appendFinalSpyInfo(updates, data) {
   if (data?.final?.spyNames) return updates;
 
-  const playerRoles = data?.playerRoles || {};
+  const spies = data?.spies;
+  const playerNames = data?.playerNames || {};
   const players = data?.players || {};
-  const spyUids = Object.keys(playerRoles).filter((uid) => playerRoles[uid]?.isSpy);
+  const spyUids = getSpyUids(spies);
   if (spyUids.length === 0) return updates;
 
-  const spyNames = spyUids.map((uid) => players?.[uid]?.name || uid);
+  const spyNames = spyUids.map(
+    (uid) => playerNames?.[uid] || players?.[uid]?.name || uid
+  );
+  const finalState = data?.final || {};
   updates.final = {
-    ...(data?.final || {}),
+    ...finalState,
     spyUids,
     spyNames,
-    revealedAt: window.firebase.database.ServerValue.TIMESTAMP,
+    revealedAt:
+      finalState.revealedAt || window.firebase.database.ServerValue.TIMESTAMP,
   };
 
   return updates;
@@ -638,10 +649,18 @@ export const gameLogic = {
     const players = playersSnap.val() || {};
     const uids = Object.keys(players);
     const spyCount = Math.min(settings.spyCount || 0, uids.length);
-    const spies = samplePool([...uids], spyCount);
+    const spyUids = samplePool([...uids], spyCount);
 
     const updates = {};
-    updates[`rooms/${roomCode}/spies`] = spies;
+    updates[`rooms/${roomCode}/spies`] = spyUids.reduce((acc, uid) => {
+      acc[uid] = true;
+      return acc;
+    }, {});
+    updates[`rooms/${roomCode}/playerNames`] = uids.reduce((acc, uid) => {
+      const name = players[uid]?.name;
+      if (name) acc[uid] = name;
+      return acc;
+    }, {});
 
     const gameType = settings.gameType;
     const isLocationGame = gameType === "location";
@@ -651,7 +670,7 @@ export const gameLogic = {
       const pool = samplePool([...POOLS.locations], settings.poolSize);
       const chosenLocation = randomFrom(pool);
       uids.forEach((uid) => {
-        const isSpy = spies.includes(uid);
+        const isSpy = spyUids.includes(uid);
         updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
           ? {
               isSpy: true,
@@ -676,7 +695,7 @@ export const gameLogic = {
       }
       const chosenRole = randomFrom(pool);
       uids.forEach((uid) => {
-        const isSpy = spies.includes(uid);
+        const isSpy = spyUids.includes(uid);
         updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
           ? {
               isSpy: true,
@@ -1154,7 +1173,7 @@ export const gameLogic = {
       const remainingPlayers = Object.keys(data.playerRoles || {}).filter(
         (uid) => uid !== voted
       );
-      const remainingSpies = (data.spies || []).filter((id) =>
+      const remainingSpies = getSpyUids(data.spies).filter((id) =>
         remainingPlayers.includes(id)
       );
 
@@ -1251,7 +1270,7 @@ export const gameLogic = {
       const remainingPlayers = Object.keys(data.playerRoles || {}).filter(
         (uid) => uid !== voted
       );
-      const remainingSpies = (data.spies || []).filter((id) =>
+      const remainingSpies = getSpyUids(data.spies).filter((id) =>
         remainingPlayers.includes(id)
       );
 
@@ -1312,7 +1331,7 @@ export const gameLogic = {
         const remainingPlayers = Object.keys(data.playerRoles || {}).filter(
           (uid) => uid !== votedUid
         );
-        const remainingSpies = (data.spies || []).filter((id) =>
+        const remainingSpies = getSpyUids(data.spies).filter((id) =>
           remainingPlayers.includes(id)
         );
         if (remainingSpies.length === 0) {
@@ -1343,7 +1362,9 @@ export const gameLogic = {
       if (!snap.exists()) return false;
       const data = snap.val();
       const players = Object.keys(data.players || {});
-      const activeSpies = (data.spies || []).filter((s) => players.includes(s));
+      const activeSpies = getSpyUids(data.spies).filter((s) =>
+        players.includes(s)
+      );
       const innocentCount = players.length - activeSpies.length;
       if (innocentCount <= 1) {
         const updates = appendFinalSpyInfo(
