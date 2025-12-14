@@ -92,12 +92,24 @@ async function ensureSpiesSnapshot(roomCode, data, spiesOverride) {
 }
 
 async function finalizeGameOver(roomCode, data, payload) {
-  const spies = await ensureSpiesSnapshot(roomCode, data);
+  const existingSpies = Array.isArray(data?.spiesSnapshot?.spies)
+    ? data.spiesSnapshot.spies.filter((s) => s && s.uid && s.name)
+    : [];
+
+  let spies = existingSpies;
+  if (!spies.length) {
+    spies = await ensureSpiesSnapshot(roomCode, data);
+  }
+  if (!spies.length) {
+    spies = deriveSpyDetails(data);
+  }
   const winner = normalizeWinnerValue(payload?.winner);
+  const spyNames = formatSpyNames(spies, data);
   const gameOver = {
     ...payload,
     winner,
     spies,
+    spyNames,
     finalizedAt: window.firebase.database.ServerValue.TIMESTAMP,
   };
 
@@ -123,7 +135,14 @@ function formatSpyNames(spies, data) {
 }
 
 async function getSpyNamesForMessage(roomCode, data, spiesOverride) {
-  let spies = await ensureSpiesSnapshot(roomCode, data, spiesOverride);
+  const snapshotSpies = Array.isArray(data?.spiesSnapshot?.spies)
+    ? data.spiesSnapshot.spies.filter((s) => s && s.uid && s.name)
+    : [];
+
+  let spies = snapshotSpies;
+  if (!spies.length) {
+    spies = await ensureSpiesSnapshot(roomCode, data, spiesOverride);
+  }
   if (!Array.isArray(spies) || spies.length === 0) {
     spies = Array.isArray(spiesOverride) && spiesOverride.length
       ? spiesOverride
@@ -1230,17 +1249,21 @@ export const gameLogic = {
         if (updates.status === "finished") {
           const guessWord = gameType === "category" ? "rolü" : "konumu";
           const actualWord = gameType === "category" ? "rol" : "konum";
-          const message = `Sahtekar ${guessWord} ${guess} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
-          ref
-            .update(updates)
-            .then(() =>
-              finalizeGameOver(roomCode, data, {
-                winner: "innocents",
-                reason: "guess",
-                message,
-                finalGuess,
-              })
-            );
+          appendFinalSpyInfo(updates, data);
+          getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
+            const spyLabel = buildSpyLabel(spyNames);
+            const message = `${spyLabel} ${guessWord} ${guess} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
+            ref
+              .update(updates)
+              .then(() =>
+                finalizeGameOver(roomCode, data, {
+                  winner: "innocents",
+                  reason: "guess",
+                  message,
+                  finalGuess,
+                })
+              );
+          });
         } else {
           ref.update(updates);
         }
@@ -1393,13 +1416,16 @@ export const gameLogic = {
       ) {
         const eliminatedName =
           votingResult.eliminatedName || votingResult.eliminatedUid;
-        const message = `Oylama sonucunda Sahtekar ${eliminatedName} elendi ve oyunu masumlar kazandı!`;
-        finalizeGameOver(roomCode, roomData, {
-          winner: "innocents",
-          reason: "vote",
-          eliminatedUid: votingResult.eliminatedUid,
-          eliminatedName,
-          message,
+        getSpyNamesForMessage(roomCode, roomData).then(({ spyNames }) => {
+          const spyLabel = buildSpyLabel(spyNames);
+          const message = `${spyLabel} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`;
+          finalizeGameOver(roomCode, roomData, {
+            winner: "innocents",
+            reason: "vote",
+            eliminatedUid: votingResult.eliminatedUid,
+            eliminatedName,
+            message,
+          });
         });
       }
     });
@@ -1445,13 +1471,15 @@ export const gameLogic = {
       const updatePromise = ref.update(updates);
       if (updates.status === "finished") {
         updatePromise.then(() =>
-          finalizeGameOver(roomCode, data, {
-            winner: "innocents",
-            reason: "timeout",
-            message:
-              "Sahtekar tahmin süresini kaçırdı ve oyunu masumlar kazandı!",
-            eliminatedUid: votingResult?.eliminatedUid,
-            eliminatedName: votingResult?.eliminatedName,
+          getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
+            const spyLabel = buildSpyLabel(spyNames);
+            return finalizeGameOver(roomCode, data, {
+              winner: "innocents",
+              reason: "timeout",
+              message: `${spyLabel} tahmin süresini kaçırdı ve oyunu masumlar kazandı!`,
+              eliminatedUid: votingResult?.eliminatedUid,
+              eliminatedName: votingResult?.eliminatedName,
+            });
           })
         );
       }
@@ -1562,12 +1590,15 @@ export const gameLogic = {
           );
           const eliminatedName = playerInfo?.name || votedUid;
           ref.update(updates).then(() =>
-            finalizeGameOver(roomCode, data, {
-              winner: "innocents",
-              reason: "vote",
-              eliminatedUid: votedUid,
-              eliminatedName,
-              message: `Oylama sonucunda Sahtekar ${eliminatedName} elendi ve oyunu masumlar kazandı!`,
+            getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
+              const spyLabel = buildSpyLabel(spyNames);
+              return finalizeGameOver(roomCode, data, {
+                winner: "innocents",
+                reason: "vote",
+                eliminatedUid: votedUid,
+                eliminatedName,
+                message: `${spyLabel} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`,
+              });
             })
           );
           return;
