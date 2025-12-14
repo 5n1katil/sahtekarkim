@@ -487,30 +487,14 @@ function getResolvedVoteResult(roomData) {
   }
 
   function getSpyNames(roomData) {
-    const gameOver = getGameOverInfo(roomData);
-    if (gameOver?.spies?.length) {
-      return gameOver.spies.map((s) => s.name).filter(Boolean);
+    const snapshotSpies = roomData?.spiesSnapshot?.spies;
+    if (Array.isArray(snapshotSpies)) {
+      return snapshotSpies.map((s) => s?.name).filter(Boolean);
     }
-    const finalNames = roomData?.final?.spyNames;
-    if (Array.isArray(finalNames) && finalNames.length > 0) return finalNames;
-
     return [];
   }
 
   function appendSpyNamesLine(msgDiv, roomData) {
-    const gameOver = getGameOverInfo(roomData);
-    if (gameOver?.winner === "spies") {
-      const names = (gameOver.spies || [])
-        .map((s) => s.name)
-        .filter((n) => n);
-      if (!names.length) return;
-      const spyLine = document.createElement("div");
-      spyLine.className = "spy-reveal";
-      spyLine.textContent = `Sahtekar(lar): ${names.join(", ")}`;
-      msgDiv.appendChild(spyLine);
-      return;
-    }
-
     const spyNames = getSpyNames(roomData);
     if (!spyNames.length) return;
 
