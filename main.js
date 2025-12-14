@@ -331,7 +331,8 @@ function getResolvedVoteResult(roomData) {
     msgDiv.className = "result-message";
     overlay.innerHTML = "";
     const actionsEl = document.getElementById("gameActions");
-    msgDiv.textContent = outcome.message;
+    const resolvedMessage = resolveGameOverMessage(roomData, outcome.message);
+    msgDiv.textContent = resolvedMessage;
     appendSpyNamesLine(msgDiv, roomData);
     if (outcome.gameEnded) {
       actionsEl?.classList.add("hidden");
@@ -460,6 +461,23 @@ function getResolvedVoteResult(roomData) {
     return normalized;
   }
 
+  function getGameOverInfo(roomData) {
+    const gameOver = roomData?.gameOver;
+    if (!gameOver || !gameOver.finalizedAt) return null;
+
+    const spies = Array.isArray(gameOver.spies)
+      ? gameOver.spies.filter((s) => s?.uid && s?.name)
+      : [];
+
+    return { ...gameOver, spies };
+  }
+
+  function resolveGameOverMessage(roomData, fallbackMessage) {
+    const gameOver = getGameOverInfo(roomData);
+    if (gameOver?.message) return gameOver.message;
+    return fallbackMessage;
+  }
+
   function appendGuessDetails(msgDiv, lines) {
     lines.forEach((line) => {
       const detail = document.createElement("div");
@@ -469,6 +487,10 @@ function getResolvedVoteResult(roomData) {
   }
 
   function getSpyNames(roomData) {
+    const gameOver = getGameOverInfo(roomData);
+    if (gameOver?.spies?.length) {
+      return gameOver.spies.map((s) => s.name).filter(Boolean);
+    }
     const finalNames = roomData?.final?.spyNames;
     if (Array.isArray(finalNames) && finalNames.length > 0) return finalNames;
 
@@ -476,6 +498,19 @@ function getResolvedVoteResult(roomData) {
   }
 
   function appendSpyNamesLine(msgDiv, roomData) {
+    const gameOver = getGameOverInfo(roomData);
+    if (gameOver?.winner === "spies") {
+      const names = (gameOver.spies || [])
+        .map((s) => s.name)
+        .filter((n) => n);
+      if (!names.length) return;
+      const spyLine = document.createElement("div");
+      spyLine.className = "spy-reveal";
+      spyLine.textContent = `Sahtekar(lar): ${names.join(", ")}`;
+      msgDiv.appendChild(spyLine);
+      return;
+    }
+
     const spyNames = getSpyNames(roomData);
     if (!spyNames.length) return;
 
@@ -500,20 +535,13 @@ function getResolvedVoteResult(roomData) {
     const guessedValue =
       finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
 
-    if (guessedValue) {
-      const playerNames = names ? `(${names}) ` : "";
-      msgDiv.textContent = `Sahtekar ${playerNames}${guessWord} ${guessedValue} olarak doğru tahmin etti ve oyunu kazandı`;
-    } else {
-      msgDiv.append("Sahtekar");
-      if (names) {
-        msgDiv.appendChild(document.createElement("br"));
-        const span = document.createElement("span");
-        span.className = "impostor-name";
-        span.textContent = names;
-        msgDiv.appendChild(span);
-      }
-      msgDiv.append(" kazandı! Oyun Bitti...");
-    }
+    const fallbackMessage = guessedValue
+      ? `Sahtekar ${names ? `(${names}) ` : ""}${guessWord} ${guessedValue} olarak doğru tahmin etti ve oyunu kazandı`
+      : names
+        ? `Sahtekar ${names} kazandı! Oyun Bitti...`
+        : "Sahtekar kazandı! Oyun Bitti...";
+
+    msgDiv.textContent = resolveGameOverMessage(roomData, fallbackMessage);
 
     appendSpyNamesLine(msgDiv, roomData);
     const detailLines = buildGuessDetails(finalGuess, actualAnswer, gameType);
@@ -579,7 +607,10 @@ function getResolvedVoteResult(roomData) {
     const guessedValue =
       finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
     const nameText = names ? `${names} ` : "";
-    msgDiv.textContent = `Sahtekar ${nameText}${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
+    const fallbackMessage = `Sahtekar ${nameText}${guessWord} ${
+      guessedValue || ""
+    } olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
+    msgDiv.textContent = resolveGameOverMessage(roomData, fallbackMessage);
     appendSpyNamesLine(msgDiv, roomData);
     const detailLines = buildGuessDetails(finalGuess, actualAnswer, gameType);
     appendGuessDetails(msgDiv, detailLines);
