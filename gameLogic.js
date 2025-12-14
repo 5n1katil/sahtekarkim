@@ -921,6 +921,7 @@ export const gameLogic = {
         if (!snap.exists()) return;
         const data = snap.val();
         if (data.voting?.active) return;
+        if (data.voting?.result?.finalizedAt) return;
         const requests = data.voteStartRequests || {};
         const alivePlayers = Object.entries(data.playerRoles || {}).map(
           ([id]) => ({
@@ -962,8 +963,11 @@ export const gameLogic = {
         });
 
     snapshotPromise.then((snapshotPlayers) => {
-      ref.child("voting/active").get().then((activeSnap) => {
-        if (activeSnap.exists() && activeSnap.val()) return;
+      ref.get().then((snap) => {
+        if (!snap.exists()) return;
+        const data = snap.val() || {};
+        if (data.voting?.active) return;
+        if (data.voting?.result?.finalizedAt) return;
 
         const snapshotOrder = (snapshotPlayers || []).map((p) => p.uid);
         const snapshotNames = (snapshotPlayers || []).reduce((acc, p) => {
@@ -977,6 +981,7 @@ export const gameLogic = {
 
         ref
           .update({
+            phase: "voting",
             votingStarted: true,
             votes: null,
             voteResult: null,
@@ -986,6 +991,7 @@ export const gameLogic = {
               active: true,
               startedAt: window.firebase.database.ServerValue.TIMESTAMP,
               endsAt: null,
+              roster: snapshotPlayers || [],
               result: null,
               snapshot: {
                 order: snapshotOrder,
@@ -1117,15 +1123,16 @@ export const gameLogic = {
 
   finalizeVoting: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.get().then((snap) => {
-      if (!snap.exists()) return;
-      const data = snap.val();
-      const votingState = data.voting || {};
-      if (votingState.result && votingState.result.finalizedAt) return;
-      if (!data.votingStarted && !votingState.active) return;
+    ref.transaction((room) => {
+      if (!room) return room;
+      const votingState = room.voting || {};
+      if (votingState.result && votingState.result.finalizedAt) return room;
+      if (!room.votingStarted && !votingState.active) return room;
 
-      const players = Object.keys(data.playerRoles || {});
-      const votes = data.votes || {};
+      const players = Object.keys(room.playerRoles || {});
+      if (!players.length) return room;
+
+      const votes = room.votes || {};
       const voteEntries = Object.entries(votes).filter(([voter]) =>
         players.includes(voter)
       );
@@ -1142,46 +1149,49 @@ export const gameLogic = {
         : [];
       const isTie = !hasVotes || top.length !== 1;
 
-      const snapshotPlayers = votingState.snapshotPlayers || [];
+      const snapshotPlayers = votingState.snapshotPlayers || votingState.roster || [];
       const snapshot = votingState.snapshot;
       const getName = (uid) => {
         if (snapshot?.names && snapshot.names[uid]) return snapshot.names[uid];
         const snap = snapshotPlayers.find((p) => p.uid === uid);
-        return snap?.name || (data.players?.[uid]?.name ?? uid);
+        return snap?.name || (room.players?.[uid]?.name ?? uid);
       };
 
-      const updates = {
-        votingStarted: false,
-        "voting/active": false,
-        "voting/result": {
+      const nextRoom = { ...room };
+      nextRoom.votingStarted = false;
+      nextRoom.voting = {
+        ...(votingState || {}),
+        active: false,
+        result: {
+          ...(votingState?.result || {}),
           voteCounts: counts,
           finalizedAt: window.firebase.database.ServerValue.TIMESTAMP,
         },
       };
 
       if (isTie) {
-        updates.voteResult = { tie: true };
-        updates["voting/result"].tie = true;
-        updates.guess = null;
-        ref.update(updates);
-        return;
+        nextRoom.voteResult = { tie: true };
+        nextRoom.voting.result.tie = true;
+        nextRoom.guess = null;
+        return nextRoom;
       }
 
       const voted = top[0];
-      const votedRole = data.playerRoles && data.playerRoles[voted];
+      const votedRole = room.playerRoles && room.playerRoles[voted];
       const isSpy = votedRole ? votedRole.isSpy : false;
-      const remainingPlayers = Object.keys(data.playerRoles || {}).filter(
+      const remainingPlayers = Object.keys(room.playerRoles || {}).filter(
         (uid) => uid !== voted
       );
-      const remainingSpies = getSpyUids(data.spies).filter((id) =>
+      const remainingSpies = getSpyUids(room.spies).filter((id) =>
         remainingPlayers.includes(id)
       );
 
       const eliminatedName = getName(voted);
-      updates.voteResult = { voted, isSpy };
-      updates["voting/result"].eliminatedUid = voted;
-      updates["voting/result"].eliminatedName = eliminatedName;
-      updates["voting/result"].tie = false;
+      nextRoom.voteResult = { voted, isSpy };
+      nextRoom.voting.result.eliminatedUid = voted;
+      nextRoom.voting.result.eliminatedName = eliminatedName;
+      nextRoom.voting.result.isSpy = isSpy;
+      nextRoom.voting.result.tie = false;
 
       if (isSpy) {
         const role =
@@ -1190,29 +1200,54 @@ export const gameLogic = {
           votedRole && votedRole.location !== undefined
             ? votedRole.location
             : null;
-        updates.voteResult.role = role;
-        updates.voteResult.location = location;
-        updates.voteResult.remainingSpies = remainingSpies;
-        updates.voteResult.lastSpy = remainingSpies.length === 0;
+        nextRoom.voteResult.role = role;
+        nextRoom.voteResult.location = location;
+        nextRoom.voteResult.remainingSpies = remainingSpies;
+        nextRoom.voteResult.lastSpy = remainingSpies.length === 0;
+        nextRoom.voting.result.role = role;
+        nextRoom.voting.result.location = location;
+        nextRoom.voting.result.remainingSpies = remainingSpies;
+        nextRoom.voting.result.lastSpy = remainingSpies.length === 0;
       }
 
       const guessAllowance = (votedRole?.guessesLeft || 0) > 0;
       if (guessAllowance) {
-        updates.guess = {
+        nextRoom.guess = {
           spyUid: voted,
           endsAt: Date.now() + 30000,
         };
+        nextRoom.voting.result.guessAllowed = true;
       } else {
-        updates.guess = null;
+        nextRoom.guess = null;
       }
 
       if (isSpy && remainingSpies.length === 0 && !guessAllowance) {
-        updates.status = "finished";
-        updates.winner = "innocent";
-        appendFinalSpyInfo(updates, data);
+        nextRoom.status = "finished";
+        nextRoom.winner = "innocent";
+        appendFinalSpyInfo(nextRoom, room);
       }
 
-      ref.update(updates);
+      return nextRoom;
+    });
+  },
+
+  resetVotingState: function (roomCode) {
+    const ref = window.db.ref("rooms/" + roomCode);
+    return ref.transaction((room) => {
+      if (!room) return room;
+      if (room.voting?.active) return room;
+      const hasResult = room.voting?.result?.finalizedAt || room.voteResult;
+      if (!hasResult) return room;
+
+      const nextRoom = { ...room };
+      nextRoom.votes = null;
+      nextRoom.voteRequests = null;
+      nextRoom.voteStartRequests = null;
+      nextRoom.votingStarted = false;
+      nextRoom.voteResult = null;
+      nextRoom.voting = null;
+      nextRoom.phase = "clue";
+      return nextRoom;
     });
   },
 
