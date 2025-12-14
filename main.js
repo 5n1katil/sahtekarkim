@@ -41,6 +41,8 @@ let wasEliminated = false;
 let voteCandidatesSnapshot = null;
 let selectedVoteUid = null;
 let selectedVoteName = null;
+let voteCountdownInterval = null;
+let guessCountdownInterval = null;
 window.auth.onAuthStateChanged(async (user) => {
     currentUid = user ? user.uid : null;
     if (user) {
@@ -650,7 +652,13 @@ function updateRoleDisplay(myData, settings) {
 
   function lockVoteCandidates(roomData) {
     if (voteCandidatesSnapshot) return;
-    const source = roomData?.players || playerUidMap;
+    const snapshot = roomData?.voting?.snapshotPlayers;
+    const source = snapshot && snapshot.length
+      ? snapshot.reduce((acc, p) => {
+          if (p?.uid) acc[p.uid] = { name: p.name };
+          return acc;
+        }, {})
+      : roomData?.players || playerUidMap;
     voteCandidatesSnapshot = buildVoteCandidates(source);
     renderVoteOptions(voteCandidatesSnapshot);
   }
@@ -961,14 +969,73 @@ function updateRoleDisplay(myData, settings) {
 
         updateSelectedVoteName();
 
+        const voteCountdownEl = document.getElementById("voteCountdown");
+        const votingEndsAt = roomData.voting?.endsAt;
+        const votingFinalized =
+          roomData.voting?.result?.finalizedAt || roomData.voteResult;
+        const shouldShowCountdown =
+          roomData.voting?.active && votingEndsAt && !votingFinalized;
+
+        if (shouldShowCountdown && voteCountdownEl) {
+          const updateCountdown = () => {
+            const remainingMs = Math.max(0, votingEndsAt - Date.now());
+            const seconds = Math.ceil(remainingMs / 1000);
+            const padded = String(Math.max(0, seconds)).padStart(2, "0");
+            voteCountdownEl.textContent = `Oylama bitiyor: 00:${padded}`;
+            voteCountdownEl.classList.toggle("hidden", false);
+            if (remainingMs <= 0) {
+              clearInterval(voteCountdownInterval);
+              voteCountdownInterval = null;
+              gameLogic.finalizeVoting(currentRoomCode);
+            }
+          };
+          clearInterval(voteCountdownInterval);
+          updateCountdown();
+          voteCountdownInterval = setInterval(updateCountdown, 1000);
+        } else {
+          clearInterval(voteCountdownInterval);
+          voteCountdownInterval = null;
+          voteCountdownEl?.classList.add("hidden");
+        }
+
+        const guessState = roomData.guess;
+        const shouldShowGuessCountdown =
+          guessState?.spyUid === currentUid &&
+          guessState.endsAt &&
+          !roomData.lastGuess &&
+          roomData.status !== "finished";
+        if (shouldShowGuessCountdown && voteCountdownEl) {
+          const updateGuessCountdown = () => {
+            const remainingMs = Math.max(0, guessState.endsAt - Date.now());
+            const seconds = Math.ceil(remainingMs / 1000);
+            const padded = String(Math.max(0, seconds)).padStart(2, "0");
+            voteCountdownEl.textContent = `Tahmin süresi: 00:${padded}`;
+            voteCountdownEl.classList.toggle("hidden", false);
+            if (remainingMs <= 0) {
+              clearInterval(guessCountdownInterval);
+              guessCountdownInterval = null;
+              gameLogic.finalizeGuessTimeout(currentRoomCode);
+            }
+          };
+          clearInterval(guessCountdownInterval);
+          updateGuessCountdown();
+          guessCountdownInterval = setInterval(updateGuessCountdown, 1000);
+        } else {
+          clearInterval(guessCountdownInterval);
+          guessCountdownInterval = null;
+        }
+
         const startBtn = document.getElementById("startVotingBtn");
         const waitingEl = document.getElementById("waitingVoteStart");
-        const voteRequests = roomData.voteRequests || {};
-        const playersCount = Object.keys(roomData.players || {}).length;
+        const voteRequests = roomData.voteStartRequests || {};
+        const playersCount = Object.values(roomData.players || {}).filter(
+          (p) => p && p.name
+        ).length;
         const requestCount = Object.keys(voteRequests).length;
         const hasRequested = !!voteRequests[currentUid];
+        const threshold = Math.ceil(playersCount / 2);
         const isWaiting =
-          !roomData.votingStarted && hasRequested && requestCount < playersCount;
+          !roomData.votingStarted && hasRequested && requestCount < threshold;
 
         if (startBtn) {
           startBtn.classList.toggle("hidden", isVotingPhase || isWaiting);
@@ -1003,7 +1070,12 @@ function updateRoleDisplay(myData, settings) {
           Object.values(roomData.votes || {}).forEach((uid) => {
             tally[uid] = (tally[uid] || 0) + 1;
           });
-          const playerMap = roomData.players || playerUidMap;
+          const playerMap = (roomData.voting?.snapshotPlayers || []).length
+            ? (roomData.voting.snapshotPlayers || []).reduce((acc, p) => {
+                if (p?.uid) acc[p.uid] = { name: p.name };
+                return acc;
+              }, {})
+            : roomData.players || playerUidMap;
           const ranked = Object.entries(playerMap).map(([uid, p]) => ({
             uid,
             name: p.name,
@@ -1029,7 +1101,7 @@ function updateRoleDisplay(myData, settings) {
             renderVoteResultOverlay(roomData);
             resultEl.classList.add("hidden");
           }
-        } else {
+@@ -1033,53 +1105,53 @@ function updateRoleDisplay(myData, settings) {
           resultEl.classList.add("hidden");
           lastVoteResult = null;
         }
@@ -1055,9 +1127,9 @@ function updateRoleDisplay(myData, settings) {
           roomData.votingStarted &&
           roomData.votes &&
           Object.keys(roomData.votes).length === currentPlayers.length &&
-          !roomData.voteResult
+          !roomData.voting?.result?.finalizedAt
         ) {
-          gameLogic.tallyVotes(currentRoomCode);
+          gameLogic.finalizeVoting(currentRoomCode);
         }
       }
     });
