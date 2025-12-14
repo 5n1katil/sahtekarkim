@@ -5,6 +5,25 @@ let anonymousSignInPromise = null;
 const MIN_PLAYERS = 3;
 const ROOM_PLAYER_LIMIT = 20;
 
+function appendFinalSpyInfo(updates, data) {
+  if (data?.final?.spyNames) return updates;
+
+  const playerRoles = data?.playerRoles || {};
+  const players = data?.players || {};
+  const spyUids = Object.keys(playerRoles).filter((uid) => playerRoles[uid]?.isSpy);
+  if (spyUids.length === 0) return updates;
+
+  const spyNames = spyUids.map((uid) => players?.[uid]?.name || uid);
+  updates.final = {
+    ...(data?.final || {}),
+    spyUids,
+    spyNames,
+    revealedAt: window.firebase.database.ServerValue.TIMESTAMP,
+  };
+
+  return updates;
+}
+
 // Konumlar ve kategoriler için veri havuzları
 export const POOLS = {
   locations: [
@@ -1014,6 +1033,7 @@ export const gameLogic = {
           voteRequests: null,
           guess: null,
         };
+        appendFinalSpyInfo(winUpdate, data);
         ref.update(winUpdate);
       } else {
         guessesLeft -= 1;
@@ -1170,6 +1190,7 @@ export const gameLogic = {
       if (isSpy && remainingSpies.length === 0 && !guessAllowance) {
         updates.status = "finished";
         updates.winner = "innocent";
+        appendFinalSpyInfo(updates, data);
       }
 
       ref.update(updates);
@@ -1191,6 +1212,7 @@ export const gameLogic = {
       if (votingResult && votingResult.eliminatedUid) {
         updates.status = "finished";
         updates.winner = "innocent";
+        appendFinalSpyInfo(updates, data);
       }
       ref.update(updates);
     });
@@ -1259,6 +1281,7 @@ export const gameLogic = {
       if (isSpy && remainingSpies.length === 0) {
         updates.status = "finished";
         updates.winner = "innocent";
+        appendFinalSpyInfo(updates, data);
       }
 
       ref.update(updates);
@@ -1293,12 +1316,17 @@ export const gameLogic = {
           remainingPlayers.includes(id)
         );
         if (remainingSpies.length === 0) {
-          ref.update({ status: "finished", winner: "innocent" });
+          const updates = appendFinalSpyInfo(
+            { status: "finished", winner: "innocent" },
+            data
+          );
+          ref.update(updates);
           return;
         }
         this.checkSpyWin(roomCode).then((spyWon) => {
           if (spyWon) {
-            ref.update({ status: "finished" });
+            const updates = appendFinalSpyInfo({ status: "finished" }, data);
+            ref.update(updates);
             return;
           }
           ref.update({ voteResult: null }).then(() => {
@@ -1318,7 +1346,11 @@ export const gameLogic = {
       const activeSpies = (data.spies || []).filter((s) => players.includes(s));
       const innocentCount = players.length - activeSpies.length;
       if (innocentCount <= 1) {
-        ref.update({ status: "finished", winner: "spy", spyParityWin: true });
+        const updates = appendFinalSpyInfo(
+          { status: "finished", winner: "spy", spyParityWin: true },
+          data
+        );
+        ref.update(updates);
         return true;
       }
       return false;
