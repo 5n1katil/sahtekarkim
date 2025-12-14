@@ -6,6 +6,12 @@ console.log('main.js yüklendi');
 const MIN_PLAYERS = 3;
 const DEFAULT_PLAYER_COUNT = 20; // Eski güvenlik kurallarıyla uyum için oyuncu sayısını varsayılanla gönder
 
+function getSpyUids(spies) {
+  if (Array.isArray(spies)) return spies;
+  if (spies && typeof spies === "object") return Object.keys(spies);
+  return [];
+}
+
 function clearStoragePreservePromo() {
   const promoDismissedFlag = localStorage.getItem("promoModalDismissed");
   localStorage.clear();
@@ -254,7 +260,7 @@ function updateRoleDisplay(myData, settings) {
     const remaining = Object.keys(roomData.players || {}).filter(
       (uid) => uid !== votedUid
     );
-    const activeSpies = (roomData.spies || []).filter((id) =>
+    const activeSpies = getSpyUids(roomData.spies).filter((id) =>
       remaining.includes(id)
     );
     const alivePlayersCount = remaining.length;
@@ -444,10 +450,7 @@ function updateRoleDisplay(myData, settings) {
     const finalNames = roomData?.final?.spyNames;
     if (Array.isArray(finalNames) && finalNames.length > 0) return finalNames;
 
-    const players = roomData?.players || {};
-    const roles = roomData?.playerRoles || {};
-    const spyUids = Object.keys(roles).filter((uid) => roles[uid]?.isSpy);
-    return spyUids.map((uid) => players?.[uid]?.name || uid);
+    return [];
   }
 
   function appendSpyNamesLine(msgDiv, roomData) {
