@@ -260,24 +260,30 @@ function updateRoleDisplay(myData, settings) {
     const alivePlayersCount = remaining.length;
     const aliveImpostorsCount = activeSpies.length;
 
-    showResultOverlay({
-      eliminatedIsImpostor: roomData.voteResult.isSpy,
-      eliminatedName: votedName,
-      alivePlayersCount,
-      aliveImpostorsCount,
-      votedUid,
-    });
+    showResultOverlay(
+      {
+        eliminatedIsImpostor: roomData.voteResult.isSpy,
+        eliminatedName: votedName,
+        alivePlayersCount,
+        aliveImpostorsCount,
+        votedUid,
+      },
+      roomData
+    );
 
     return true;
   }
 
-  function showResultOverlay({
-    eliminatedIsImpostor,
-    eliminatedName,
-    alivePlayersCount,
-    aliveImpostorsCount,
-    votedUid,
-  }) {
+  function showResultOverlay(
+    {
+      eliminatedIsImpostor,
+      eliminatedName,
+      alivePlayersCount,
+      aliveImpostorsCount,
+      votedUid,
+    },
+    roomData
+  ) {
     const outcome = buildVotingOutcomeMessage({
       eliminatedName,
       eliminatedIsImpostor,
@@ -298,6 +304,7 @@ function updateRoleDisplay(myData, settings) {
     overlay.innerHTML = "";
     const actionsEl = document.getElementById("gameActions");
     msgDiv.textContent = outcome.message;
+    appendSpyNamesLine(msgDiv, roomData);
     if (outcome.gameEnded) {
       actionsEl?.classList.add("hidden");
     } else {
@@ -433,16 +440,33 @@ function updateRoleDisplay(myData, settings) {
     });
   }
 
-  function showSpyWinOverlay(spyIds, finalGuess, gameType, actualAnswer) {
+  function getSpyNames(roomData) {
+    const finalNames = roomData?.final?.spyNames;
+    if (Array.isArray(finalNames) && finalNames.length > 0) return finalNames;
+
+    const players = roomData?.players || {};
+    const roles = roomData?.playerRoles || {};
+    const spyUids = Object.keys(roles).filter((uid) => roles[uid]?.isSpy);
+    return spyUids.map((uid) => players?.[uid]?.name || uid);
+  }
+
+  function appendSpyNamesLine(msgDiv, roomData) {
+    const spyNames = getSpyNames(roomData);
+    if (!spyNames.length) return;
+
+    const spyLine = document.createElement("div");
+    spyLine.className = "spy-reveal";
+    spyLine.textContent = `Sahtekar(lar): ${spyNames.join(", ")}`;
+    msgDiv.appendChild(spyLine);
+  }
+
+  function showSpyWinOverlay(roomData, finalGuess, gameType, actualAnswer) {
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
       console.error("resultOverlay element not found");
       return;
     }
-    const names = (spyIds || [])
-      .map((id) => playerUidMap[id]?.name)
-      .filter((n) => n && currentPlayers.includes(n))
-      .join(", ");
+    const names = getSpyNames(roomData).join(", ");
     gameEnded = true;
     overlay.innerHTML = "";
     const msgDiv = document.createElement("div");
@@ -466,6 +490,7 @@ function updateRoleDisplay(myData, settings) {
       msgDiv.append(" kazandı! Oyun Bitti...");
     }
 
+    appendSpyNamesLine(msgDiv, roomData);
     const detailLines = buildGuessDetails(finalGuess, actualAnswer, gameType);
     appendGuessDetails(msgDiv, detailLines);
     overlay.appendChild(msgDiv);
@@ -514,16 +539,13 @@ function updateRoleDisplay(myData, settings) {
     });
   }
 
-  function showSpyFailOverlay(spyIds, finalGuess, gameType, actualAnswer) {
+  function showSpyFailOverlay(roomData, finalGuess, gameType, actualAnswer) {
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
       console.error("resultOverlay element not found");
       return;
     }
-    const names = (spyIds || [])
-      .map((id) => playerUidMap[id]?.name)
-      .filter((n) => n && currentPlayers.includes(n))
-      .join(", ");
+    const names = getSpyNames(roomData).join(", ");
     gameEnded = true;
     overlay.innerHTML = "";
     const msgDiv = document.createElement("div");
@@ -533,6 +555,7 @@ function updateRoleDisplay(myData, settings) {
       finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
     const nameText = names ? `${names} ` : "";
     msgDiv.textContent = `Sahtekar ${nameText}${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
+    appendSpyNamesLine(msgDiv, roomData);
     const detailLines = buildGuessDetails(finalGuess, actualAnswer, gameType);
     appendGuessDetails(msgDiv, detailLines);
     overlay.appendChild(msgDiv);
@@ -877,7 +900,7 @@ function updateRoleDisplay(myData, settings) {
           const actualAnswer = getActualAnswer(roomData);
           const gameType = roomData.settings?.gameType;
           if (!parityHandled) {
-            showSpyWinOverlay(roomData.spies, finalGuess, gameType, actualAnswer);
+            showSpyWinOverlay(roomData, finalGuess, gameType, actualAnswer);
           }
           window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
           return;
@@ -896,7 +919,7 @@ function updateRoleDisplay(myData, settings) {
           );
           const actualAnswer = getActualAnswer(roomData);
           const gameType = roomData.settings?.gameType;
-          showSpyFailOverlay(roomData.spies, finalGuess, gameType, actualAnswer);
+          showSpyFailOverlay(roomData, finalGuess, gameType, actualAnswer);
           return;
         }
         if (!roomData || roomData.status !== "started") {
