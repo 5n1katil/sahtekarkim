@@ -1192,6 +1192,7 @@ export const gameLogic = {
                 winner: "spies",
                 reason: "guess",
                 message,
+                finalGuess,
               })
             );
         });
@@ -1228,7 +1229,8 @@ export const gameLogic = {
         }
         if (updates.status === "finished") {
           const guessWord = gameType === "category" ? "rolü" : "konumu";
-          const message = `Sahtekar ${guessWord} ${guess} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
+          const actualWord = gameType === "category" ? "rol" : "konum";
+          const message = `Sahtekar ${guessWord} ${guess} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
           ref
             .update(updates)
             .then(() =>
@@ -1236,6 +1238,7 @@ export const gameLogic = {
                 winner: "innocents",
                 reason: "guess",
                 message,
+                finalGuess,
               })
             );
         } else {
