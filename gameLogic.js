@@ -882,13 +882,21 @@ export const gameLogic = {
       roomRef.get().then((snap) => {
         if (!snap.exists()) return;
         const data = snap.val();
+        if (data.voting?.active) return;
         const requests = data.voteStartRequests || {};
-        const players = Object.entries(data.players || {})
-          .filter(([, p]) => p && p.name)
-          .map(([uid, p]) => ({ ...p, uid }));
-        const threshold = Math.ceil(players.length / 2);
-        if (Object.keys(requests).length >= threshold) {
-          this.startVoting(roomCode, players);
+        const alivePlayers = Object.entries(data.playerRoles || {}).map(
+          ([id]) => ({
+            uid: id,
+            name: data.players?.[id]?.name || id,
+          })
+        );
+        const aliveUids = alivePlayers.map((p) => p.uid);
+        const requestCount = Object.keys(requests).filter((id) =>
+          aliveUids.includes(id)
+        ).length;
+        const threshold = Math.ceil(alivePlayers.length / 2);
+        if (alivePlayers.length && requestCount >= threshold) {
+          this.startVoting(roomCode, alivePlayers);
         }
       });
     });
@@ -903,42 +911,63 @@ export const gameLogic = {
             name: p.name,
           }))
         )
-      : ref
-          .child("players")
-          .get()
-          .then((snap) => {
-            const players = snap.val() || {};
-            return Object.entries(players)
-              .filter(([, p]) => p && p.name)
-              .map(([uid, p]) => ({ uid, name: p.name }));
-          });
+      : Promise.all([
+          ref.child("playerRoles").get(),
+          ref.child("players").get(),
+        ]).then(([rolesSnap, playersSnap]) => {
+          const roles = rolesSnap.val() || {};
+          const players = playersSnap.val() || {};
+          return Object.keys(roles).map((uid) => ({
+            uid,
+            name: players?.[uid]?.name || uid,
+          }));
+        });
 
     snapshotPromise.then((snapshotPlayers) => {
-      ref
-        .update({
-          votingStarted: true,
-          votes: null,
-          voteResult: null,
-          voteRequests: null,
-          voteStartRequests: null,
-          voting: {
-            active: true,
-            startedAt: window.firebase.database.ServerValue.TIMESTAMP,
-            endsAt: null,
-            result: null,
-            snapshotPlayers: snapshotPlayers || [],
-          },
-        })
-        .then(() => {
-          ref
-            .child("voting/startedAt")
-            .get()
-            .then((snap) => {
-              const startedAt = snap.val();
-              if (!startedAt) return;
-              ref.child("voting/endsAt").set(startedAt + 30000);
-            });
-        });
+      ref.child("voting/active").get().then((activeSnap) => {
+        if (activeSnap.exists() && activeSnap.val()) return;
+
+        const snapshotOrder = (snapshotPlayers || []).map((p) => p.uid);
+        const snapshotNames = (snapshotPlayers || []).reduce((acc, p) => {
+          if (p?.uid) acc[p.uid] = p.name;
+          return acc;
+        }, {});
+        const aliveAtStart = snapshotOrder.reduce((acc, uid) => {
+          acc[uid] = true;
+          return acc;
+        }, {});
+
+        ref
+          .update({
+            votingStarted: true,
+            votes: null,
+            voteResult: null,
+            voteRequests: null,
+            voteStartRequests: null,
+            voting: {
+              active: true,
+              startedAt: window.firebase.database.ServerValue.TIMESTAMP,
+              endsAt: null,
+              result: null,
+              snapshot: {
+                order: snapshotOrder,
+                names: snapshotNames,
+                aliveAtStart,
+              },
+              snapshotPlayers: snapshotPlayers || [],
+            },
+          })
+          .then(() => {
+            ref
+              .child("voting/startedAt")
+              .get()
+              .then((snap) => {
+                const startedAt = snap.val();
+                if (!startedAt) return;
+                ref.child("voting/endsAt").set(startedAt + 30000);
+              });
+          });
+      });
     });
   },
 
@@ -1071,7 +1100,9 @@ export const gameLogic = {
       const isTie = !hasVotes || top.length !== 1;
 
       const snapshotPlayers = votingState.snapshotPlayers || [];
+      const snapshot = votingState.snapshot;
       const getName = (uid) => {
+        if (snapshot?.names && snapshot.names[uid]) return snapshot.names[uid];
         const snap = snapshotPlayers.find((p) => p.uid === uid);
         return snap?.name || (data.players?.[uid]?.name ?? uid);
       };
