@@ -8035,7 +8035,8 @@
   var currentPlayers = [];
   var playerUidMap = {};
   var currentUid = null;
-  window.auth.onAuthStateChanged(/*#__PURE__*/function () {
+  if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
+    window.auth.onAuthStateChanged(/*#__PURE__*/function () {
     var _ref = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee(user) {
       var roomRef;
       return _regenerator().w(function (_context) {
@@ -8113,6 +8114,10 @@
       return _ref.apply(this, arguments);
     };
   }());
+  } else {
+    console.warn("Firebase Auth yüklenmedi, temel arayüz başlatılıyor");
+    showSetupJoin();
+  }
   var lastVoteResult = null;
   var gameEnded = false;
   var lastGuessEvent = null;
