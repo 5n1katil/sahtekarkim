@@ -363,7 +363,10 @@ function updateRoleDisplay(myData, settings) {
       spyInfo
     );
     msgDiv.textContent = resolvedMessage;
-    appendSpyNamesLine(msgDiv, roomData);
+    appendSpyNamesLine(msgDiv, roomData, {
+      spyInfo,
+      primaryMessage: resolvedMessage,
+    });
     if (outcome.gameEnded) {
       actionsEl?.classList.add("hidden");
     } else {
@@ -549,12 +552,15 @@ function updateRoleDisplay(myData, settings) {
     };
   }
 
-  function appendSpyNamesLine(msgDiv, roomData) {
-    const spyInfo = getSpyInfo(roomData);
+  function appendSpyNamesLine(msgDiv, roomData, options = {}) {
+    const spyInfo = options.spyInfo || getSpyInfo(roomData);
+    const primaryMessage = options.primaryMessage || msgDiv?.textContent || "";
     const hasSnapshot =
       !!roomData?.spiesSnapshot &&
       isCurrentRoundPayload(roomData, roomData.spiesSnapshot);
-    if (!hasSnapshot) return;
+    const alreadyHasNames =
+      spyInfo.hasNames && primaryMessage.includes(spyInfo.spiesLabel);
+    if (!hasSnapshot || alreadyHasNames) return;
 
     const spyLine = document.createElement("div");
     spyLine.className = "spy-reveal";
@@ -592,8 +598,10 @@ function updateRoleDisplay(myData, settings) {
       fallbackMessage,
       spyInfo
     );
-
-    appendSpyNamesLine(msgDiv, roomData);
+    appendSpyNamesLine(msgDiv, roomData, {
+      spyInfo,
+      primaryMessage: msgDiv.textContent,
+    });
     const resolvedActualAnswer =
       actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation;
     const detailLines = buildGuessDetails(
@@ -676,7 +684,10 @@ function updateRoleDisplay(myData, settings) {
       fallbackMessage,
       spyInfo
     );
-    appendSpyNamesLine(msgDiv, roomData);
+    appendSpyNamesLine(msgDiv, roomData, {
+      spyInfo,
+      primaryMessage: msgDiv.textContent,
+    });
     const detailLines = buildGuessDetails(
       finalGuess,
       resolvedActualAnswer,
