@@ -341,7 +341,12 @@ function getResolvedVoteResult(roomData) {
     msgDiv.className = "result-message";
     overlay.innerHTML = "";
     const actionsEl = document.getElementById("gameActions");
-    const resolvedMessage = resolveGameOverMessage(roomData, outcome.message);
+    const spyInfo = getSpyInfo(roomData);
+    const resolvedMessage = resolveGameOverMessage(
+      roomData,
+      outcome.message,
+      spyInfo
+    );
     msgDiv.textContent = resolvedMessage;
     appendSpyNamesLine(msgDiv, roomData);
     if (outcome.gameEnded) {
@@ -482,9 +487,18 @@ function getResolvedVoteResult(roomData) {
     return { ...gameOver, spies };
   }
 
-  function resolveGameOverMessage(roomData, fallbackMessage) {
+  function resolveGameOverMessage(roomData, fallbackMessage, spyInfo) {
     const gameOver = getGameOverInfo(roomData);
-    if (gameOver?.message) return gameOver.message;
+    if (gameOver?.message) {
+      if (!spyInfo) return gameOver.message;
+      const replacement = spyInfo.hasNames
+        ? `Sahtekar(lar) (${spyInfo.spiesLabel})`
+        : "Sahtekar(lar)";
+      const normalized = gameOver.message
+        .replace(/Sahtekar\(lar\)\s*\([^)]*\)/g, replacement)
+        .replace(/Sahtekar\s*\([^)]*\)/g, replacement);
+      return normalized;
+    }
     return fallbackMessage;
   }
 
@@ -504,13 +518,25 @@ function getResolvedVoteResult(roomData) {
     return [];
   }
 
-  function appendSpyNamesLine(msgDiv, roomData) {
+  function getSpyInfo(roomData) {
     const spyNames = getSpyNames(roomData);
-    if (!spyNames.length) return;
+    const spiesLabel = spyNames.length ? spyNames.join(", ") : "—";
+
+    return {
+      spyNames,
+      spiesLabel,
+      hasNames: spyNames.length > 0,
+    };
+  }
+
+  function appendSpyNamesLine(msgDiv, roomData) {
+    const spyInfo = getSpyInfo(roomData);
+    const hasSnapshot = !!roomData?.spiesSnapshot;
+    if (!hasSnapshot) return;
 
     const spyLine = document.createElement("div");
     spyLine.className = "spy-reveal";
-    spyLine.textContent = `Sahtekar(lar): ${spyNames.join(", ")}`;
+    spyLine.textContent = `Sahtekar(lar): ${spyInfo.spiesLabel}`;
     msgDiv.appendChild(spyLine);
   }
 
@@ -520,7 +546,7 @@ function getResolvedVoteResult(roomData) {
       console.error("resultOverlay element not found");
       return;
     }
-    const names = getSpyNames(roomData).join(", ");
+    const spyInfo = getSpyInfo(roomData);
     gameEnded = true;
     overlay.innerHTML = "";
     const msgDiv = document.createElement("div");
@@ -529,13 +555,21 @@ function getResolvedVoteResult(roomData) {
     const guessedValue =
       finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
 
-    const fallbackMessage = guessedValue
-      ? `Sahtekar ${names ? `(${names}) ` : ""}${guessWord} ${guessedValue} olarak doğru tahmin etti ve oyunu kazandı`
-      : names
-        ? `Sahtekar ${names} kazandı! Oyun Bitti...`
-        : "Sahtekar kazandı! Oyun Bitti...";
+    const spyIntro = spyInfo.hasNames
+      ? `Sahtekar(lar) (${spyInfo.spiesLabel})`
+      : "Sahtekar(lar)";
 
-    msgDiv.textContent = resolveGameOverMessage(roomData, fallbackMessage);
+    const fallbackMessage = guessedValue
+      ? `${spyIntro} ${guessWord} ${guessedValue} olarak doğru tahmin etti ve oyunu kazandı`
+      : spyInfo.hasNames
+        ? `${spyIntro} kazandı! Oyun Bitti...`
+        : "Sahtekar(lar) kazandı! Oyun Bitti...";
+
+    msgDiv.textContent = resolveGameOverMessage(
+      roomData,
+      fallbackMessage,
+      spyInfo
+    );
 
     appendSpyNamesLine(msgDiv, roomData);
     const resolvedActualAnswer =
@@ -598,7 +632,7 @@ function getResolvedVoteResult(roomData) {
       console.error("resultOverlay element not found");
       return;
     }
-    const names = getSpyNames(roomData).join(", ");
+    const spyInfo = getSpyInfo(roomData);
     gameEnded = true;
     overlay.innerHTML = "";
     const msgDiv = document.createElement("div");
@@ -609,11 +643,17 @@ function getResolvedVoteResult(roomData) {
       finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
     const resolvedActualAnswer =
       actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation;
-    const nameText = names ? `${names} ` : "";
+    const spyIntro = spyInfo.hasNames
+      ? `Sahtekar(lar) (${spyInfo.spiesLabel})`
+      : "Sahtekar(lar)";
     const fallbackMessage = resolvedActualAnswer
-      ? `Sahtekar ${nameText}${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti. Doğru ${actualWord} ${resolvedActualAnswer} idi ve oyunu masumlar kazandı!`
-      : `Sahtekar ${nameText}${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
-    msgDiv.textContent = resolveGameOverMessage(roomData, fallbackMessage);
+      ? `${spyIntro} ${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti. Doğru ${actualWord} ${resolvedActualAnswer} idi ve oyunu masumlar kazandı!`
+      : `${spyIntro} ${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
+    msgDiv.textContent = resolveGameOverMessage(
+      roomData,
+      fallbackMessage,
+      spyInfo
+    );
     appendSpyNamesLine(msgDiv, roomData);
     const detailLines = buildGuessDetails(
       finalGuess,
