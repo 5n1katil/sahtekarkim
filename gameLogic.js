@@ -5,6 +5,11 @@ let anonymousSignInPromise = null;
 const MIN_PLAYERS = 3;
 const ROOM_PLAYER_LIMIT = 20;
 
+function generateRoundId() {
+  const newRef = window.db.ref().push();
+  return newRef.key || String(Date.now());
+}
+
 function getSpyUids(spies) {
   if (Array.isArray(spies)) return spies;
   if (spies && typeof spies === "object") return Object.keys(spies);
@@ -84,6 +89,7 @@ async function ensureSpiesSnapshot(roomCode, data, spiesOverride) {
     }
     return {
       createdAt: window.firebase.database.ServerValue.TIMESTAMP,
+      roundId: data?.roundId || null,
       spies,
     };
   });
@@ -110,6 +116,7 @@ async function finalizeGameOver(roomCode, data, payload) {
     winner,
     spies,
     spyNames,
+    roundId: data?.roundId || null,
     finalizedAt: window.firebase.database.ServerValue.TIMESTAMP,
   };
 
@@ -759,7 +766,7 @@ export const gameLogic = {
   },
 
   /** Oyunculara roller atayın */
-  assignRoles: async function (roomCode) {
+  assignRoles: async function (roomCode, roundId) {
     const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     const [settingsSnap, playersSnap] = await Promise.all([
@@ -853,12 +860,14 @@ export const gameLogic = {
         }
         return {
           createdAt: window.firebase.database.ServerValue.TIMESTAMP,
+          roundId: roundId || null,
           spies: spiesArr,
         };
       });
   },
 
   startGame: async function (roomCode) {
+    const roundId = generateRoundId();
     const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     const [settingsSnap, playersSnap] = await Promise.all([
@@ -879,8 +888,9 @@ export const gameLogic = {
       throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
     }
 
-    await this.assignRoles(roomCode);
+    await this.assignRoles(roomCode, roundId);
     await window.db.ref(`rooms/${roomCode}`).update({
+      roundId,
       status: "started",
       round: 1,
       phase: "clue",
@@ -891,7 +901,14 @@ export const gameLogic = {
       voteStartRequests: null,
       voting: null,
       guess: null,
+      lastGuess: null,
       eliminated: null,
+      eliminatedUid: null,
+      winner: null,
+      spyParityWin: null,
+      gameOver: null,
+      final: null,
+      spiesSnapshot: null,
     });
   },
 
@@ -929,6 +946,7 @@ export const gameLogic = {
     await roomRef.update({
       status: "waiting",
       round: 0,
+      roundId: null,
       votes: null,
       voteResult: null,
       votingStarted: false,
@@ -943,6 +961,8 @@ export const gameLogic = {
       spyParityWin: null,
       lastGuess: null,
       eliminated: null,
+      gameOver: null,
+      final: null,
     });
     // Start game after players have been restored and room reset
     await this.startGame(roomCode);
@@ -1196,7 +1216,13 @@ export const gameLogic = {
           const winUpdate = {
             status: "finished",
             winner: "spy",
-            lastGuess: { spy: spyUid, guess, correct: true, finalGuess },
+            lastGuess: {
+              spy: spyUid,
+              guess,
+              correct: true,
+              finalGuess,
+              roundId: data.roundId || null,
+            },
             votingStarted: false,
             votes: null,
             voteResult: null,
@@ -1228,6 +1254,7 @@ export const gameLogic = {
             correct: false,
             guessesLeft: 0,
             finalGuess,
+            roundId: data.roundId || null,
           };
           updates.votingStarted = false;
           updates.votes = null;
@@ -1235,7 +1262,14 @@ export const gameLogic = {
           updates.voteRequests = null;
           updates.guess = null;
         } else {
-          updates.lastGuess = { spy: spyUid, guess, correct: false, guessesLeft, finalGuess };
+          updates.lastGuess = {
+            spy: spyUid,
+            guess,
+            correct: false,
+            guessesLeft,
+            finalGuess,
+            roundId: data.roundId || null,
+          };
           if (typeof preserveVotingStarted !== "undefined") {
             updates.votingStarted = preserveVotingStarted;
           }
@@ -1341,11 +1375,12 @@ export const gameLogic = {
           ...(votingState?.result || {}),
           voteCounts: counts,
           finalizedAt: window.firebase.database.ServerValue.TIMESTAMP,
+          roundId: room.roundId || null,
         },
       };
 
       if (isTie) {
-        nextRoom.voteResult = { tie: true };
+        nextRoom.voteResult = { tie: true, roundId: room.roundId || null };
         nextRoom.voting.result.tie = true;
         nextRoom.guess = null;
         return nextRoom;
@@ -1362,7 +1397,7 @@ export const gameLogic = {
       );
 
       const eliminatedName = getName(voted);
-      nextRoom.voteResult = { voted, isSpy };
+      nextRoom.voteResult = { voted, isSpy, roundId: room.roundId || null };
       nextRoom.voting.result.eliminatedUid = voted;
       nextRoom.voting.result.eliminatedName = eliminatedName;
       nextRoom.voting.result.isSpy = isSpy;
@@ -1390,6 +1425,7 @@ export const gameLogic = {
         nextRoom.guess = {
           spyUid: voted,
           endsAt: Date.now() + 30000,
+          roundId: room.roundId || null,
         };
         nextRoom.voting.result.guessAllowed = true;
       } else {
