@@ -35,6 +35,52 @@ function appendFinalSpyInfo(updates, data) {
   return updates;
 }
 
+function deriveSpyDetails(data) {
+  const roles = data?.playerRoles || {};
+  const players = data?.players || {};
+  const spyCandidates = new Set(getSpyUids(data?.spies));
+
+  Object.entries(roles).forEach(([uid, role]) => {
+    if (!role) return;
+    if (role.isSpy || role.roleType === "spy" || role.isImpostor) {
+      spyCandidates.add(uid);
+    }
+  });
+
+  const spies = [];
+  spyCandidates.forEach((uid) => {
+    const name = players?.[uid]?.name;
+    if (name && String(name).trim() !== "") {
+      spies.push({ uid, name });
+    }
+  });
+
+  return spies;
+}
+
+function normalizeWinnerValue(winner) {
+  if (winner === "innocent") return "innocents";
+  if (winner === "spy") return "spies";
+  return winner;
+}
+
+function finalizeGameOver(roomCode, data, payload) {
+  const spies = deriveSpyDetails(data);
+  const winner = normalizeWinnerValue(payload?.winner);
+  const gameOver = {
+    ...payload,
+    winner,
+    spies,
+    finalizedAt: window.firebase.database.ServerValue.TIMESTAMP,
+  };
+
+  const ref = window.db.ref(`rooms/${roomCode}/gameOver`);
+  return ref.transaction((current) => {
+    if (current?.finalizedAt) return undefined;
+    return gameOver;
+  });
+}
+
 // Konumlar ve kategoriler için veri havuzları
 export const POOLS = {
   locations: [
@@ -1048,6 +1094,8 @@ export const gameLogic = {
       const preserveVotingStarted = data.votingStarted;
       const preserveVotes = data.votes;
       if (guess === correctAnswer) {
+        const guessWord = gameType === "category" ? "rolü" : "konumu";
+        const message = `Sahtekar ${guessWord} ${guess} olarak doğru tahmin etti ve oyunu kazandı!`;
         const winUpdate = {
           status: "finished",
           winner: "spy",
@@ -1059,7 +1107,15 @@ export const gameLogic = {
           guess: null,
         };
         appendFinalSpyInfo(winUpdate, data);
-        ref.update(winUpdate);
+        ref
+          .update(winUpdate)
+          .then(() =>
+            finalizeGameOver(roomCode, data, {
+              winner: "spies",
+              reason: "guess",
+              message,
+            })
+          );
       } else {
         guessesLeft -= 1;
         const updates = {};
@@ -1091,7 +1147,21 @@ export const gameLogic = {
         if (!updates.guess) {
           updates.guess = null;
         }
-        ref.update(updates);
+        if (updates.status === "finished") {
+          const guessWord = gameType === "category" ? "rolü" : "konumu";
+          const message = `Sahtekar ${guessWord} ${guess} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
+          ref
+            .update(updates)
+            .then(() =>
+              finalizeGameOver(roomCode, data, {
+                winner: "innocents",
+                reason: "guess",
+                message,
+              })
+            );
+        } else {
+          ref.update(updates);
+        }
       }
     });
   },
@@ -1123,7 +1193,7 @@ export const gameLogic = {
 
   finalizeVoting: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.transaction((room) => {
+    return ref.transaction((room) => {
       if (!room) return room;
       const votingState = room.voting || {};
       if (votingState.result && votingState.result.finalizedAt) return room;
@@ -1228,6 +1298,28 @@ export const gameLogic = {
       }
 
       return nextRoom;
+    }).then((result) => {
+      if (!result.committed) return;
+      const roomData = result.snapshot?.val();
+      const votingResult = roomData?.voting?.result;
+      if (
+        roomData?.status === "finished" &&
+        roomData?.winner === "innocent" &&
+        votingResult?.eliminatedUid &&
+        votingResult?.lastSpy &&
+        !roomData?.guess
+      ) {
+        const eliminatedName =
+          votingResult.eliminatedName || votingResult.eliminatedUid;
+        const message = `Oylama sonucunda Sahtekar ${eliminatedName} elendi ve oyunu masumlar kazandı!`;
+        finalizeGameOver(roomCode, roomData, {
+          winner: "innocents",
+          reason: "vote",
+          eliminatedUid: votingResult.eliminatedUid,
+          eliminatedName,
+          message,
+        });
+      }
     });
   },
 
@@ -1268,7 +1360,19 @@ export const gameLogic = {
         updates.winner = "innocent";
         appendFinalSpyInfo(updates, data);
       }
-      ref.update(updates);
+      const updatePromise = ref.update(updates);
+      if (updates.status === "finished") {
+        updatePromise.then(() =>
+          finalizeGameOver(roomCode, data, {
+            winner: "innocents",
+            reason: "timeout",
+            message:
+              "Sahtekar tahmin süresini kaçırdı ve oyunu masumlar kazandı!",
+            eliminatedUid: votingResult?.eliminatedUid,
+            eliminatedName: votingResult?.eliminatedName,
+          })
+        );
+      }
     });
   },
 
@@ -1374,7 +1478,16 @@ export const gameLogic = {
             { status: "finished", winner: "innocent" },
             data
           );
-          ref.update(updates);
+          const eliminatedName = playerInfo?.name || votedUid;
+          ref.update(updates).then(() =>
+            finalizeGameOver(roomCode, data, {
+              winner: "innocents",
+              reason: "vote",
+              eliminatedUid: votedUid,
+              eliminatedName,
+              message: `Oylama sonucunda Sahtekar ${eliminatedName} elendi ve oyunu masumlar kazandı!`,
+            })
+          );
           return;
         }
         this.checkSpyWin(roomCode).then((spyWon) => {
@@ -1406,8 +1519,16 @@ export const gameLogic = {
           { status: "finished", winner: "spy", spyParityWin: true },
           data
         );
-        ref.update(updates);
-        return true;
+        return ref
+          .update(updates)
+          .then(() =>
+            finalizeGameOver(roomCode, data, {
+              winner: "spies",
+              reason: "parity",
+              message: "Sahtekarlar sayıca üstünlük sağladı ve oyunu kazandı!",
+            })
+          )
+          .then(() => true);
       }
       return false;
     });
