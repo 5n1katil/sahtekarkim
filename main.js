@@ -668,7 +668,7 @@ function updateRoleDisplay(myData, settings) {
             playerUidMap[uid]?.name ||
             uid,
         }))
-        .filter((p) => p.uid);
+        .filter((p) => p.uid && p.uid !== currentUid);
       renderVoteOptions(voteCandidatesSnapshot);
       return;
     }
