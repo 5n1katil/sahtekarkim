@@ -536,7 +536,13 @@ function getResolvedVoteResult(roomData) {
     msgDiv.textContent = resolveGameOverMessage(roomData, fallbackMessage);
 
     appendSpyNamesLine(msgDiv, roomData);
-    const detailLines = buildGuessDetails(finalGuess, actualAnswer, gameType);
+    const resolvedActualAnswer =
+      actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation;
+    const detailLines = buildGuessDetails(
+      finalGuess,
+      resolvedActualAnswer || actualAnswer,
+      gameType
+    );
     appendGuessDetails(msgDiv, detailLines);
     overlay.appendChild(msgDiv);
     let restartBtn;
@@ -596,15 +602,22 @@ function getResolvedVoteResult(roomData) {
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
     const guessWord = gameType === "category" ? "rolü" : "konumu";
+    const actualWord = gameType === "category" ? "rol" : "konum";
     const guessedValue =
       finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
+    const resolvedActualAnswer =
+      actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation;
     const nameText = names ? `${names} ` : "";
-    const fallbackMessage = `Sahtekar ${nameText}${guessWord} ${
-      guessedValue || ""
-    } olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
+    const fallbackMessage = resolvedActualAnswer
+      ? `Sahtekar ${nameText}${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti. Doğru ${actualWord} ${resolvedActualAnswer} idi ve oyunu masumlar kazandı!`
+      : `Sahtekar ${nameText}${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
     msgDiv.textContent = resolveGameOverMessage(roomData, fallbackMessage);
     appendSpyNamesLine(msgDiv, roomData);
-    const detailLines = buildGuessDetails(finalGuess, actualAnswer, gameType);
+    const detailLines = buildGuessDetails(
+      finalGuess,
+      resolvedActualAnswer,
+      gameType
+    );
     appendGuessDetails(msgDiv, detailLines);
     overlay.appendChild(msgDiv);
     let restartBtn;
@@ -942,7 +955,7 @@ function getResolvedVoteResult(roomData) {
             (roomData.status === "finished" && roomData.winner === "spy"))
         ) {
           const finalGuess = normalizeFinalGuess(
-            roomData.lastGuess?.finalGuess || null,
+            roomData.gameOver?.finalGuess || roomData.lastGuess?.finalGuess || null,
             roomData
           );
           const actualAnswer = getActualAnswer(roomData);
@@ -962,7 +975,7 @@ function getResolvedVoteResult(roomData) {
           if (handledByVote) return;
 
           const finalGuess = normalizeFinalGuess(
-            roomData.lastGuess?.finalGuess || null,
+            roomData.gameOver?.finalGuess || roomData.lastGuess?.finalGuess || null,
             roomData
           );
           const actualAnswer = getActualAnswer(roomData);
