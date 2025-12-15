@@ -184,10 +184,18 @@ function updateRoleDisplay(myData, settings) {
     ? "Sahtekarın gördüğü roller"
     : "Sahtekarın gördüğü konumlar";
 
-  if (myData && myData.role && myData.role.includes("Sahtekar")) {
-    const safeLocations = (myData.allLocations || [])
-      .map(escapeHtml)
-      .join(", ");
+  const displayName = myData?.role?.name ?? myData?.role;
+  const poolEntries = (myData?.allLocations || [])
+    .map((item) => (item && typeof item === "object" ? item.name : item))
+    .filter((item) => item !== undefined && item !== null && item !== "");
+
+  if (
+    myData &&
+    displayName &&
+    typeof displayName === "string" &&
+    displayName.includes("Sahtekar")
+  ) {
+    const safeLocations = poolEntries.map(escapeHtml).join(", ");
     roleMessageEl.innerHTML =
       `🎭 Sen <b>SAHTEKAR</b>sın! ${isCategory ? "Rolü" : "Konumu"} bilmiyorsun.<br>` +
       `${isCategory ? "Olası roller" : "Olası konumlar"}: ${safeLocations}`;
@@ -198,16 +206,14 @@ function updateRoleDisplay(myData, settings) {
     }
     poolInfo.classList.add("hidden");
     return;
-  } else if (myData && myData.role) {
-    const safeLocation = escapeHtml(myData.location);
-    const safeRole = escapeHtml(myData.role);
+  } else if (myData && displayName) {
+    const safeLocation = escapeHtml(myData.location ?? "");
+    const safeRole = escapeHtml(displayName);
     roleMessageEl.innerHTML =
       `📍 Konum: <b>${safeLocation}</b><br>` +
       `🎭 Rolün: <b>${safeRole}</b>`;
     poolSummary.textContent = poolLabel;
-    poolListEl.textContent = (myData.allLocations || [])
-      .map(escapeHtml)
-      .join(", ");
+    poolListEl.textContent = poolEntries.map(escapeHtml).join(", ");
     poolInfo.classList.remove("hidden");
   } else {
     roleMessageEl.textContent = "Rol bilgisi bulunamadı.";
@@ -1238,17 +1244,24 @@ function updateRoleDisplay(myData, settings) {
 
         if (myData && myData.role) {
           const guessesLeft = myData.guessesLeft ?? 0;
-          const isSpy = myData.role.includes("Sahtekar");
+          const roleDisplay = myData.role?.name ?? myData.role;
+          const isSpy =
+            roleDisplay &&
+            typeof roleDisplay === "string" &&
+            roleDisplay.includes("Sahtekar");
           if (isSpy && guessesLeft > 0) {
             const guessSection = document.getElementById("guessSection");
             guessSection.classList.remove("hidden");
             const guessSelect = document.getElementById("guessSelect");
             const locations = myData.allLocations || [];
-            const locationsKey = JSON.stringify(locations);
+            const displayLocations = locations
+              .map((loc) => (loc && typeof loc === "object" ? loc.name : loc))
+              .filter((loc) => loc !== undefined && loc !== null && loc !== "");
+            const locationsKey = JSON.stringify(displayLocations);
             const previousSelection = guessSelect.value || lastGuessSelection;
 
             if (locationsKey !== lastGuessOptionsKey) {
-              guessSelect.innerHTML = locations
+              guessSelect.innerHTML = displayLocations
                 .map(
                   (loc) =>
                     `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`
@@ -1257,7 +1270,7 @@ function updateRoleDisplay(myData, settings) {
               lastGuessOptionsKey = locationsKey;
             }
 
-            const selectionToRestore = locations.includes(previousSelection)
+            const selectionToRestore = displayLocations.includes(previousSelection)
               ? previousSelection
               : guessSelect.value;
             if (selectionToRestore) {
