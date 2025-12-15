@@ -8286,6 +8286,7 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
     }).filter(function (n) {
       return n && currentPlayers.includes(n);
     }).join(", ");
+      var spyIntro = names ? names.includes(",") ? "Sahtekar(lar) (".concat(names, ")") : "Sahtekar \"".concat(names, "\"") : "Sahtekar(lar)";
       gameEnded = true;
       overlay.innerHTML = "";
     var msgDiv = document.createElement("div");
@@ -8293,18 +8294,9 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
       var safeGuess = escapeHtml(guessed);
       var word = guessWord || "konumu";
       if (safeGuess) {
-        var playerNames = names ? "(".concat(names, ") ") : "";
-        msgDiv.textContent = "Sahtekar ".concat(playerNames).concat(word, " ").concat(safeGuess, " olarak do\\u011Fru tahmin etti ve oyunu kazand\\u0131");
+        msgDiv.textContent = "".concat(spyIntro, " ").concat(word, " ").concat(safeGuess, " olarak do\\u011Fru tahmin etti ve oyunu kazand\\u0131!");
       } else {
-      msgDiv.append("Sahtekar");
-      if (names) {
-        msgDiv.appendChild(document.createElement("br"));
-        var span = document.createElement("span");
-        span.className = "impostor-name";
-        span.textContent = names;
-        msgDiv.appendChild(span);
-      }
-      msgDiv.append(" kazandı! Oyun Bitti...");
+      msgDiv.textContent = "".concat(spyIntro, " kazand\\u0131! Oyun Bitti...");
     }
     overlay.appendChild(msgDiv);
     var restartBtn = document.createElement("button");
@@ -8351,15 +8343,16 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
     }).filter(function (n) {
       return n && currentPlayers.includes(n);
     }).join(", ");
+      var spyIntro = names ? names.includes(",") ? "Sahtekar(lar) (".concat(names, ")") : "Sahtekar \"".concat(names, "\"") : "Sahtekar(lar)";
       gameEnded = true;
       overlay.innerHTML = "";
     var msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
       var word = guessWord || "konumu";
-      var nameText = names ? "".concat(names, " ") : "";
       var safeGuess = escapeHtml(guessValue || "");
+      var guessDetail = safeGuess ? "".concat(word, " ").concat(safeGuess, " olarak") : "".concat(word, " olarak");
       // İmpostor'un yanlış tahmini durumunda sadece "konumu" veya "rolü" bilgisini göster
-      msgDiv.textContent = "Sahtekar ".concat(nameText).concat(word, " ").concat(safeGuess, " olarak yanl\\u0131\\u015F tahmin etti ve oyunu masumlar kazand\\u0131!");
+      msgDiv.textContent = "".concat(spyIntro, " ").concat(guessDetail, " yanl\\u0131\\u015F tahmin etti ve oyunu masumlar kazand\\u0131!");
     overlay.appendChild(msgDiv);
     var restartBtn = document.createElement("button");
     restartBtn.id = "restartBtn";
