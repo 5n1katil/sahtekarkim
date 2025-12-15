@@ -1,4 +1,7 @@
 import { escapeHtml } from './utils.js';
+import { TR_ACTORS } from './data/characters_tr_actors.js';
+
+const TR_ACTOR_NAMES = TR_ACTORS.map(({ name }) => name).filter(Boolean);
 
 let anonymousSignInPromise = null;
 
@@ -232,43 +235,7 @@ export const POOLS = {
     "Denizaltı",
     "Depo"
   ],
-  "Ünlü Türk Oyuncular": [
-    "Kıvanç Tatlıtuğ",
-    "Beren Saat",
-    "Halit Ergenç",
-    "Bergüzar Korel",
-    "Kenan İmirzalıoğlu",
-    "Tuba Büyüküstün",
-    "Engin Akyürek",
-    "Burak Özçivit",
-    "Fahriye Evcen",
-    "Çağatay Ulusoy",
-    "Elçin Sangu",
-    "Neslihan Atagül",
-    "Serenay Sarıkaya",
-    "Haluk Bilginer",
-    "Nurgül Yeşilçay",
-    "Binnur Kaya",
-    "Demet Özdemir",
-    "Özcan Deniz",
-    "Aslı Enver",
-    "Meryem Uzerli",
-    "Nesrin Cavadzade",
-    "Hazal Kaya",
-    "Aras Bulut İynemli",
-    "Cansu Dere",
-    "İlker Kaleli",
-    "Tolga Sarıtaş",
-    "Hande Erçel",
-    "Gülse Birsel",
-    "Şener Şen",
-    "Demet Evgar",
-    "Afra Saraçoğlu",
-    "Kadir İnanır",
-    "Türkan Şoray",
-    "Kerem Bürsin",
-    "Birce Akalay"
-  ],
+  "Ünlü Türk Oyuncular": TR_ACTOR_NAMES,
   "Türk Şarkıcılar": [
     "Sezen Aksu",
     "Tarkan",
