@@ -246,12 +246,10 @@ function updateRoleDisplay(myData, settings) {
     spyNames = [],
   }) {
     const safeName = escapeHtml(eliminatedName || "");
-    const impostorList = spyNames
-      .map((name) => escapeHtml(name || ""))
-      .filter(Boolean);
-    const impostorSuffix = impostorList.length
-      ? ` [${impostorList.join(", ")}]`
-      : "";
+    const normalizedSpyNames = uniqueNames(
+      (spyNames || []).map((name) => sanitizeName(name))
+    ).filter(Boolean);
+    const impostorWinnersText = formatSpyWinnersText(normalizedSpyNames);
 
     if (eliminatedIsImpostor) {
       return {
@@ -272,7 +270,7 @@ function updateRoleDisplay(myData, settings) {
     if (alivePlayersCount === 2) {
       if (aliveImpostorsCount >= 1) {
         return {
-          message: `Oylama sonucunda ${safeName} elendi. Elenen kişi masumdu — oyunu sahtekar(lar)${impostorSuffix} kazandı!`,
+          message: `Oylama sonucunda ${safeName} elendi. Elenen kişi masumdu — oyunu ${impostorWinnersText} kazandı!`,
           gameEnded: true,
           impostorVictory: true,
         };
@@ -341,7 +339,7 @@ function updateRoleDisplay(myData, settings) {
       eliminatedIsImpostor,
       alivePlayersCount,
       aliveImpostorsCount,
-      spyNames: getSpyNames(roomData),
+      spyNames: getSpyNames(roomData, roomData?.players),
     });
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
@@ -544,6 +542,27 @@ function updateRoleDisplay(myData, settings) {
     });
   }
 
+  function formatSpyWinnersText(spyNames) {
+    const cleaned = uniqueNames(
+      (spyNames || []).map((name) => sanitizeName(name))
+    ).filter(Boolean);
+
+    if (cleaned.length === 1) {
+      return `sahtekar ${cleaned[0]}`;
+    }
+
+    if (cleaned.length > 1) {
+      const lastName = cleaned[cleaned.length - 1];
+      const leading = cleaned.slice(0, -1);
+      const joined = leading.length
+        ? `${leading.join(", ")} ve ${lastName}`
+        : lastName;
+      return `sahtekarlar ${joined}`;
+    }
+
+    return "sahtekarlar";
+  }
+
   function formatSpyLabel(spyNames) {
     const count = Array.isArray(spyNames) ? spyNames.length : 0;
     return count <= 1 ? "Sahtekar" : "Sahtekarlar";
@@ -594,19 +613,30 @@ function updateRoleDisplay(myData, settings) {
     });
   }
 
-  function getSpyNames(roomData) {
-    const snapshot = roomData?.spiesSnapshot;
-    if (!isCurrentRoundPayload(roomData, snapshot)) return [];
-    const snapshotSpies = snapshot?.spies;
-    const players = roomData?.players || {};
-    if (Array.isArray(snapshotSpies)) {
-      return buildSpyNames(snapshotSpies, players);
+  function getSpyNames(roomState, players) {
+    const state = roomState || {};
+    const playerMap = players || state.players || {};
+    const spiesSource =
+      state.spies ??
+      state.spyUids ??
+      (Array.isArray(state.spiesSnapshot?.spies)
+        ? state.spiesSnapshot.spies
+        : null);
+
+    if (Array.isArray(spiesSource)) {
+      return buildSpyNames(spiesSource, playerMap);
     }
+
+    const spyIds = getSpyUids(spiesSource);
+    if (spyIds.length > 0) {
+      return buildSpyNames(spyIds, playerMap);
+    }
+
     return [];
   }
 
   function getSpyInfo(roomData) {
-    const spyNames = getSpyNames(roomData);
+    const spyNames = getSpyNames(roomData, roomData?.players);
     const spiesLabel = spyNames.length ? spyNames.join(", ") : "—";
     const spyLabel = formatSpyLabel(spyNames);
 
