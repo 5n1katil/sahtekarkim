@@ -508,19 +508,39 @@ function updateRoleDisplay(myData, settings) {
     return { ...gameOver, spies };
   }
 
+  function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function normalizeSpyLabel(message, spyInfo) {
+    if (!message || !spyInfo?.hasNames) return message;
+
+    const label = spyInfo.spiesLabel?.trim();
+    if (!label) return message;
+
+    const replacement = `Sahtekar(lar) (${label})`;
+    const replaced = message
+      .replace(/Sahtekar\(lar\)\s*\([^)]*\)/g, replacement)
+      .replace(/Sahtekar\s*\([^)]*\)/g, replacement);
+
+    const labelPattern = new RegExp(`\(\s*${escapeRegExp(label)}\s*\)`, "g");
+    let seen = 0;
+    const deduped = replaced.replace(labelPattern, (match) => {
+      seen += 1;
+      return seen === 1 ? `(${label})` : "";
+    });
+
+    return deduped.replace(/\s{2,}/g, " ").trim();
+  }
+
   function resolveGameOverMessage(roomData, fallbackMessage, spyInfo) {
     const gameOver = getGameOverInfo(roomData);
     if (gameOver?.message) {
       if (!spyInfo) return gameOver.message;
-      const replacement = spyInfo.hasNames
-        ? `Sahtekar(lar) (${spyInfo.spiesLabel})`
-        : "Sahtekar(lar)";
-      const normalized = gameOver.message
-        .replace(/Sahtekar\(lar\)\s*\([^)]*\)/g, replacement)
-        .replace(/Sahtekar\s*\([^)]*\)/g, replacement);
+      const normalized = normalizeSpyLabel(gameOver.message, spyInfo);
       return normalized;
     }
-    return fallbackMessage;
+    return normalizeSpyLabel(fallbackMessage, spyInfo);
   }
 
   function appendGuessDetails(msgDiv, lines) {
