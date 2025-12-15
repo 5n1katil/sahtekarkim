@@ -186,7 +186,10 @@ function updateRoleDisplay(myData, settings) {
     ? "Sahtekarın gördüğü roller"
     : "Sahtekarın gördüğü konumlar";
   const roleHint = isCategory
-    ? myData?.roleHint ?? myData?.role?.hint ?? null
+    ? myData?.roleHint ??
+      myData?.role?.roleHint ??
+      myData?.role?.hint ??
+      null
     : null;
 
   if (roleHintBlock) {
