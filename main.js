@@ -179,10 +179,22 @@ function updateRoleDisplay(myData, settings) {
   const poolInfo = document.getElementById("poolInfo");
   const poolSummary = document.getElementById("poolSummary");
   const poolListEl = document.getElementById("poolList");
+  const roleHintBlock = document.getElementById("roleHintBlock");
+  const roleHintText = document.getElementById("roleHintText");
   const isCategory = settings?.gameType === "category";
   const poolLabel = isCategory
     ? "Sahtekarın gördüğü roller"
     : "Sahtekarın gördüğü konumlar";
+  const roleHint = isCategory
+    ? myData?.roleHint ?? myData?.role?.hint ?? null
+    : null;
+
+  if (roleHintBlock) {
+    roleHintBlock.classList.add("hidden");
+  }
+  if (roleHintText) {
+    roleHintText.textContent = "";
+  }
 
   const displayName = myData?.role?.name ?? myData?.role;
   const poolEntries = (myData?.allLocations || [])
@@ -215,6 +227,11 @@ function updateRoleDisplay(myData, settings) {
     poolSummary.textContent = poolLabel;
     poolListEl.textContent = poolEntries.map(escapeHtml).join(", ");
     poolInfo.classList.remove("hidden");
+
+    if (roleHint && roleHintBlock && roleHintText) {
+      roleHintText.textContent = roleHint;
+      roleHintBlock.classList.remove("hidden");
+    }
   } else {
     roleMessageEl.textContent = "Rol bilgisi bulunamadı.";
     poolInfo.classList.add("hidden");
@@ -1144,9 +1161,13 @@ function updateRoleDisplay(myData, settings) {
         const poolInfo = document.getElementById("poolInfo");
         const poolSummary = document.getElementById("poolSummary");
         const poolListEl = document.getElementById("poolList");
+        const roleHintBlock = document.getElementById("roleHintBlock");
+        const roleHintText = document.getElementById("roleHintText");
         if (roleMessageEl) roleMessageEl.innerHTML = "";
         if (poolSummary) poolSummary.textContent = "";
         if (poolListEl) poolListEl.textContent = "";
+        if (roleHintText) roleHintText.textContent = "";
+        roleHintBlock?.classList.add("hidden");
         poolInfo?.classList.add("hidden");
 
         if (
