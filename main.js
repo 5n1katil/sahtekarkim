@@ -508,37 +508,80 @@ function updateRoleDisplay(myData, settings) {
     return { ...gameOver, spies };
   }
 
+  function buildSpyNames(spies, players = {}) {
+    const names = (spies || []).map((s) => {
+      const uid = s?.uid ?? s;
+      const rawName =
+        (uid && players?.[uid]?.name) ||
+        (typeof s === "object" ? s?.name : null) ||
+        (typeof uid === "string" ? uid : null);
+      return sanitizeName(rawName);
+    });
+
+    return uniqueNames(names).filter(Boolean);
+  }
+
   function escapeRegExp(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function sanitizeName(name) {
+    if (typeof name !== "string") return name;
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    const cleaned = trimmed.replace(/^[()]+|[()]+$/g, "").trim();
+    return cleaned || null;
+  }
+
+  function uniqueNames(names) {
+    const seen = new Set();
+    return names.filter((name) => {
+      if (!name) return false;
+      const key = typeof name === "string" ? name.toLowerCase() : name;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function formatSpyLabel(spyNames) {
+    const count = Array.isArray(spyNames) ? spyNames.length : 0;
+    return count <= 1 ? "Sahtekar" : "Sahtekarlar";
+  }
+
+  function formatSpyIntro(spyInfo) {
+    const spyNames = Array.isArray(spyInfo)
+      ? spyInfo
+      : Array.isArray(spyInfo?.spyNames)
+        ? spyInfo.spyNames
+        : [];
+    const label = formatSpyLabel(spyNames);
+    const namesText = spyNames.join(", ");
+    return namesText ? `${label} ${namesText}` : label;
   }
 
   function normalizeSpyLabel(message, spyInfo) {
     if (!message || !spyInfo?.hasNames) return message;
 
-    const label = spyInfo.spiesLabel?.trim();
-    if (!label) return message;
+    const replacement = formatSpyIntro(spyInfo);
+    const patterns = [
+      /Sahtekar\(\s*lar\s*\)\s*\([^)]*\)/g,
+      /Sahtekarlar\s*\([^)]*\)/g,
+      /Sahtekar\(\s*lar\s*\)/g,
+    ];
 
-    const replacement = `Sahtekar(lar) (${label})`;
-    const replaced = message
-      .replace(/Sahtekar\(lar\)\s*\([^)]*\)/g, replacement)
-      .replace(/Sahtekar\s*\([^)]*\)/g, replacement);
+    const replaced = patterns.reduce(
+      (msg, pattern) => msg.replace(pattern, replacement),
+      message
+    );
 
-    const labelPattern = new RegExp(`\(\s*${escapeRegExp(label)}\s*\)`, "g");
-    let seen = 0;
-    const deduped = replaced.replace(labelPattern, (match) => {
-      seen += 1;
-      return seen === 1 ? `(${label})` : "";
-    });
-
-    return deduped.replace(/\s{2,}/g, " ").trim();
+    return replaced.replace(/\(\s*\)/g, "").replace(/\s{2,}/g, " ").trim();
   }
 
   function resolveGameOverMessage(roomData, fallbackMessage, spyInfo) {
     const gameOver = getGameOverInfo(roomData);
     if (gameOver?.message) {
-      if (!spyInfo) return gameOver.message;
-      const normalized = normalizeSpyLabel(gameOver.message, spyInfo);
-      return normalized;
+      return gameOver.message;
     }
     return normalizeSpyLabel(fallbackMessage, spyInfo);
   }
@@ -555,8 +598,9 @@ function updateRoleDisplay(myData, settings) {
     const snapshot = roomData?.spiesSnapshot;
     if (!isCurrentRoundPayload(roomData, snapshot)) return [];
     const snapshotSpies = snapshot?.spies;
+    const players = roomData?.players || {};
     if (Array.isArray(snapshotSpies)) {
-      return snapshotSpies.map((s) => s?.name).filter(Boolean);
+      return buildSpyNames(snapshotSpies, players);
     }
     return [];
   }
@@ -564,23 +608,14 @@ function updateRoleDisplay(myData, settings) {
   function getSpyInfo(roomData) {
     const spyNames = getSpyNames(roomData);
     const spiesLabel = spyNames.length ? spyNames.join(", ") : "—";
+    const spyLabel = formatSpyLabel(spyNames);
 
     return {
       spyNames,
       spiesLabel,
+      spyLabel,
       hasNames: spyNames.length > 0,
     };
-  }
-
-  function formatSpyIntro(spyInfo) {
-    if (!spyInfo?.hasNames) return "Sahtekar(lar)";
-
-    const spyNames = spyInfo.spyNames || [];
-    if (spyNames.length === 1) {
-      return `Sahtekar "${spyNames[0]}"`;
-    }
-
-    return `Sahtekar(lar) (${spyInfo.spiesLabel})`;
   }
 
   function appendSpyNamesLine(msgDiv, roomData, options = {}) {
@@ -595,7 +630,8 @@ function updateRoleDisplay(myData, settings) {
 
     const spyLine = document.createElement("div");
     spyLine.className = "spy-reveal";
-    spyLine.textContent = `Sahtekar(lar): ${spyInfo.spiesLabel}`;
+    const label = spyInfo.spyLabel || formatSpyLabel(spyInfo.spyNames);
+    spyLine.textContent = `${label}: ${spyInfo.spiesLabel}`;
     msgDiv.appendChild(spyLine);
   }
 
