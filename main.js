@@ -1,5 +1,5 @@
 import { gameLogic, POOLS } from './gameLogic.js';
-import { escapeHtml, hasInvalidChars } from './utils.js';
+import { escapeHtml, hasInvalidChars, resolveRoleName } from './utils.js';
 
 console.log('main.js yüklendi');
 
@@ -457,13 +457,22 @@ function updateRoleDisplay(myData, settings) {
     }
   }
 
+  function resolveAnswerValue(value, gameType) {
+    if (value === undefined || value === null) return null;
+    if (gameType === "category") {
+      return resolveRoleName(value);
+    }
+    return typeof value === "string" ? value : String(value);
+  }
+
   function getActualAnswer(roomData) {
     const isCategory = roomData?.settings?.gameType === "category";
     const roles = roomData?.playerRoles || {};
     for (const uid in roles) {
       const role = roles[uid];
       if (role && !role.isSpy) {
-        return isCategory ? role.role : role.location;
+        const actualValue = isCategory ? role?.role : role?.location;
+        return resolveAnswerValue(actualValue, roomData?.settings?.gameType);
       }
     }
     return null;
@@ -473,6 +482,7 @@ function updateRoleDisplay(myData, settings) {
     const isCategory = gameType === "category";
     const guessedValue =
       finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
+    const resolvedActualAnswer = resolveAnswerValue(actualAnswer, gameType);
     const lines = [];
 
     const hasGuess = Boolean(guessedValue);
@@ -480,13 +490,13 @@ function updateRoleDisplay(myData, settings) {
       const guessedLabel = isCategory
         ? "Sahtekarın tahmin ettiği rol:"
         : "Sahtekarın tahmin ettiği konum:";
-      lines.push(`${guessedLabel} ${escapeHtml(guessedValue)}`);
+      lines.push(`${guessedLabel} ${escapeHtml(String(guessedValue))}`);
 
       if (finalGuess?.isCorrect) {
         lines.push("Doğru tahmin!");
-      } else if (actualAnswer) {
+      } else if (resolvedActualAnswer) {
         const actualLabel = isCategory ? "Doğru rol:" : "Doğru konum:";
-        lines.push(`${actualLabel} ${escapeHtml(actualAnswer)}`);
+        lines.push(`${actualLabel} ${escapeHtml(resolvedActualAnswer)}`);
       }
     }
 
@@ -793,14 +803,16 @@ function updateRoleDisplay(myData, settings) {
     const actualWord = gameType === "category" ? "rol" : "konum";
     const guessedValue =
       finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
-    const resolvedActualAnswer =
-      actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation;
+    const resolvedActualAnswer = resolveAnswerValue(
+      actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation,
+      gameType
+    );
     const spyIntro = formatSpyIntro(spyInfo);
     const guessDetail = guessedValue
-      ? `${guessWord} ${guessedValue} olarak`
+      ? `${guessWord} ${escapeHtml(String(guessedValue))} olarak`
       : `${guessWord} olarak`;
     const fallbackMessage = resolvedActualAnswer
-      ? `${spyIntro} ${guessDetail} yanlış tahmin etti. Doğru ${actualWord} ${resolvedActualAnswer} idi ve oyunu masumlar kazandı!`
+      ? `${spyIntro} ${guessDetail} yanlış tahmin etti. Doğru ${actualWord} ${escapeHtml(resolvedActualAnswer)} idi ve oyunu masumlar kazandı!`
       : `${spyIntro} ${guessDetail} yanlış tahmin etti ve oyunu masumlar kazandı!`;
     msgDiv.textContent = resolveGameOverMessage(
       roomData,
