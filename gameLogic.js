@@ -1067,6 +1067,13 @@ export const gameLogic = {
           document.getElementById("playerRoleInfo")?.classList.remove("hidden");
 
           const isCategoryGame = roomData.settings?.gameType === "category";
+          const resolvedRole = isCategoryGame
+            ? myRole?.roleName ?? myRole?.role?.name ?? myRole?.role
+            : myRole?.role;
+          const safeRole = escapeHtml(resolvedRole ?? "");
+          const safeLocations = Array.isArray(myRole.allLocations)
+            ? myRole.allLocations.map((loc) => escapeHtml(loc ?? ""))
+            : [];
           const roleEl = document.getElementById("roleMessage");
           if (myRole.isSpy) {
             const unknownText = isCategoryGame
@@ -1076,11 +1083,11 @@ export const gameLogic = {
               ? "Olası roller"
               : "Olası konumlar";
             roleEl.textContent =
-              `🎭 Sen BİR SAHTEKARSIN! ${unknownText} ${label}: ${myRole.allLocations.join(", ")}`;
+              `🎭 Sen BİR SAHTEKARSIN! ${unknownText} ${label}: ${safeLocations.join(", ")}`;
           } else {
             const locLabel = isCategoryGame ? "Kategori" : "Konum";
             roleEl.textContent =
-              `✅ ${locLabel}: ${myRole.location} | Rolün: ${myRole.role}`;
+              `✅ ${locLabel}: ${escapeHtml(myRole.location ?? "")} | Rolün: ${safeRole}`;
           }
         }
       }
