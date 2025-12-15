@@ -572,6 +572,17 @@ function updateRoleDisplay(myData, settings) {
     };
   }
 
+  function formatSpyIntro(spyInfo) {
+    if (!spyInfo?.hasNames) return "Sahtekar(lar)";
+
+    const spyNames = spyInfo.spyNames || [];
+    if (spyNames.length === 1) {
+      return `Sahtekar "${spyNames[0]}"`;
+    }
+
+    return `Sahtekar(lar) (${spyInfo.spiesLabel})`;
+  }
+
   function appendSpyNamesLine(msgDiv, roomData, options = {}) {
     const spyInfo = options.spyInfo || getSpyInfo(roomData);
     const primaryMessage = options.primaryMessage || msgDiv?.textContent || "";
@@ -603,12 +614,10 @@ function updateRoleDisplay(myData, settings) {
     const guessedValue =
       finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
 
-    const spyIntro = spyInfo.hasNames
-      ? `Sahtekar(lar) (${spyInfo.spiesLabel})`
-      : "Sahtekar(lar)";
+    const spyIntro = formatSpyIntro(spyInfo);
 
     const fallbackMessage = guessedValue
-      ? `${spyIntro} ${guessWord} ${guessedValue} olarak doğru tahmin etti ve oyunu kazandı`
+      ? `${spyIntro} ${guessWord} ${guessedValue} olarak doğru tahmin etti ve oyunu kazandı!`
       : spyInfo.hasNames
         ? `${spyIntro} kazandı! Oyun Bitti...`
         : "Sahtekar(lar) kazandı! Oyun Bitti...";
@@ -693,12 +702,13 @@ function updateRoleDisplay(myData, settings) {
       finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
     const resolvedActualAnswer =
       actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation;
-    const spyIntro = spyInfo.hasNames
-      ? `Sahtekar(lar) (${spyInfo.spiesLabel})`
-      : "Sahtekar(lar)";
+    const spyIntro = formatSpyIntro(spyInfo);
+    const guessDetail = guessedValue
+      ? `${guessWord} ${guessedValue} olarak`
+      : `${guessWord} olarak`;
     const fallbackMessage = resolvedActualAnswer
-      ? `${spyIntro} ${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti. Doğru ${actualWord} ${resolvedActualAnswer} idi ve oyunu masumlar kazandı!`
-      : `${spyIntro} ${guessWord} ${guessedValue || ""} olarak yanlış tahmin etti ve oyunu masumlar kazandı!`;
+      ? `${spyIntro} ${guessDetail} yanlış tahmin etti. Doğru ${actualWord} ${resolvedActualAnswer} idi ve oyunu masumlar kazandı!`
+      : `${spyIntro} ${guessDetail} yanlış tahmin etti ve oyunu masumlar kazandı!`;
     msgDiv.textContent = resolveGameOverMessage(
       roomData,
       fallbackMessage,
