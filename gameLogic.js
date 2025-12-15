@@ -1,4 +1,4 @@
-import { escapeHtml } from './utils.js';
+import { escapeHtml, resolveRoleName } from './utils.js';
 import { TR_ACTORS } from './data/characters_tr_actors.js';
 
 let anonymousSignInPromise = null;
@@ -1211,18 +1211,29 @@ export const gameLogic = {
       if (guessesLeft <= 0) return;
       let correctAnswer = null;
       const gameType = data.settings?.gameType;
+      const guessValue = typeof guess === "string" ? guess : String(guess);
       for (const uid in roles) {
         const r = roles[uid];
         if (r && !r.isSpy) {
-          correctAnswer = gameType === "category" ? r.role : r.location;
+          if (gameType === "category") {
+            correctAnswer = resolveRoleName(r?.role);
+          } else {
+            const locationValue = r?.location;
+            correctAnswer =
+              locationValue === undefined || locationValue === null
+                ? null
+                : typeof locationValue === "string"
+                  ? locationValue
+                  : String(locationValue);
+          }
           break;
         }
       }
       if (!correctAnswer) return;
       const finalGuess =
         gameType === "category"
-          ? { guessedRole: guess, isCorrect: guess === correctAnswer }
-          : { guessedLocation: guess, isCorrect: guess === correctAnswer };
+          ? { guessedRole: guessValue, isCorrect: guessValue === correctAnswer }
+          : { guessedLocation: guessValue, isCorrect: guessValue === correctAnswer };
       if (gameType === "category") {
         finalGuess.actualRole = correctAnswer;
       } else {
@@ -1231,21 +1242,21 @@ export const gameLogic = {
 
       const preserveVotingStarted = data.votingStarted;
       const preserveVotes = data.votes;
-      if (guess === correctAnswer) {
+      if (guessValue === correctAnswer) {
         const guessWord = gameType === "category" ? "rolü" : "konumu";
         getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
           const spyIntro = formatSpyIntro(spyNames);
-          const message = `${spyIntro} ${guessWord} ${guess} olarak doğru tahmin etti ve oyunu kazandı!`;
+          const message = `${spyIntro} ${guessWord} ${guessValue} olarak doğru tahmin etti ve oyunu kazandı!`;
           const winUpdate = {
             status: "finished",
             winner: "spy",
             lastGuess: {
               spy: spyUid,
-              guess,
-              correct: true,
-              finalGuess,
-              roundId: data.roundId || null,
-            },
+            guess: guessValue,
+            correct: true,
+            finalGuess,
+            roundId: data.roundId || null,
+          },
             votingStarted: false,
             votes: null,
             voteResult: null,
@@ -1273,7 +1284,7 @@ export const gameLogic = {
           updates.winner = "innocent";
           updates.lastGuess = {
             spy: spyUid,
-            guess,
+            guess: guessValue,
             correct: false,
             guessesLeft: 0,
             finalGuess,
@@ -1287,7 +1298,7 @@ export const gameLogic = {
         } else {
           updates.lastGuess = {
             spy: spyUid,
-            guess,
+            guess: guessValue,
             correct: false,
             guessesLeft,
             finalGuess,
@@ -1309,7 +1320,7 @@ export const gameLogic = {
           appendFinalSpyInfo(updates, data);
           getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
             const spyIntro = formatSpyIntro(spyNames);
-            const message = `${spyIntro} ${guessWord} ${guess} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
+            const message = `${spyIntro} ${guessWord} ${guessValue} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
             ref
               .update(updates)
               .then(() =>
