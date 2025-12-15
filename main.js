@@ -199,7 +199,8 @@ function updateRoleDisplay(myData, settings) {
     roleHintText.textContent = "";
   }
 
-  const displayName = myData?.role?.name ?? myData?.role;
+  const resolvedRole = myData?.roleName ?? myData?.role?.name ?? myData?.role;
+  const displayName = typeof resolvedRole === "string" ? resolvedRole : "";
   const poolEntries = (myData?.allLocations || [])
     .map((item) => (item && typeof item === "object" ? item.name : item))
     .filter((item) => item !== undefined && item !== null && item !== "");
