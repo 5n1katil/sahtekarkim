@@ -1,8 +1,6 @@
 import { escapeHtml } from './utils.js';
 import { TR_ACTORS } from './data/characters_tr_actors.js';
 
-const TR_ACTOR_NAMES = TR_ACTORS.map(({ name }) => name).filter(Boolean);
-
 let anonymousSignInPromise = null;
 
 const MIN_PLAYERS = 3;
@@ -235,7 +233,7 @@ export const POOLS = {
     "Denizaltı",
     "Depo"
   ],
-  "Ünlü Türk Oyuncular": TR_ACTOR_NAMES,
+  "Ünlü Türk Oyuncular": TR_ACTORS,
   "Türk Şarkıcılar": [
     "Sezen Aksu",
     "Tarkan",
