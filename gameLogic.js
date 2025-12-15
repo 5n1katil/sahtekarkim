@@ -819,6 +819,24 @@ export const gameLogic = {
         throw new Error("Kategori havuzunda yeterli öğe yok");
       }
       const chosenRole = randomFrom(pool);
+      const poolNames = pool.map((item) => {
+        if (item && typeof item === "object") {
+          return item.name ?? "";
+        }
+        return item ?? "";
+      });
+      const chosenRoleName =
+        chosenRole && typeof chosenRole === "object"
+          ? chosenRole.name ?? ""
+          : chosenRole;
+      const chosenRoleHint =
+        chosenRole && typeof chosenRole === "object"
+          ? chosenRole.hint ?? null
+          : null;
+      const chosenRoleFameTier =
+        chosenRole && typeof chosenRole === "object"
+          ? chosenRole.fameTier ?? chosenRole.tier ?? null
+          : null;
       uids.forEach((uid) => {
         const isSpy = spyUids.includes(uid);
         updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
@@ -826,14 +844,17 @@ export const gameLogic = {
               isSpy: true,
               role: "Sahtekar",
               location: null,
-              allLocations: pool,
+              allLocations: poolNames,
               guessesLeft: settings.spyGuessLimit,
             }
           : {
               isSpy: false,
               role: chosenRole,
+              roleName: chosenRoleName,
+              roleHint: chosenRoleHint,
+              roleFameTier: chosenRoleFameTier,
               location: categoryName,
-              allLocations: pool,
+              allLocations: poolNames,
             };
       });
     } else {
