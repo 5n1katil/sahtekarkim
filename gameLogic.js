@@ -127,18 +127,39 @@ async function finalizeGameOver(roomCode, data, payload) {
   });
 }
 
+function sanitizeName(name) {
+  if (typeof name !== "string") return name;
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  const cleaned = trimmed.replace(/^[()]+|[()]+$/g, "").trim();
+  return cleaned || null;
+}
+
+function uniqueNames(names) {
+  const seen = new Set();
+  return names.filter((name) => {
+    if (!name) return false;
+    const key = typeof name === "string" ? name.toLowerCase() : name;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function formatSpyNames(spies, data) {
   const players = data?.players || {};
   const spyNames = (spies || [])
     .map((s) => {
-      if (!s) return null;
-      const rawName = s.name || players?.[s.uid]?.name || s.uid;
-      const name = typeof rawName === "string" ? rawName.trim() : rawName;
-      return name || null;
+      const uid = s?.uid ?? s;
+      const rawName =
+        (uid && players?.[uid]?.name) ||
+        (typeof s === "object" ? s?.name : null) ||
+        (typeof uid === "string" ? uid : null);
+      return sanitizeName(rawName);
     })
     .filter(Boolean);
 
-  return spyNames;
+  return uniqueNames(spyNames);
 }
 
 async function getSpyNamesForMessage(roomCode, data, spiesOverride) {
@@ -160,11 +181,16 @@ async function getSpyNamesForMessage(roomCode, data, spiesOverride) {
   return { spies, spyNames };
 }
 
-function buildSpyLabel(spyNames) {
-  if (Array.isArray(spyNames) && spyNames.length > 0) {
-    return `Sahtekar(lar) (${spyNames.join(", ")})`;
-  }
-  return "Sahtekar(lar)";
+function formatSpyLabel(spyNames) {
+  const count = Array.isArray(spyNames) ? spyNames.length : 0;
+  return count <= 1 ? "Sahtekar" : "Sahtekarlar";
+}
+
+function formatSpyIntro(spyNames) {
+  const names = Array.isArray(spyNames) ? spyNames : [];
+  const label = formatSpyLabel(names);
+  const namesText = names.join(", ");
+  return namesText ? `${label} ${namesText}` : label;
 }
 
 // Konumlar ve kategoriler için veri havuzları
@@ -1211,8 +1237,8 @@ export const gameLogic = {
       if (guess === correctAnswer) {
         const guessWord = gameType === "category" ? "rolü" : "konumu";
         getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
-          const spyLabel = buildSpyLabel(spyNames);
-          const message = `${spyLabel} ${guessWord} ${guess} olarak doğru tahmin etti ve oyunu kazandı!`;
+          const spyIntro = formatSpyIntro(spyNames);
+          const message = `${spyIntro} ${guessWord} ${guess} olarak doğru tahmin etti ve oyunu kazandı!`;
           const winUpdate = {
             status: "finished",
             winner: "spy",
@@ -1285,8 +1311,8 @@ export const gameLogic = {
           const actualWord = gameType === "category" ? "rol" : "konum";
           appendFinalSpyInfo(updates, data);
           getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
-            const spyLabel = buildSpyLabel(spyNames);
-            const message = `${spyLabel} ${guessWord} ${guess} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
+            const spyIntro = formatSpyIntro(spyNames);
+            const message = `${spyIntro} ${guessWord} ${guess} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
             ref
               .update(updates)
               .then(() =>
@@ -1453,8 +1479,8 @@ export const gameLogic = {
         const eliminatedName =
           votingResult.eliminatedName || votingResult.eliminatedUid;
         getSpyNamesForMessage(roomCode, roomData).then(({ spyNames }) => {
-          const spyLabel = buildSpyLabel(spyNames);
-          const message = `${spyLabel} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`;
+          const spyIntro = formatSpyIntro(spyNames);
+          const message = `${spyIntro} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`;
           finalizeGameOver(roomCode, roomData, {
             winner: "innocents",
             reason: "vote",
@@ -1508,11 +1534,11 @@ export const gameLogic = {
       if (updates.status === "finished") {
         updatePromise.then(() =>
           getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
-            const spyLabel = buildSpyLabel(spyNames);
+            const spyIntro = formatSpyIntro(spyNames);
             return finalizeGameOver(roomCode, data, {
               winner: "innocents",
               reason: "timeout",
-              message: `${spyLabel} tahmin süresini kaçırdı ve oyunu masumlar kazandı!`,
+              message: `${spyIntro} tahmin süresini kaçırdı ve oyunu masumlar kazandı!`,
               eliminatedUid: votingResult?.eliminatedUid,
               eliminatedName: votingResult?.eliminatedName,
             });
@@ -1627,13 +1653,13 @@ export const gameLogic = {
           const eliminatedName = playerInfo?.name || votedUid;
           ref.update(updates).then(() =>
             getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
-              const spyLabel = buildSpyLabel(spyNames);
+              const spyIntro = formatSpyIntro(spyNames);
               return finalizeGameOver(roomCode, data, {
                 winner: "innocents",
                 reason: "vote",
                 eliminatedUid: votedUid,
                 eliminatedName,
-                message: `${spyLabel} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`,
+                message: `${spyIntro} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`,
               });
             })
           );
@@ -1672,11 +1698,11 @@ export const gameLogic = {
           .update(updates)
           .then(() => getSpyNamesForMessage(roomCode, data))
           .then(({ spyNames }) => {
-            const spyLabel = buildSpyLabel(spyNames);
+            const spyIntro = formatSpyIntro(spyNames);
             return finalizeGameOver(roomCode, data, {
               winner: "spies",
               reason: "parity",
-              message: `${spyLabel} sayıca üstünlük sağladı ve oyunu kazandı!`,
+              message: `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`,
             });
           })
           .then(() => true);
