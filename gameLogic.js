@@ -1,4 +1,8 @@
-import { escapeHtml, resolveRoleName } from './utils.js';
+import {
+  escapeHtml,
+  getActivePlayers,
+  resolveRoleName,
+} from './utils.js';
 import { TR_ACTORS } from './data/characters_tr_actors.js';
 
 let anonymousSignInPromise = null;
@@ -1108,14 +1112,13 @@ export const gameLogic = {
 
         const roles = currentData.playerRoles || {};
         const players = currentData.players || {};
-        const alivePlayers = Object.keys(roles).map((id) => ({
-          uid: id,
-          name: players?.[id]?.name || id,
-        }));
+        const alivePlayers = getActivePlayers(roles, players);
         const aliveUids = alivePlayers.map((p) => p.uid);
-        const requestCount = Object.keys(voteRequests).filter((id) =>
-          aliveUids.includes(id)
-        ).length;
+        const filteredRequests = aliveUids.reduce((acc, id) => {
+          if (voteRequests[id]) acc[id] = true;
+          return acc;
+        }, {});
+        const requestCount = Object.keys(filteredRequests).length;
         const required = Math.floor(alivePlayers.length / 2) + 1;
 
         if (alivePlayers.length && requestCount >= required) {
@@ -1154,7 +1157,7 @@ export const gameLogic = {
 
         return {
           ...currentData,
-          voteStartRequests: voteRequests,
+          voteStartRequests: filteredRequests,
         };
       })
       .then(({ committed, snapshot }) => {
@@ -1176,6 +1179,10 @@ export const gameLogic = {
       ? Promise.resolve(
           (playersSnapshot || []).map((p) => ({
             uid: p.uid || p.id,
+            name: p.name,
+          }))
+        )
+      : Promise.all([
             name: p.name,
           }))
         )
