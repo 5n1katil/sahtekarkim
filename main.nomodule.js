@@ -907,10 +907,11 @@
     },
     startVoting: function (roomCode, playersSnapshot) {
       const ref = window.db.ref("rooms/" + roomCode);
-      const snapshotPromise = playersSnapshot ? Promise.resolve((playersSnapshot || []).map(p => ({
+      const mappedPlayers = (playersSnapshot || []).map(p => ({
         uid: p.uid || p.id,
         name: p.name
-      }))) : Promise.all([ref.child("playerRoles").get(), ref.child("players").get()]).then(_ref6 => {
+      }));
+      const snapshotPromise = playersSnapshot ? Promise.resolve(mappedPlayers) : Promise.all([ref.child("playerRoles").get(), ref.child("players").get()]).then(_ref6 => {
         let [rolesSnap, playersSnap] = _ref6;
         const roles = rolesSnap.val() || {};
         const players = playersSnap.val() || {};
