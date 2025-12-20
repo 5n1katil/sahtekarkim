@@ -1164,24 +1164,27 @@ function updateRoleDisplay(myData, settings) {
         : null;
       const roundSafeGameOver = getGameOverInfo(roomData);
 
-      if (
-        roomData?.eliminated &&
-        roomData.eliminated[currentUid] &&
-        roomData.status !== "finished"
-      ) {
+      const isEliminatedPlayer =
+        roomData?.eliminated && roomData.eliminated[currentUid];
+      const isGameFinished =
+        roomData?.status === "finished" || roomData?.spyParityWin;
+
+      if (isEliminatedPlayer) {
         wasEliminated = true;
-        const overlay = document.getElementById("resultOverlay");
-        if (overlay) {
-          overlay.innerHTML =
-            "<div class='result-message'>Elendin! Oyun devam ediyor...</div>";
-          overlay.classList.remove(
-            "hidden",
-            "impostor-animation",
-            "innocent-animation"
-          );
+        if (!isGameFinished) {
+          const overlay = document.getElementById("resultOverlay");
+          if (overlay) {
+            overlay.innerHTML =
+              "<div class='result-message'>Elendin! Oyun devam ediyor...</div>";
+            overlay.classList.remove(
+              "hidden",
+              "impostor-animation",
+              "innocent-animation"
+            );
+          }
+          document.getElementById("gameActions")?.classList.add("hidden");
+          return;
         }
-        document.getElementById("gameActions")?.classList.add("hidden");
-        return;
       } else if (
         wasEliminated &&
         prevStatus === "finished" &&
