@@ -1495,11 +1495,6 @@ function updateRoleDisplay(myData, settings) {
           liveVoteCounts?.classList.remove("hidden");
           const tally = {};
           Object.values(roomData.votes || {}).forEach((uid) => {
-          if (voteCountList) voteCountList.innerHTML = "";
-        } else {
-          liveVoteCounts?.classList.remove("hidden");
-          const tally = {};
-          Object.values(roomData.votes || {}).forEach((uid) => {
             tally[uid] = (tally[uid] || 0) + 1;
           });
           const snapshot = roomData.voting?.snapshot;
