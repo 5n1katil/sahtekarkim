@@ -1,5 +1,10 @@
 import { gameLogic, POOLS } from './gameLogic.js';
-import { escapeHtml, hasInvalidChars, resolveRoleName } from './utils.js';
+import {
+  escapeHtml,
+  getActivePlayers,
+  hasInvalidChars,
+  resolveRoleName,
+} from './utils.js';
 
 console.log('main.js yüklendi');
 
@@ -1434,19 +1439,21 @@ function updateRoleDisplay(myData, settings) {
         const startBtn = document.getElementById("startVotingBtn");
         const waitingEl = document.getElementById("waitingVoteStart");
         const voteRequests = roomData.voteStartRequests || {};
-        const alivePlayers = Object.entries(roomData.playerRoles || {}).map(
-          ([uid]) => ({
-            uid,
-            name:
-              roomData.players?.[uid]?.name || playerUidMap[uid]?.name || uid,
-          })
-        );
+        const alivePlayers = getActivePlayers(
+          roomData.playerRoles,
+          roomData.players
+        ).map((p) => ({
+          ...p,
+          name: p.name || playerUidMap[p.uid]?.name || p.uid,
+        }));
         const aliveUids = alivePlayers.map((p) => p.uid);
         const playersCount = alivePlayers.length;
-        const requestCount = Object.keys(voteRequests).filter((uid) =>
-          aliveUids.includes(uid)
-        ).length;
-        const hasRequested = !!voteRequests[currentUid];
+        const filteredRequests = aliveUids.reduce((acc, uid) => {
+          if (voteRequests[uid]) acc[uid] = true;
+          return acc;
+        }, {});
+        const requestCount = Object.keys(filteredRequests).length;
+        const hasRequested = !!filteredRequests[currentUid];
         const threshold = Math.floor(playersCount / 2) + 1;
         const isWaiting =
           !roomData.voting?.active &&
@@ -1462,7 +1469,7 @@ function updateRoleDisplay(myData, settings) {
           waitingEl.classList.toggle("hidden", !isWaiting);
           if (isWaiting) {
             waitingEl.textContent =
-              "Oylamanın başlaması için diğer oyuncular bekleniyor...";
+              `Oylama isteği gönderildi (${requestCount}/${threshold}). Aktif oyuncuların onayı bekleniyor...`;
           }
         }
         if (votingInstructionEl) {
@@ -1483,6 +1490,11 @@ function updateRoleDisplay(myData, settings) {
 
         if (!hasActiveVoting || votingHasResult) {
           liveVoteCounts?.classList.add("hidden");
+          if (voteCountList) voteCountList.innerHTML = "";
+        } else {
+          liveVoteCounts?.classList.remove("hidden");
+          const tally = {};
+          Object.values(roomData.votes || {}).forEach((uid) => {
           if (voteCountList) voteCountList.innerHTML = "";
         } else {
           liveVoteCounts?.classList.remove("hidden");
