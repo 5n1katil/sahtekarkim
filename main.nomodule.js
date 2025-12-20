@@ -7764,35 +7764,76 @@
     },
     // Oylamayı başlatma isteği kaydet
     startVote: function startVote(roomCode, uid) {
-      var _this2 = this;
-      var requestRef = window.db.ref("rooms/".concat(roomCode, "/voteStartRequests/").concat(uid));
-      requestRef.set(true).then(function () {
-        var roomRef = window.db.ref("rooms/".concat(roomCode));
-        roomRef.get().then(function (snap) {
-          if (!snap.exists()) return;
-          var data = snap.val();
-          if (data.voting && data.voting.active) return;
-          if ((data.voting === null || data.voting === void 0 ? void 0 : data.voting.result) && data.voting.result.finalizedAt) return;
-          var requests = data.voteStartRequests || {};
-          var alivePlayers = Object.entries(data.playerRoles || {}).map(function (_ref7) {
-            var _ref8 = _slicedToArray(_ref7, 1),
-              id = _ref8[0];
-            return {
-              uid: id,
-              name: (data.players === null || data.players === void 0 ? void 0 : data.players[id]) && data.players[id].name ? data.players[id].name : id
-            };
-          });
-          var aliveUids = alivePlayers.map(function (p) {
+      var roomRef = window.db.ref("rooms/".concat(roomCode));
+      roomRef.transaction(function (currentData) {
+        if (!currentData) return;
+        if (currentData.voting && currentData.voting.active) return;
+        if (currentData.voting && currentData.voting.result && currentData.voting.result.finalizedAt) return;
+        var voteRequests = _objectSpread2({}, currentData.voteStartRequests || {});
+        voteRequests[uid] = true;
+        var roles = currentData.playerRoles || {};
+        var players = currentData.players || {};
+        var alivePlayers = Object.keys(roles).map(function (id) {
+          var _players$id;
+          return {
+            uid: id,
+            name: ((_players$id = players[id]) === null || _players$id === void 0 ? void 0 : _players$id.name) || id
+          };
+        });
+        var aliveUids = alivePlayers.map(function (p) {
+          return p.uid;
+        });
+        var requestCount = Object.keys(voteRequests).filter(function (id) {
+          return aliveUids.includes(id);
+        }).length;
+        var required = Math.floor(alivePlayers.length / 2) + 1;
+        if (alivePlayers.length && requestCount >= required) {
+          var snapshotOrder = alivePlayers.map(function (p) {
             return p.uid;
           });
-          var requestCount = Object.keys(requests).filter(function (id) {
-            return aliveUids.includes(id);
-          }).length;
-          var required = Math.floor(alivePlayers.length / 2) + 1;
-          if (alivePlayers.length && requestCount >= required) {
-            _this2.startVoting(roomCode, alivePlayers);
-          }
+          var snapshotNames = alivePlayers.reduce(function (acc, p) {
+            if (p && p.uid) acc[p.uid] = p.name;
+            return acc;
+          }, {});
+          var aliveAtStart = snapshotOrder.reduce(function (acc, playerId) {
+            acc[playerId] = true;
+            return acc;
+          }, {});
+          return _objectSpread2(_objectSpread2({}, currentData), {}, {
+            phase: "voting",
+            votingStarted: true,
+            votes: null,
+            voteResult: null,
+            voteRequests: null,
+            voteStartRequests: null,
+            voting: {
+              active: true,
+              startedAt: window.firebase.database.ServerValue.TIMESTAMP,
+              endsAt: null,
+              roster: alivePlayers,
+              result: null,
+              snapshot: {
+                order: snapshotOrder,
+                names: snapshotNames,
+                aliveAtStart: aliveAtStart
+              },
+              snapshotPlayers: alivePlayers
+            }
+          });
+        }
+        return _objectSpread2(_objectSpread2({}, currentData), {}, {
+          voteStartRequests: voteRequests
         });
+      }).then(function (result) {
+        if (!result.committed || !result.snapshot) return;
+        var votingSnap = result.snapshot.child("voting");
+        var isActive = votingSnap && votingSnap.child("active").val();
+        if (!isActive) return;
+        var startedAt = votingSnap && votingSnap.child("startedAt").val();
+        var endsAt = votingSnap && votingSnap.child("endsAt").val();
+        if (startedAt && endsAt == null) {
+          roomRef.child("voting/endsAt").set(startedAt + 30000);
+        }
       });
     },
     startVoting: function startVoting(roomCode, playersSnapshot) {
