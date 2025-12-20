@@ -7765,21 +7765,37 @@
     // Oylamayı başlatma isteği kaydet
     startVote: function startVote(roomCode, uid) {
       var _this2 = this;
-      var requestRef = window.db.ref("rooms/".concat(roomCode, "/voteRequests/").concat(uid));
+      var requestRef = window.db.ref("rooms/".concat(roomCode, "/voteStartRequests/").concat(uid));
       requestRef.set(true).then(function () {
         var roomRef = window.db.ref("rooms/".concat(roomCode));
         roomRef.get().then(function (snap) {
           if (!snap.exists()) return;
           var data = snap.val();
-          var requests = data.voteRequests || {};
-          var players = data.players || {};
-          if (Object.keys(requests).length === Object.keys(players).length) {
-            _this2.startVoting(roomCode);
+          if (data.voting && data.voting.active) return;
+          if ((data.voting === null || data.voting === void 0 ? void 0 : data.voting.result) && data.voting.result.finalizedAt) return;
+          var requests = data.voteStartRequests || {};
+          var alivePlayers = Object.entries(data.playerRoles || {}).map(function (_ref7) {
+            var _ref8 = _slicedToArray(_ref7, 1),
+              id = _ref8[0];
+            return {
+              uid: id,
+              name: (data.players === null || data.players === void 0 ? void 0 : data.players[id]) && data.players[id].name ? data.players[id].name : id
+            };
+          });
+          var aliveUids = alivePlayers.map(function (p) {
+            return p.uid;
+          });
+          var requestCount = Object.keys(requests).filter(function (id) {
+            return aliveUids.includes(id);
+          }).length;
+          var required = Math.floor(alivePlayers.length / 2) + 1;
+          if (alivePlayers.length && requestCount >= required) {
+            _this2.startVoting(roomCode, alivePlayers);
           }
         });
       });
     },
-    startVoting: function startVoting(roomCode) {
+    startVoting: function startVoting(roomCode, playersSnapshot) {
       var ref = window.db.ref("rooms/" + roomCode);
       ref.update({
         votingStarted: true,
@@ -8597,11 +8613,25 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
         }
         var startBtn = document.getElementById("startVotingBtn");
         var waitingEl = document.getElementById("waitingVoteStart");
-        var voteRequests = roomData.voteRequests || {};
-        var playersCount = Object.keys(roomData.players || {}).length;
-        var requestCount = Object.keys(voteRequests).length;
+        var voteRequests = roomData.voteStartRequests || {};
+        var alivePlayers = Object.entries(roomData.playerRoles || {}).map(function (_ref10) {
+          var _ref11 = _slicedToArray(_ref10, 1),
+            uid = _ref11[0];
+          return {
+            uid: uid,
+            name: (roomData.players === null || roomData.players === void 0 ? void 0 : roomData.players[uid]) && roomData.players[uid].name ? roomData.players[uid].name : (playerUidMap[uid] === null || playerUidMap[uid] === void 0 ? void 0 : playerUidMap[uid].name) || uid
+          };
+        });
+        var aliveUids = alivePlayers.map(function (p) {
+          return p.uid;
+        });
+        var playersCount = alivePlayers.length;
+        var requestCount = Object.keys(voteRequests).filter(function (uid) {
+          return aliveUids.includes(uid);
+        }).length;
         var hasRequested = !!voteRequests[currentUid];
-        var isWaiting = !roomData.votingStarted && hasRequested && requestCount < playersCount;
+        var threshold = Math.floor(playersCount / 2) + 1;
+        var isWaiting = !(roomData.voting && roomData.voting.active) && !roomData.votingStarted && hasRequested && requestCount < threshold;
         if (startBtn) {
           startBtn.classList.toggle("hidden", isVotingPhase || isWaiting);
           startBtn.disabled = isWaiting;
@@ -8611,6 +8641,22 @@ function showSpyWinOverlay(spyIds, guessed, guessWord) {
           if (isWaiting) {
             waitingEl.textContent = "Oylamanın başlaması için diğer oyuncular bekleniyor...";
           }
+        }
+        if (votingInstructionEl) {
+          if (!roomData.votingStarted && !hasRequested) {
+            votingInstructionEl.classList.remove("hidden");
+            votingInstructionEl.textContent = "Her tur tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
+          } else {
+            votingInstructionEl.classList.add("hidden");
+          }
+        }
+        var liveVoteCounts = document.getElementById("liveVoteCounts");
+        var voteCountList = document.getElementById("voteCountList");
+        if (!roomData.votingStarted || roomData.voteResult) {
+          liveVoteCounts === null || liveVoteCounts === void 0 || liveVoteCounts.classList.add("hidden");
+          if (voteCountList) voteCountList.innerHTML = "";
+        } else {
+          liveVoteCounts === null || liveVoteCounts === void 0 || liveVoteCounts.classList.remove("hidden");
         }
         if (votingInstructionEl) {
           if (!roomData.votingStarted && !hasRequested) {
