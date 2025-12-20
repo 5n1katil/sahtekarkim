@@ -1175,28 +1175,22 @@ export const gameLogic = {
 
   startVoting: function (roomCode, playersSnapshot) {
     const ref = window.db.ref("rooms/" + roomCode);
+    const mappedPlayers = (playersSnapshot || []).map((p) => ({
+      uid: p.uid || p.id,
+      name: p.name,
+    }));
     const snapshotPromise = playersSnapshot
-      ? Promise.resolve(
-          (playersSnapshot || []).map((p) => ({
-            uid: p.uid || p.id,
-            name: p.name,
-          }))
-        )
-      : Promise.all([
-            name: p.name,
-          }))
-        )
-      : Promise.all([
-          ref.child("playerRoles").get(),
-          ref.child("players").get(),
-        ]).then(([rolesSnap, playersSnap]) => {
-          const roles = rolesSnap.val() || {};
-          const players = playersSnap.val() || {};
-          return Object.keys(roles).map((uid) => ({
-            uid,
-            name: players?.[uid]?.name || uid,
-          }));
-        });
+      ? Promise.resolve(mappedPlayers)
+      : Promise.all([ref.child("playerRoles").get(), ref.child("players").get()]).then(
+          ([rolesSnap, playersSnap]) => {
+            const roles = rolesSnap.val() || {};
+            const players = playersSnap.val() || {};
+            return Object.keys(roles).map((uid) => ({
+              uid,
+              name: players?.[uid]?.name || uid,
+            }));
+          }
+        );
 
     snapshotPromise.then((snapshotPlayers) => {
       ref.get().then((snap) => {
