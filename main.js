@@ -167,6 +167,7 @@ let votingCleanupTimeout = null;
 let lastGuessOptionsKey = null;
 let lastGuessSelection = null;
 let lastRoundId = null;
+let endRoundTriggeredForRound = null;
 
 function isCurrentRoundPayload(roomData, payload) {
   if (!payload) return true;
@@ -270,6 +271,28 @@ function updateRoleDisplay(myData, settings) {
     return roomData.voteResult || null;
   }
 
+  function getRoundKey(roomData) {
+    if (!roomData) return "default";
+    if (roomData.roundId) return `id:${roomData.roundId}`;
+    if (roomData.round) return `num:${roomData.round}`;
+    return "default";
+  }
+
+  function triggerEndRoundIfNeeded(roomData, resolvedResult) {
+    if (!roomData || !resolvedResult || resolvedResult.tie) return false;
+    const roundKey = getRoundKey(roomData);
+    const alreadyTriggered = endRoundTriggeredForRound === roundKey;
+    if (alreadyTriggered) return true;
+
+    const eliminatedUid = resolvedResult.voted || resolvedResult.eliminatedUid;
+    const isGameOngoing = roomData.status === "started";
+    if (!eliminatedUid || !isGameOngoing) return false;
+
+    endRoundTriggeredForRound = roundKey;
+    gameLogic.endRound(currentRoomCode);
+    return true;
+  }
+
   function buildVotingOutcomeMessage({
     eliminatedName,
     eliminatedIsImpostor,
@@ -294,6 +317,7 @@ function updateRoleDisplay(myData, settings) {
     if (alivePlayersCount > 2) {
       return {
         message: `Oylama sonucunda ${safeName} elendi. Elenen kişi masumdu — oyun devam ediyor.`,
+        gameEnded: false,
         gameEnded: false,
         impostorVictory: false,
       };
@@ -1033,7 +1057,6 @@ function updateRoleDisplay(myData, settings) {
     if (submitVoteBtn) submitVoteBtn.disabled = !selectedVoteUid;
     const confirmArea = document.getElementById("voteConfirmArea");
     confirmArea?.classList.add("hidden");
-    const confirmBtn = document.getElementById("confirmVoteBtn");
     if (confirmBtn) confirmBtn.disabled = false;
   }
 
@@ -1059,6 +1082,7 @@ function updateRoleDisplay(myData, settings) {
     selectedVoteName = null;
     lastGuessOptionsKey = null;
     lastGuessSelection = null;
+    endRoundTriggeredForRound = null;
     clearInterval(voteCountdownInterval);
     voteCountdownInterval = null;
     clearInterval(guessCountdownInterval);
@@ -1532,6 +1556,14 @@ function updateRoleDisplay(myData, settings) {
         }
 
         const resolvedVoteResult = getResolvedVoteResult(roomData);
+        const hasElimination =
+          resolvedVoteResult &&
+          !resolvedVoteResult.tie &&
+          (resolvedVoteResult.voted || resolvedVoteResult.eliminatedUid);
+        const endRoundTriggered = triggerEndRoundIfNeeded(
+          roomData,
+          resolvedVoteResult
+        );
 
         if (resolvedVoteResult) {
           if (resolvedVoteResult.tie) {
@@ -1590,7 +1622,8 @@ function updateRoleDisplay(myData, settings) {
           finalizedAt &&
           !roomData.voting?.active &&
           roomData.status === "started" &&
-          !currentGuessState;
+          !currentGuessState &&
+          (!hasElimination || endRoundTriggered);
         if (shouldScheduleCleanup && finalizedAt !== lastVotingFinalizedAt) {
           lastVotingFinalizedAt = finalizedAt;
           if (votingCleanupTimeout) clearTimeout(votingCleanupTimeout);
