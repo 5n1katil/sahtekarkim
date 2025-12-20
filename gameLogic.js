@@ -1096,33 +1096,78 @@ export const gameLogic = {
 
   // Oylamayı başlatma isteği kaydet
   startVote: function (roomCode, uid) {
-    const requestRef = window.db.ref(
-      `rooms/${roomCode}/voteStartRequests/${uid}`
-    );
-    requestRef.set(true).then(() => {
-      const roomRef = window.db.ref(`rooms/${roomCode}`);
-      roomRef.get().then((snap) => {
-        if (!snap.exists()) return;
-        const data = snap.val();
-        if (data.voting?.active) return;
-        if (data.voting?.result?.finalizedAt) return;
-        const requests = data.voteStartRequests || {};
-        const alivePlayers = Object.entries(data.playerRoles || {}).map(
-          ([id]) => ({
-            uid: id,
-            name: data.players?.[id]?.name || id,
-          })
-        );
+    const roomRef = window.db.ref(`rooms/${roomCode}`);
+    roomRef
+      .transaction((currentData) => {
+        if (!currentData) return;
+        if (currentData.voting?.active) return;
+        if (currentData.voting?.result?.finalizedAt) return;
+
+        const voteRequests = { ...(currentData.voteStartRequests || {}) };
+        voteRequests[uid] = true;
+
+        const roles = currentData.playerRoles || {};
+        const players = currentData.players || {};
+        const alivePlayers = Object.keys(roles).map((id) => ({
+          uid: id,
+          name: players?.[id]?.name || id,
+        }));
         const aliveUids = alivePlayers.map((p) => p.uid);
-        const requestCount = Object.keys(requests).filter((id) =>
+        const requestCount = Object.keys(voteRequests).filter((id) =>
           aliveUids.includes(id)
         ).length;
         const required = Math.floor(alivePlayers.length / 2) + 1;
+
         if (alivePlayers.length && requestCount >= required) {
-          this.startVoting(roomCode, alivePlayers);
+          const snapshotOrder = alivePlayers.map((p) => p.uid);
+          const snapshotNames = alivePlayers.reduce((acc, p) => {
+            if (p?.uid) acc[p.uid] = p.name;
+            return acc;
+          }, {});
+          const aliveAtStart = snapshotOrder.reduce((acc, playerId) => {
+            acc[playerId] = true;
+            return acc;
+          }, {});
+          return {
+            ...currentData,
+            phase: "voting",
+            votingStarted: true,
+            votes: null,
+            voteResult: null,
+            voteRequests: null,
+            voteStartRequests: null,
+            voting: {
+              active: true,
+              startedAt: window.firebase.database.ServerValue.TIMESTAMP,
+              endsAt: null,
+              roster: alivePlayers,
+              result: null,
+              snapshot: {
+                order: snapshotOrder,
+                names: snapshotNames,
+                aliveAtStart,
+              },
+              snapshotPlayers: alivePlayers,
+            },
+          };
+        }
+
+        return {
+          ...currentData,
+          voteStartRequests: voteRequests,
+        };
+      })
+      .then(({ committed, snapshot }) => {
+        if (!committed || !snapshot) return;
+        const votingSnap = snapshot.child("voting");
+        const isActive = votingSnap?.child("active")?.val();
+        if (!isActive) return;
+        const startedAt = votingSnap?.child("startedAt")?.val();
+        const endsAt = votingSnap?.child("endsAt")?.val();
+        if (startedAt && endsAt == null) {
+          roomRef.child("voting/endsAt").set(startedAt + 30000);
         }
       });
-    });
   },
 
   startVoting: function (roomCode, playersSnapshot) {
