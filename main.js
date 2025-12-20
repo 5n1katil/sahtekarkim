@@ -1447,7 +1447,7 @@ function updateRoleDisplay(myData, settings) {
           aliveUids.includes(uid)
         ).length;
         const hasRequested = !!voteRequests[currentUid];
-        const threshold = Math.ceil(playersCount / 2);
+        const threshold = Math.floor(playersCount / 2) + 1;
         const isWaiting =
           !roomData.voting?.active &&
           !roomData.votingStarted &&
