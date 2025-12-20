@@ -1117,8 +1117,8 @@ export const gameLogic = {
         const requestCount = Object.keys(requests).filter((id) =>
           aliveUids.includes(id)
         ).length;
-        const threshold = Math.ceil(alivePlayers.length / 2);
-        if (alivePlayers.length && requestCount >= threshold) {
+        const required = Math.floor(alivePlayers.length / 2) + 1;
+        if (alivePlayers.length && requestCount >= required) {
           this.startVoting(roomCode, alivePlayers);
         }
       });
