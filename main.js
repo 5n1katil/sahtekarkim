@@ -197,6 +197,7 @@ let votingCleanupTimeout = null;
 let lastGuessOptionsKey = null;
 let lastGuessSelection = null;
 let lastRoundId = null;
+let lastRoundNumber = null;
 let endRoundTriggeredForRound = null;
 
 function isCurrentRoundPayload(roomData, payload) {
@@ -1162,14 +1163,25 @@ function updateRoleDisplay(myData, settings) {
       const prevStatus = lastRoomStatus;
       lastRoomStatus = roomData ? roomData.status : null;
       const currentRoundId = roomData?.roundId || null;
-      const roundChanged =
-        currentRoundId && lastRoundId && currentRoundId !== lastRoundId;
+      const currentRoundNumber = roomData?.round ?? null;
+      const roundIdChanged =
+        currentRoundId !== null &&
+        lastRoundId !== null &&
+        currentRoundId !== lastRoundId;
+      const roundNumberChanged =
+        currentRoundNumber !== null &&
+        lastRoundNumber !== null &&
+        currentRoundNumber !== lastRoundNumber;
+      const roundChanged = roundIdChanged || roundNumberChanged;
       const roundResetNeeded =
-        !currentRoundId && lastRoundId && roomData?.status === "waiting";
+        roomData?.status === "waiting" &&
+        ((currentRoundId === null && lastRoundId !== null) ||
+          (currentRoundNumber === null && lastRoundNumber !== null));
       if (roundChanged || roundResetNeeded) {
         resetLocalRoundState();
       }
       lastRoundId = currentRoundId;
+      lastRoundNumber = currentRoundNumber;
 
       const currentVotingResult = isCurrentRoundPayload(
         roomData,
