@@ -25,6 +25,46 @@ function clearStoragePreservePromo() {
   }
 }
 
+function showEliminationOverlay(roomCode) {
+  const overlay = document.getElementById("resultOverlay");
+  const actions = document.getElementById("gameActions");
+  if (!overlay) return;
+
+  overlay.innerHTML = "";
+  const message = document.createElement("div");
+  message.className = "result-message";
+  message.textContent = "Elendin! Oyun devam ediyor...";
+  overlay.appendChild(message);
+
+  const closeOverlay = () => {
+    overlay.classList.add("hidden");
+    overlay.classList.remove("impostor-animation", "innocent-animation");
+  };
+
+  const actionBtn = document.createElement("button");
+  actionBtn.classList.add("overlay-btn");
+
+  if (isCreator) {
+    actionBtn.textContent = "Yeniden başlat";
+    actionBtn.addEventListener("click", () => {
+      closeOverlay();
+      gameLogic.restartGame(roomCode);
+    });
+  } else {
+    actionBtn.textContent = "Odadan ayrıl";
+    actionBtn.addEventListener("click", () => {
+      closeOverlay();
+      gameLogic.leaveRoom(roomCode).finally(() => {
+        showSetupJoin();
+      });
+    });
+  }
+
+  overlay.appendChild(actionBtn);
+  overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
+  actions?.classList.add("hidden");
+}
+
 // Kullanıcının anonim şekilde doğrulandığından emin ol
 if (window.auth && !window.auth.currentUser) {
   window.auth.signInAnonymously().catch((err) => {
@@ -84,17 +124,7 @@ if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
           ) {
             wasEliminated = true;
             showRoomUI(currentRoomCode, currentPlayerName, isCreator);
-            const overlay = document.getElementById("resultOverlay");
-            if (overlay) {
-              overlay.innerHTML =
-                "<div class='result-message'>Elendin! Oyun devam ediyor...</div>";
-              overlay.classList.remove(
-                "hidden",
-                "impostor-animation",
-                "innocent-animation"
-              );
-            }
-            document.getElementById("gameActions")?.classList.add("hidden");
+            showEliminationOverlay(currentRoomCode);
             listenPlayersAndRoom(currentRoomCode);
             gameLogic.listenRoom(currentRoomCode);
             return;
@@ -1172,17 +1202,7 @@ function updateRoleDisplay(myData, settings) {
       if (isEliminatedPlayer) {
         wasEliminated = true;
         if (!isGameFinished) {
-          const overlay = document.getElementById("resultOverlay");
-          if (overlay) {
-            overlay.innerHTML =
-              "<div class='result-message'>Elendin! Oyun devam ediyor...</div>";
-            overlay.classList.remove(
-              "hidden",
-              "impostor-animation",
-              "innocent-animation"
-            );
-          }
-          document.getElementById("gameActions")?.classList.add("hidden");
+          showEliminationOverlay(roomCode);
           return;
         }
       } else if (
