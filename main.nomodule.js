@@ -1490,6 +1490,47 @@
     }
   }
 
+  function showEliminationOverlay(roomCode) {
+    const overlay = document.getElementById("resultOverlay");
+    const actions = document.getElementById("gameActions");
+    if (!overlay) return;
+
+    overlay.innerHTML = "";
+    const message = document.createElement("div");
+    message.className = "result-message";
+    message.textContent = "Elendin! Oyun devam ediyor...";
+    overlay.appendChild(message);
+
+    const closeOverlay = () => {
+      overlay.classList.add("hidden");
+      overlay.classList.remove("impostor-animation", "innocent-animation");
+      actions?.classList.add("hidden");
+    };
+
+    const actionBtn = document.createElement("button");
+    actionBtn.classList.add("overlay-btn");
+
+    if (isCreator) {
+      actionBtn.textContent = "Yeniden başlat";
+      actionBtn.addEventListener("click", () => {
+        closeOverlay();
+        gameLogic.restartGame(roomCode);
+      });
+    } else {
+      actionBtn.textContent = "Odadan ayrıl";
+      actionBtn.addEventListener("click", () => {
+        closeOverlay();
+        gameLogic.leaveRoom(roomCode).finally(() => {
+          showSetupJoin();
+        });
+      });
+    }
+
+    overlay.appendChild(actionBtn);
+    overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
+    actions?.classList.add("hidden");
+  }
+
   // Kullanıcının anonim şekilde doğrulandığından emin ol
   if (window.auth && !window.auth.currentUser) {
     window.auth.signInAnonymously().catch(err => {
@@ -1541,12 +1582,7 @@
             if (roomData?.eliminated && roomData.eliminated[uid] && roomData.status !== "finished") {
               wasEliminated = true;
               showRoomUI(currentRoomCode, currentPlayerName, isCreator);
-              const overlay = document.getElementById("resultOverlay");
-              if (overlay) {
-                overlay.innerHTML = "<div class='result-message'>Elendin! Oyun devam ediyor...</div>";
-                overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
-              }
-              document.getElementById("gameActions")?.classList.add("hidden");
+              showEliminationOverlay(currentRoomCode);
               listenPlayersAndRoom(currentRoomCode);
               gameLogic.listenRoom(currentRoomCode);
               return;
@@ -1782,6 +1818,11 @@
     overlay.appendChild(msgDiv);
     overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
     overlay.classList.add(cls);
+    const shouldShowEliminationOverlay = isEliminatedPlayer && !outcome.gameEnded && alivePlayersCount > 2 && !outcome.impostorVictory;
+    if (shouldShowEliminationOverlay) {
+      showEliminationOverlay(currentRoomCode);
+      return;
+    }
     if (outcome.gameEnded) {
       let restartBtn;
       if (isCreator) {
@@ -2264,7 +2305,6 @@
   function resetLocalRoundState() {
     gameEnded = false;
     parityHandled = false;
-    wasEliminated = false;
     lastVoteResult = null;
     lastGuessEvent = null;
     lastVotingState = null;
@@ -2334,12 +2374,7 @@
       const roundSafeGameOver = getGameOverInfo(roomData);
       if (roomData?.eliminated && roomData.eliminated[currentUid] && roomData.status !== "finished") {
         wasEliminated = true;
-        const overlay = document.getElementById("resultOverlay");
-        if (overlay) {
-          overlay.innerHTML = "<div class='result-message'>Elendin! Oyun devam ediyor...</div>";
-          overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
-        }
-        document.getElementById("gameActions")?.classList.add("hidden");
+        showEliminationOverlay(roomCode);
         return;
       } else if (wasEliminated && prevStatus === "finished" && (roomData?.status === "waiting" || roomData?.status === "started") && (!roomData?.eliminated || !roomData.eliminated[currentUid])) {
         wasEliminated = false;
