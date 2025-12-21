@@ -396,16 +396,12 @@ function updateRoleDisplay(myData, settings) {
     return mappedName || votedUid;
   }
 
-  function renderVoteResultOverlay(roomData) {
-    const resolvedResult = getResolvedVoteResult(roomData);
-    if (!resolvedResult || resolvedResult.tie) return false;
-    if (!isCurrentRoundPayload(roomData, resolvedResult)) return false;
-
-    const key = JSON.stringify(resolvedResult);
-    if (key === lastVoteResult) return true;
-    lastVoteResult = key;
+  function buildVoteOutcomeContext(roomData, resolvedResult) {
+    if (!roomData || !resolvedResult || resolvedResult.tie) return null;
 
     const votedUid = resolvedResult.voted || resolvedResult.eliminatedUid;
+    if (!votedUid) return null;
+
     const votedName = resolveEliminatedName(
       resolvedResult,
       roomData,
@@ -421,16 +417,53 @@ function updateRoleDisplay(myData, settings) {
     const alivePlayersCount = remaining.length;
     const aliveImpostorsCount = activeSpies.length;
 
+    const outcome = buildVotingOutcomeMessage({
+      eliminatedName: votedName,
+      eliminatedIsImpostor: resolvedResult.isSpy,
+      alivePlayersCount,
+      aliveImpostorsCount,
+      spyNames: getSpyNames(roomData, roomData?.players),
+    });
+
+    return {
+      votedUid,
+      votedName,
+      alivePlayersCount,
+      aliveImpostorsCount,
+      outcome,
+    };
+  }
+
+  function renderVoteResultOverlay(
+    roomData,
+    resolvedResult,
+    outcomeContext
+  ) {
+    const resolvedResultToRender =
+      resolvedResult || getResolvedVoteResult(roomData);
+    if (!resolvedResultToRender || resolvedResultToRender.tie) return false;
+    if (!isCurrentRoundPayload(roomData, resolvedResultToRender)) return false;
+
+    const key = JSON.stringify(resolvedResultToRender);
+    if (key === lastVoteResult && !outcomeContext) return true;
+
+    const context =
+      outcomeContext ||
+      buildVoteOutcomeContext(roomData, resolvedResultToRender);
+    if (!context) return false;
+    lastVoteResult = key;
+
     showResultOverlay(
       {
-        eliminatedIsImpostor: resolvedResult.isSpy,
-        eliminatedName: votedName,
-        alivePlayersCount,
-        aliveImpostorsCount,
-        votedUid,
+        eliminatedIsImpostor: resolvedResultToRender.isSpy,
+        eliminatedName: context.votedName,
+        alivePlayersCount: context.alivePlayersCount,
+        aliveImpostorsCount: context.aliveImpostorsCount,
+        votedUid: context.votedUid,
       },
       roomData,
-      resolvedResult
+      resolvedResultToRender,
+      context.outcome
     );
 
     return true;
@@ -445,7 +478,8 @@ function updateRoleDisplay(myData, settings) {
       votedUid,
     },
     roomData,
-    resolvedResult
+    resolvedResult,
+    precomputedOutcome
   ) {
     const resolvedEliminatedName = resolveEliminatedName(
       resolvedResult,
@@ -453,13 +487,15 @@ function updateRoleDisplay(myData, settings) {
       votedUid,
       eliminatedName
     );
-    const outcome = buildVotingOutcomeMessage({
-      eliminatedName: resolvedEliminatedName,
-      eliminatedIsImpostor,
-      alivePlayersCount,
-      aliveImpostorsCount,
-      spyNames: getSpyNames(roomData, roomData?.players),
-    });
+    const outcome =
+      precomputedOutcome ||
+      buildVotingOutcomeMessage({
+        eliminatedName: resolvedEliminatedName,
+        eliminatedIsImpostor,
+        alivePlayersCount,
+        aliveImpostorsCount,
+        spyNames: getSpyNames(roomData, roomData?.players),
+      });
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
       console.error("resultOverlay element not found");
@@ -1248,17 +1284,30 @@ function updateRoleDisplay(myData, settings) {
         : null;
       const roundSafeGameOver = getGameOverInfo(roomData);
 
+      const resolvedVoteResult = getResolvedVoteResult(roomData);
+      const voteOutcomeContext = buildVoteOutcomeContext(
+        roomData,
+        resolvedVoteResult
+      );
+      const voteEndsGame =
+        !!voteOutcomeContext &&
+        (voteOutcomeContext.outcome?.gameEnded ||
+          voteOutcomeContext.outcome?.impostorVictory);
+
       const isEliminatedPlayer =
         roomData?.eliminated && roomData.eliminated[currentUid];
       const isGameFinished =
         roomData?.status === "finished" || roomData?.spyParityWin;
 
-      if (isEliminatedPlayer) {
+      const shouldShowEliminationOverlay =
+        isEliminatedPlayer && !isGameFinished && !voteEndsGame;
+
+      if (shouldShowEliminationOverlay) {
         wasEliminated = true;
-        if (!isGameFinished) {
-          showEliminationOverlay(roomCode);
-          return;
-        }
+        showEliminationOverlay(roomCode);
+        return;
+      } else if (isEliminatedPlayer) {
+        wasEliminated = true;
       } else if (
         wasEliminated &&
         prevStatus === "finished" &&
@@ -1349,7 +1398,11 @@ function updateRoleDisplay(myData, settings) {
           roomData.status === "finished" &&
           roomData.winner === "innocent"
         ) {
-          const handledByVote = renderVoteResultOverlay(roomData);
+          const handledByVote = renderVoteResultOverlay(
+            roomData,
+            resolvedVoteResult,
+            voteOutcomeContext
+          );
           if (handledByVote) return;
 
           const finalGuess = normalizeFinalGuess(
@@ -1632,7 +1685,6 @@ function updateRoleDisplay(myData, settings) {
           }
         }
 
-        const resolvedVoteResult = getResolvedVoteResult(roomData);
         const hasElimination =
           resolvedVoteResult &&
           !resolvedVoteResult.tie &&
@@ -1648,7 +1700,7 @@ function updateRoleDisplay(myData, settings) {
             outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
             document.getElementById("nextRoundBtn").classList.add("hidden");
           } else {
-            renderVoteResultOverlay(roomData);
+            renderVoteResultOverlay(roomData, resolvedVoteResult, voteOutcomeContext);
             resultEl.classList.add("hidden");
           }
         } else {
