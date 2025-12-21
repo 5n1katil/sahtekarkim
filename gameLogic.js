@@ -1442,8 +1442,10 @@ export const gameLogic = {
       const snapshot = votingState.snapshot;
       const getName = (uid) => {
         if (snapshot?.names && snapshot.names[uid]) return snapshot.names[uid];
+        const playerName = room.players?.[uid]?.name;
+        if (playerName) return playerName;
         const snap = snapshotPlayers.find((p) => p.uid === uid);
-        return snap?.name || (room.players?.[uid]?.name ?? uid);
+        return snap?.name || uid;
       };
 
       const nextRoom = { ...room };
@@ -1477,7 +1479,12 @@ export const gameLogic = {
       );
 
       const eliminatedName = getName(voted);
-      nextRoom.voteResult = { voted, isSpy, roundId: room.roundId || null };
+      nextRoom.voteResult = {
+        voted,
+        isSpy,
+        eliminatedName,
+        roundId: room.roundId || null,
+      };
       nextRoom.voting.result.eliminatedUid = voted;
       nextRoom.voting.result.eliminatedName = eliminatedName;
       nextRoom.voting.result.isSpy = isSpy;
@@ -1631,6 +1638,16 @@ export const gameLogic = {
       }
       const voted = top[0];
       const votedRole = data.playerRoles && data.playerRoles[voted];
+      const rosterSnapshot =
+        data.voting?.snapshotPlayers || data.voting?.roster || [];
+      const rosterEntry =
+        Array.isArray(rosterSnapshot) &&
+        rosterSnapshot.find((p) => p?.uid === voted);
+      const eliminatedName =
+        data.voting?.snapshot?.names?.[voted] ||
+        data.players?.[voted]?.name ||
+        rosterEntry?.name ||
+        voted;
       const isSpy = votedRole ? votedRole.isSpy : false;
       const remainingPlayers = Object.keys(data.playerRoles || {}).filter(
         (uid) => uid !== voted
@@ -1643,7 +1660,15 @@ export const gameLogic = {
         `[tallyVotes] Player ${voted} received ${counts[voted]} votes. Eliminated: ${!isSpy}`
       );
 
-      const voteResult = { voted, isSpy };
+      const voteResult = { voted, isSpy, eliminatedName };
+      let votingResultUpdate = data.voting
+        ? {
+            ...(data.voting.result || {}),
+            eliminatedUid: voted,
+            eliminatedName,
+            isSpy,
+          }
+        : null;
       if (isSpy) {
         const role =
           votedRole && votedRole.role !== undefined ? votedRole.role : null;
@@ -1655,12 +1680,28 @@ export const gameLogic = {
         voteResult.location = location;
         voteResult.remainingSpies = remainingSpies;
         voteResult.lastSpy = remainingSpies.length === 0;
+        if (votingResultUpdate) {
+          votingResultUpdate = {
+            ...votingResultUpdate,
+            role,
+            location,
+            remainingSpies,
+            lastSpy: remainingSpies.length === 0,
+          };
+        }
       }
 
       const updates = {
         voteResult,
         votingStarted: false,
       };
+
+      if (votingResultUpdate) {
+        updates.voting = {
+          ...data.voting,
+          result: votingResultUpdate,
+        };
+      }
 
       if (isSpy && remainingSpies.length === 0) {
         updates.status = "finished";
