@@ -39,6 +39,7 @@ function showEliminationOverlay(roomCode) {
   const closeOverlay = () => {
     overlay.classList.add("hidden");
     overlay.classList.remove("impostor-animation", "innocent-animation");
+    actions?.classList.add("hidden");
   };
 
   const actionBtn = document.createElement("button");
@@ -495,6 +496,17 @@ function updateRoleDisplay(myData, settings) {
       "innocent-animation"
     );
     overlay.classList.add(cls);
+
+    const shouldShowEliminationOverlay =
+      isEliminatedPlayer &&
+      !outcome.gameEnded &&
+      alivePlayersCount > 2 &&
+      !outcome.impostorVictory;
+
+    if (shouldShowEliminationOverlay) {
+      showEliminationOverlay(currentRoomCode);
+      return;
+    }
 
     if (outcome.gameEnded) {
       let restartBtn;
@@ -1134,7 +1146,6 @@ function updateRoleDisplay(myData, settings) {
   function resetLocalRoundState() {
     gameEnded = false;
     parityHandled = false;
-    wasEliminated = false;
     lastVoteResult = null;
     lastGuessEvent = null;
     lastVotingState = null;
