@@ -1364,8 +1364,9 @@
         const vote = data.voteResult;
         const tasks = [];
         const votedUid = vote && vote.voted;
+        let playerInfo = null;
         if (votedUid) {
-          const playerInfo = (data.players || {})[votedUid] || {};
+          playerInfo = (data.players || {})[votedUid] || {};
           const {
             name = null,
             isCreator = false
@@ -1377,21 +1378,24 @@
             isCreator
           }));
         }
-        Promise.all(tasks).then(() => {
-          const remainingPlayers = Object.keys(data.playerRoles || {}).filter(uid => uid !== votedUid);
-          const remainingSpies = getSpyUids$1(data.spies).filter(id => remainingPlayers.includes(id));
+        Promise.all(tasks).then(() => ref.get()).then(freshSnap => {
+          if (!freshSnap || !freshSnap.exists()) return;
+          const latestData = freshSnap.val();
+          const activePlayers = getActivePlayers$1(latestData.playerRoles, latestData.players);
+          const activeUids = activePlayers.map(p => p.uid);
+          const remainingSpies = getSpyUids$1(latestData.spies).filter(id => activeUids.includes(id));
           if (remainingSpies.length === 0) {
             const updates = appendFinalSpyInfo({
               status: "finished",
               winner: "innocent"
-            }, data);
+            }, latestData);
             const eliminatedName = playerInfo?.name || votedUid;
-            ref.update(updates).then(() => getSpyNamesForMessage(roomCode, data).then(_ref13 => {
+            ref.update(updates).then(() => getSpyNamesForMessage(roomCode, latestData).then(_ref13 => {
               let {
                 spyNames
               } = _ref13;
               const spyIntro = formatSpyIntro$1(spyNames);
-              return finalizeGameOver(roomCode, data, {
+              return finalizeGameOver(roomCode, latestData, {
                 winner: "innocents",
                 reason: "vote",
                 eliminatedUid: votedUid,
@@ -1401,11 +1405,11 @@
             }));
             return;
           }
-          this.checkSpyWin(roomCode).then(spyWon => {
+          this.checkSpyWin(roomCode, latestData).then(spyWon => {
             if (spyWon) {
               const updates = appendFinalSpyInfo({
                 status: "finished"
-              }, data);
+              }, latestData);
               ref.update(updates);
               return;
             }
@@ -1418,14 +1422,15 @@
         });
       });
     },
-    checkSpyWin: function (roomCode) {
+    checkSpyWin: function (roomCode, latestData) {
       const ref = window.db.ref("rooms/" + roomCode);
-      return ref.get().then(snap => {
-        if (!snap.exists()) return false;
-        const data = snap.val();
-        const players = Object.keys(data.players || {});
-        const activeSpies = getSpyUids$1(data.spies).filter(s => players.includes(s));
-        const innocentCount = players.length - activeSpies.length;
+      const dataPromise = latestData ? Promise.resolve(latestData) : ref.get().then(snap => snap.exists() ? snap.val() : null);
+      return dataPromise.then(data => {
+        if (!data) return false;
+        const activePlayers = getActivePlayers$1(data.playerRoles, data.players);
+        const activeUids = activePlayers.map(p => p.uid);
+        const activeSpies = getSpyUids$1(data.spies).filter(s => activeUids.includes(s));
+        const innocentCount = activeUids.length - activeSpies.length;
         if (innocentCount <= 1) {
           const updates = appendFinalSpyInfo({
             status: "finished",
