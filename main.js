@@ -288,11 +288,13 @@ function updateRoleDisplay(myData, settings) {
       if (votingResult.eliminatedUid) {
         return {
           tie: false,
-        voted: votingResult.eliminatedUid,
-        isSpy: !!votingResult.isSpy,
-        role: votingResult.role,
-        location: votingResult.location,
-        remainingSpies: votingResult.remainingSpies,
+          voted: votingResult.eliminatedUid,
+          eliminatedUid: votingResult.eliminatedUid,
+          eliminatedName: votingResult.eliminatedName,
+          isSpy: !!votingResult.isSpy,
+          role: votingResult.role,
+          location: votingResult.location,
+          remainingSpies: votingResult.remainingSpies,
           lastSpy: votingResult.lastSpy,
           roundId: votingResult.roundId,
         };
@@ -377,6 +379,22 @@ function updateRoleDisplay(myData, settings) {
     };
   }
 
+  function resolveEliminatedName(
+    resolvedResult,
+    roomData,
+    votedUid,
+    fallbackName
+  ) {
+    if (resolvedResult?.eliminatedName) return resolvedResult.eliminatedName;
+    if (roomData?.voting?.result?.eliminatedName) {
+      return roomData.voting.result.eliminatedName;
+    }
+    if (fallbackName) return fallbackName;
+    const mappedName =
+      playerUidMap[votedUid]?.name || roomData?.players?.[votedUid]?.name;
+    return mappedName || votedUid;
+  }
+
   function renderVoteResultOverlay(roomData) {
     const resolvedResult = getResolvedVoteResult(roomData);
     if (!resolvedResult || resolvedResult.tie) return false;
@@ -386,8 +404,13 @@ function updateRoleDisplay(myData, settings) {
     if (key === lastVoteResult) return true;
     lastVoteResult = key;
 
-    const votedUid = resolvedResult.voted;
-    const votedName = playerUidMap[votedUid]?.name || votedUid;
+    const votedUid = resolvedResult.voted || resolvedResult.eliminatedUid;
+    const votedName = resolveEliminatedName(
+      resolvedResult,
+      roomData,
+      votedUid,
+      playerUidMap[votedUid]?.name
+    );
     const remaining = Object.keys(roomData.players || {}).filter(
       (uid) => uid !== votedUid
     );
@@ -405,7 +428,8 @@ function updateRoleDisplay(myData, settings) {
         aliveImpostorsCount,
         votedUid,
       },
-      roomData
+      roomData,
+      resolvedResult
     );
 
     return true;
@@ -419,10 +443,17 @@ function updateRoleDisplay(myData, settings) {
       aliveImpostorsCount,
       votedUid,
     },
-    roomData
+    roomData,
+    resolvedResult
   ) {
+    const resolvedEliminatedName = resolveEliminatedName(
+      resolvedResult,
+      roomData,
+      votedUid,
+      eliminatedName
+    );
     const outcome = buildVotingOutcomeMessage({
-      eliminatedName,
+      eliminatedName: resolvedEliminatedName,
       eliminatedIsImpostor,
       alivePlayersCount,
       aliveImpostorsCount,
