@@ -390,10 +390,21 @@ function updateRoleDisplay(myData, settings) {
     if (roomData?.voting?.result?.eliminatedName) {
       return roomData.voting.result.eliminatedName;
     }
+    const snapshotName = roomData?.voting?.snapshot?.names?.[votedUid];
+    if (snapshotName) return snapshotName;
+    const eliminatedRecordName = roomData?.eliminated?.[votedUid]?.name;
+    if (eliminatedRecordName) return eliminatedRecordName;
     if (fallbackName) return fallbackName;
     const mappedName =
       playerUidMap[votedUid]?.name || roomData?.players?.[votedUid]?.name;
-    return mappedName || votedUid;
+    if (mappedName) return mappedName;
+    const rosterSources = [
+      ...(roomData?.voting?.snapshotPlayers || []),
+      ...(roomData?.voting?.roster || []),
+    ];
+    const rosterMatch = rosterSources.find((p) => p?.uid === votedUid);
+    if (rosterMatch?.name) return rosterMatch.name;
+    return votedUid;
   }
 
   function buildVoteOutcomeContext(roomData, resolvedResult) {
