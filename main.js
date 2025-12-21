@@ -455,14 +455,16 @@ function updateRoleDisplay(myData, settings) {
     if (!resolvedResultToRender || resolvedResultToRender.tie) return false;
     if (!isCurrentRoundPayload(roomData, resolvedResultToRender)) return false;
 
-    const key = JSON.stringify(resolvedResultToRender);
-    if (key === lastVoteResult && !outcomeContext) return true;
-
     const context =
       outcomeContext ||
       buildVoteOutcomeContext(roomData, resolvedResultToRender);
     if (!context) return false;
-    lastVoteResult = key;
+    const renderKey = JSON.stringify({
+      result: resolvedResultToRender,
+      context,
+    });
+    if (renderKey === lastVoteResult) return true;
+    lastVoteResult = renderKey;
 
     showResultOverlay(
       {
@@ -1178,6 +1180,7 @@ function updateRoleDisplay(myData, settings) {
     if (submitVoteBtn) submitVoteBtn.disabled = !selectedVoteUid;
     const confirmArea = document.getElementById("voteConfirmArea");
     confirmArea?.classList.add("hidden");
+    const confirmBtn = document.getElementById("confirmVoteBtn");
     if (confirmBtn) confirmBtn.disabled = false;
   }
 
