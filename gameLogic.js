@@ -1170,7 +1170,10 @@ export const gameLogic = {
             startedAt: now,
             endsAt: now + 30000,
             startedBy,
-            expectedVoters: aliveUids,
+            expectedVoters: aliveUids.reduce((acc, id) => {
+              acc[id] = true;
+              return acc;
+            }, {}),
             votes: {},
             result: null,
             continueAcks: {},
@@ -1261,7 +1264,10 @@ export const gameLogic = {
           startedAt: now,
           endsAt: now + 30000,
           startedBy,
-          expectedVoters: aliveUids,
+          expectedVoters: aliveUids.reduce((acc, id) => {
+            acc[id] = true;
+            return acc;
+          }, {}),
           votes: {},
           result: null,
           continueAcks: {},
@@ -1431,9 +1437,11 @@ export const gameLogic = {
         const votingState = room.voting || {};
         if (votingState.status !== "in_progress") return room;
 
-        const expectedVoters = Array.isArray(votingState.expectedVoters)
-          ? votingState.expectedVoters.filter(Boolean)
-          : [];
+        const expectedVotersMap = votingState.expectedVoters;
+        const expectedVoters =
+          expectedVotersMap && typeof expectedVotersMap === "object"
+            ? Object.keys(expectedVotersMap)
+            : [];
         const expectedSet = new Set(expectedVoters);
 
         if (!expectedSet.has(voterUid) || !expectedSet.has(targetUid)) {
@@ -1457,9 +1465,11 @@ export const gameLogic = {
         const votingState = roomData?.voting;
         if (!votingState || votingState.status !== "in_progress") return;
 
-        const expectedVoters = Array.isArray(votingState.expectedVoters)
-          ? votingState.expectedVoters.filter(Boolean)
-          : [];
+        const expectedVotersMap = votingState.expectedVoters;
+        const expectedVoters =
+          expectedVotersMap && typeof expectedVotersMap === "object"
+            ? Object.keys(expectedVotersMap)
+            : [];
         if (!expectedVoters.length) return;
         const expectedSet = new Set(expectedVoters);
         const votes = votingState.votes || {};
@@ -1490,9 +1500,11 @@ export const gameLogic = {
       const votingState = room.voting || {};
       if (votingState.status !== "in_progress") return room;
 
-      const expectedVoters = Array.isArray(votingState.expectedVoters)
-        ? votingState.expectedVoters.filter(Boolean)
-        : [];
+      const expectedVotersMap = votingState.expectedVoters;
+      const expectedVoters =
+        expectedVotersMap && typeof expectedVotersMap === "object"
+          ? Object.keys(expectedVotersMap)
+          : [];
       const expectedSet = new Set(expectedVoters);
       const expectedVoterCount = expectedVoters.length;
 
