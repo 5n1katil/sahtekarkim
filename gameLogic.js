@@ -1127,39 +1127,30 @@ export const gameLogic = {
     const roomRef = window.db.ref(`rooms/${roomCode}`);
     roomRef.transaction((currentData) => {
       if (!currentData) return currentData;
-      if (currentData.game?.phase !== "playing") return currentData;
-
-      const roles = currentData.playerRoles || {};
-      const players = currentData.players || {};
-      const alivePlayers = getActivePlayers(roles, players);
-      const aliveUids = alivePlayers.map((p) => p.uid);
-      if (!aliveUids.includes(uid)) return currentData;
-      if (!aliveUids.length) return currentData;
-
       const votingState = currentData.voting || {};
       const votingStatus = votingState.status || "idle";
-      if (votingStatus !== "idle") {
-        const filteredStartedBy = aliveUids.reduce((acc, id) => {
-          if (votingState.startedBy?.[id]) acc[id] = true;
-          return acc;
-        }, {});
-        return {
-          ...currentData,
-          voting: {
-            ...votingState,
-            status: votingStatus,
-            startedBy: filteredStartedBy,
-          },
-        };
+      if (currentData.game?.phase !== "playing" || votingStatus !== "idle") {
+        return currentData;
       }
 
+      const players = currentData.players || {};
+      const aliveUids = Object.entries(players)
+        .filter(([, p]) => typeof p?.status === "string" && p.status === "alive")
+        .map(([id]) => id);
+
+      if (!aliveUids.length || !aliveUids.includes(uid)) return currentData;
+
       const startedBy = aliveUids.reduce((acc, id) => {
-        if (votingState.startedBy?.[id] || id === uid) acc[id] = true;
+        if (votingState.startedBy?.[id]) acc[id] = true;
+        if (id === uid) acc[id] = true;
         return acc;
       }, {});
 
-      const required = Math.floor(aliveUids.length / 2) + 1;
-      if (Object.keys(startedBy).length >= required) {
+      const aliveCount = aliveUids.length;
+      const required = Math.floor(aliveCount / 2) + 1;
+      const startedCount = Object.keys(startedBy).length;
+
+      if (startedCount >= required) {
         const now = getServerNow();
         const baseRound =
           typeof votingState.round === "number"
@@ -1730,7 +1721,7 @@ export const gameLogic = {
         nextRoom.voting = {
           ...nextRoom.voting,
           status: "idle",
-          startedBy: null,
+          startedBy: {},
           expectedVoters: null,
           votes: null,
           result: null,
@@ -1763,7 +1754,7 @@ export const gameLogic = {
       nextRoom.voteStartRequests = null;
       nextRoom.votingStarted = false;
       nextRoom.voteResult = null;
-      nextRoom.voting = null;
+      nextRoom.voting = { status: "idle", startedBy: {} };
       nextRoom.phase = "clue";
       nextRoom.game = { ...(room.game || {}), phase: "playing" };
       return nextRoom;
