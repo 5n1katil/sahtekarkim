@@ -1,4 +1,4 @@
-import { gameLogic, POOLS } from './gameLogic.js';
+import { gameLogic, getServerNow, POOLS } from './gameLogic.js';
 import {
   escapeHtml,
   getActivePlayers,
@@ -1712,31 +1712,52 @@ function updateRoleDisplay(myData, settings) {
         const voteCountdownEl = document.getElementById("voteCountdown");
         const votingEndsAt = roomData.voting?.endsAt;
         const votingFinalized = currentVotingResult?.finalizedAt || currentVoteResult;
-        const shouldShowCountdown =
-          roomData.voting?.status === "in_progress" &&
-          votingEndsAt &&
-          !votingFinalized;
+        const isVotingCountdownActive =
+          roomData.voting?.status === "in_progress" && !votingFinalized;
 
-        if (shouldShowCountdown && voteCountdownEl) {
-          const updateCountdown = () => {
-            const remainingMs = Math.max(0, votingEndsAt - Date.now());
-            const seconds = Math.ceil(remainingMs / 1000);
-            const padded = String(Math.max(0, seconds)).padStart(2, "0");
-            voteCountdownEl.textContent = `Oylama bitiyor: 00:${padded}`;
-            voteCountdownEl.classList.toggle("hidden", false);
-            if (remainingMs <= 0) {
-              clearInterval(voteCountdownInterval);
-              voteCountdownInterval = null;
-              gameLogic.finalizeVoting(currentRoomCode);
-            }
-          };
-          clearInterval(voteCountdownInterval);
-          updateCountdown();
-          voteCountdownInterval = setInterval(updateCountdown, 1000);
-        } else {
+        const stopVoteCountdown = (hide = true) => {
           clearInterval(voteCountdownInterval);
           voteCountdownInterval = null;
-          voteCountdownEl?.classList.add("hidden");
+          if (hide) {
+            voteCountdownEl?.classList.add("hidden");
+          }
+        };
+
+        if (isVotingCountdownActive) {
+          const updateCountdown = () => {
+            const remaining =
+              (votingEndsAt ?? 0) - (getServerNow() || Date.now());
+            const remainingMs = Math.max(0, remaining);
+            if (voteCountdownEl) {
+              const seconds = Math.ceil(remainingMs / 1000);
+              const padded = String(Math.max(0, seconds)).padStart(2, "0");
+              voteCountdownEl.textContent = `Oylama bitiyor: 00:${padded}`;
+              voteCountdownEl.classList.toggle("hidden", false);
+            }
+            if (remaining <= 0) {
+              if (voteCountdownEl) {
+                voteCountdownEl.textContent = "Oylama bitiyor: 00:00";
+                voteCountdownEl.classList.toggle("hidden", false);
+              }
+              stopVoteCountdown(false);
+              gameLogic.finalizeVoting(currentRoomCode, "time_up");
+              return false;
+            }
+            return true;
+          };
+
+          stopVoteCountdown(false);
+          const shouldContinue = updateCountdown();
+          if (shouldContinue) {
+            voteCountdownInterval = setInterval(() => {
+              const stillActive = updateCountdown();
+              if (!stillActive) {
+                stopVoteCountdown(false);
+              }
+            }, 1000);
+          }
+        } else {
+          stopVoteCountdown();
         }
 
         const guessState = currentGuessState;
@@ -1942,6 +1963,7 @@ function updateRoleDisplay(myData, settings) {
           const target = votingVotes[voterUid];
           return count + (expectedVoterSet.has(target) ? 1 : 0);
         }, 0);
+        const currentServerNow = getServerNow() || Date.now();
         const shouldFinalizeByCount =
           roomData.voting?.status === "in_progress" &&
           expectedVoterCount > 0 &&
@@ -1950,11 +1972,13 @@ function updateRoleDisplay(myData, settings) {
         const shouldFinalizeByTimeout =
           roomData.voting?.status === "in_progress" &&
           typeof roomData.voting.endsAt === "number" &&
-          Date.now() >= roomData.voting.endsAt &&
+          currentServerNow >= roomData.voting.endsAt &&
           !votingResult?.finalizedAt;
 
-        if (shouldFinalizeByCount || shouldFinalizeByTimeout) {
-          gameLogic.finalizeVoting(currentRoomCode);
+        if (shouldFinalizeByCount) {
+          gameLogic.finalizeVoting(currentRoomCode, "all_voted");
+        } else if (shouldFinalizeByTimeout) {
+          gameLogic.finalizeVoting(currentRoomCode, "time_up");
         }
 
         const finalizedAt = votingResult?.finalizedAt;
