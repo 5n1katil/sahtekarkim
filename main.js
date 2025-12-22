@@ -214,6 +214,7 @@ let lastGuessSelection = null;
 let lastRoundId = null;
 let lastRoundNumber = null;
 let endRoundTriggeredForRound = null;
+let hasRequestedStart = false;
 
 function isCurrentRoundPayload(roomData, payload) {
   if (!payload) return true;
@@ -1750,8 +1751,8 @@ function updateRoleDisplay(myData, settings) {
 
         const startBtn = document.getElementById("startVotingBtn");
         const waitingEl = document.getElementById("waitingVoteStart");
-        const voteRequests = roomData.voteStartRequests || {};
-        const votingStatus = roomData.voting?.status;
+        const votingStatus = roomData.voting?.status || "idle";
+        const startedBy = roomData.voting?.startedBy || {};
         const alivePlayers = getActivePlayers(
           roomData.playerRoles,
           roomData.players
@@ -1760,44 +1761,59 @@ function updateRoleDisplay(myData, settings) {
           name: p.name || playerUidMap[p.uid]?.name || p.uid,
         }));
         const aliveUids = alivePlayers.map((p) => p.uid);
-        const playersCount = alivePlayers.length;
-        const filteredRequests = aliveUids.reduce((acc, uid) => {
-          if (voteRequests[uid]) acc[uid] = true;
-          return acc;
-        }, {});
-        const requestCount = Object.keys(filteredRequests).length;
-        const hasRequested = !!filteredRequests[currentUid];
-        const threshold = Math.floor(playersCount / 2) + 1;
-        const isWaiting =
+        const startedCount = aliveUids.filter((uid) => startedBy[uid]).length;
+        const aliveCount = aliveUids.length;
+        const threshold = Math.floor(aliveCount / 2) + 1;
+        const isCurrentAlive = aliveUids.includes(currentUid);
+
+        if (startedBy[currentUid] && !hasRequestedStart) {
+          hasRequestedStart = true;
+        } else if (
+          hasRequestedStart &&
+          !startedBy[currentUid] &&
+          votingStatus === "idle" &&
+          startedCount === 0
+        ) {
+          hasRequestedStart = false;
+        }
+
+        const hasJoinedStart = !!startedBy[currentUid] || hasRequestedStart;
+        const waitingForMajority =
           canCurrentPlayerVote &&
+          isCurrentAlive &&
           votingStatus !== "in_progress" &&
-          !roomData.votingStarted &&
-          hasRequested &&
-          requestCount < threshold;
+          startedCount < threshold;
 
         if (startBtn) {
-          startBtn.classList.toggle(
-            "hidden",
-            isVotingPhase || isWaiting || !canCurrentPlayerVote
-          );
-          startBtn.disabled = isWaiting || !canCurrentPlayerVote;
+          const shouldHideStart =
+            votingStatus === "in_progress" || !canCurrentPlayerVote || !isCurrentAlive;
+          startBtn.classList.toggle("hidden", shouldHideStart);
+          startBtn.disabled = shouldHideStart || hasJoinedStart;
+          startBtn.textContent = hasJoinedStart
+            ? "Katıldınız"
+            : "Oylamayı Başlat";
         }
         if (waitingEl) {
-          waitingEl.classList.toggle("hidden", !isWaiting);
-          if (isWaiting) {
+          const shouldShowWaiting = waitingForMajority;
+          waitingEl.classList.toggle(
+            "hidden",
+            !shouldShowWaiting || votingStatus === "in_progress"
+          );
+          if (shouldShowWaiting && votingStatus !== "in_progress") {
+            const prefix = hasJoinedStart
+              ? "Oylamaya katıldınız. Oylamanın başlaması için diğer oyuncular bekleniyor... (Çoğunluk sağlandığında oylama başlar!)"
+              : "Oylamanın başlaması için çoğunluk bekleniyor...";
             waitingEl.textContent =
-              `Oylama isteği gönderildi (${requestCount}/${threshold}). Aktif oyuncuların onayı bekleniyor...`;
+              `${prefix} Başlatma isteği: ${startedCount} / ${aliveCount} (Gerekli: ${threshold})`;
           }
         }
         if (votingInstructionEl) {
-          if (!canCurrentPlayerVote) {
+          if (!canCurrentPlayerVote || hasJoinedStart || votingStatus === "in_progress") {
             votingInstructionEl.classList.add("hidden");
-          } else if (!roomData.votingStarted && !hasRequested) {
+          } else {
             votingInstructionEl.classList.remove("hidden");
             votingInstructionEl.textContent =
               "Her tur tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
-          } else {
-            votingInstructionEl.classList.add("hidden");
           }
         }
 
@@ -2202,7 +2218,13 @@ function initUI() {
     }
   });
 
-  document.getElementById("startVotingBtn").addEventListener("click", () => {
+  document.getElementById("startVotingBtn").addEventListener("click", (e) => {
+    const btn = e.currentTarget;
+    hasRequestedStart = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Katıldınız";
+    }
     gameLogic.startVote(currentRoomCode, currentUid);
   });
 
