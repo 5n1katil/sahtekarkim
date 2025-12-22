@@ -11,6 +11,20 @@ console.log('main.js yüklendi');
 const MIN_PLAYERS = 3;
 const DEFAULT_PLAYER_COUNT = 20; // Eski güvenlik kurallarıyla uyum için oyuncu sayısını varsayılanla gönder
 
+function resolveGamePhase(roomData) {
+  return roomData?.game?.phase || roomData?.phase;
+}
+
+function isAlivePlayer(player) {
+  const status =
+    typeof player?.status === "string" ? player.status : "alive";
+  return status === "alive";
+}
+
+function resolveVotes(roomData) {
+  return roomData?.voting?.votes || roomData?.votes || {};
+}
+
 function getSpyUids(spies) {
   if (Array.isArray(spies)) return spies;
   if (spies && typeof spies === "object") return Object.keys(spies);
@@ -412,9 +426,9 @@ function updateRoleDisplay(myData, settings) {
       votedUid,
       playerUidMap[votedUid]?.name
     );
-    const remaining = Object.keys(roomData.players || {}).filter(
-      (uid) => uid !== votedUid
-    );
+    const remaining = Object.entries(roomData.players || {})
+      .filter(([uid, p]) => uid !== votedUid && isAlivePlayer(p))
+      .map(([uid]) => uid);
     const activeSpies = getSpyUids(roomData.spies).filter((id) =>
       remaining.includes(id)
     );
@@ -1063,7 +1077,10 @@ function updateRoleDisplay(myData, settings) {
 
   function buildVoteCandidates(source) {
     return Object.entries(source || {})
-      .filter(([uid]) => uid !== currentUid)
+      .filter(
+        ([uid, player]) =>
+          uid !== currentUid && isAlivePlayer(player)
+      )
       .map(([uid, p]) => ({ uid, name: p?.name || uid }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -1309,7 +1326,8 @@ function updateRoleDisplay(myData, settings) {
           voteOutcomeContext.outcome?.impostorVictory);
 
       const isEliminatedPlayer =
-        roomData?.eliminated && roomData.eliminated[currentUid];
+        (roomData?.eliminated && roomData.eliminated[currentUid]) ||
+        roomData?.players?.[currentUid]?.status === "eliminated";
       const isGameFinished =
         roomData?.status === "finished" || roomData?.spyParityWin;
 
@@ -1508,12 +1526,13 @@ function updateRoleDisplay(myData, settings) {
         }
 
         // Oylama durumu
+        const currentPhase = resolveGamePhase(roomData);
         const isVotingPhase =
-          roomData.phase === "voting" ||
+          currentPhase === "voting" ||
           roomData.votingStarted === true ||
-          roomData.voting?.active;
+          roomData.voting?.status === "in_progress";
 
-        if (roomData.voting?.active || roomData.votingStarted) {
+        if (roomData.voting?.status === "in_progress" || roomData.votingStarted) {
           lockVoteCandidates(roomData);
         } else {
           unlockVoteCandidates();
@@ -1522,14 +1541,16 @@ function updateRoleDisplay(myData, settings) {
 
         const votingStateKey = JSON.stringify({
           votingStarted: roomData.votingStarted,
-          votingActive: roomData.voting?.active,
-          votes: roomData.votes,
+          votingStatus: roomData.voting?.status,
+          votes: roomData.voting?.votes,
         });
         if (votingStateKey !== lastVotingState) {
           const votingSection = document.getElementById("votingSection");
-          const hasVoted = roomData.votes && roomData.votes[currentUid];
+          const hasVoted =
+            roomData.voting?.votes && roomData.voting.votes[currentUid];
           const hasResult = currentVotingResult?.finalizedAt || currentVoteResult;
-          const shouldShowVoting = roomData.voting?.active && !hasVoted && !hasResult;
+          const shouldShowVoting =
+            roomData.voting?.status === "in_progress" && !hasVoted && !hasResult;
           if (votingSection) {
             votingSection.classList.toggle("hidden", !shouldShowVoting);
           }
@@ -1540,7 +1561,7 @@ function updateRoleDisplay(myData, settings) {
           if (votePendingMsg) {
             votePendingMsg.classList.toggle("hidden", !(hasVoted && !hasResult));
           }
-          if (!roomData.voting?.active || hasVoted) {
+          if (roomData.voting?.status !== "in_progress" || hasVoted) {
             const confirmArea = document.getElementById("voteConfirmArea");
             confirmArea?.classList.add("hidden");
           }
@@ -1553,7 +1574,9 @@ function updateRoleDisplay(myData, settings) {
         const votingEndsAt = roomData.voting?.endsAt;
         const votingFinalized = currentVotingResult?.finalizedAt || currentVoteResult;
         const shouldShowCountdown =
-          roomData.voting?.active && votingEndsAt && !votingFinalized;
+          roomData.voting?.status === "in_progress" &&
+          votingEndsAt &&
+          !votingFinalized;
 
         if (shouldShowCountdown && voteCountdownEl) {
           const updateCountdown = () => {
@@ -1607,6 +1630,7 @@ function updateRoleDisplay(myData, settings) {
         const startBtn = document.getElementById("startVotingBtn");
         const waitingEl = document.getElementById("waitingVoteStart");
         const voteRequests = roomData.voteStartRequests || {};
+        const votingStatus = roomData.voting?.status;
         const alivePlayers = getActivePlayers(
           roomData.playerRoles,
           roomData.players
@@ -1624,7 +1648,7 @@ function updateRoleDisplay(myData, settings) {
         const hasRequested = !!filteredRequests[currentUid];
         const threshold = Math.floor(playersCount / 2) + 1;
         const isWaiting =
-          !roomData.voting?.active &&
+          votingStatus !== "in_progress" &&
           !roomData.votingStarted &&
           hasRequested &&
           requestCount < threshold;
@@ -1653,7 +1677,7 @@ function updateRoleDisplay(myData, settings) {
         const liveVoteCounts = document.getElementById("liveVoteCounts");
         const voteCountList = document.getElementById("voteCountList");
 
-        const hasActiveVoting = roomData.voting?.active;
+        const hasActiveVoting = roomData.voting?.status === "in_progress";
         const votingHasResult = currentVotingResult?.finalizedAt || currentVoteResult;
 
         if (!hasActiveVoting || votingHasResult) {
@@ -1662,26 +1686,39 @@ function updateRoleDisplay(myData, settings) {
         } else {
           liveVoteCounts?.classList.remove("hidden");
           const tally = {};
-          Object.values(roomData.votes || {}).forEach((uid) => {
-            tally[uid] = (tally[uid] || 0) + 1;
-          });
+          const alivePlayerList = getActivePlayers(
+            roomData.playerRoles,
+            roomData.players
+          );
+          const aliveUids = new Set(alivePlayerList.map((p) => p.uid));
+          Object.entries(roomData.voting?.votes || {}).forEach(
+            ([voter, uid]) => {
+              if (!aliveUids.has(voter) || !aliveUids.has(uid)) return;
+              tally[uid] = (tally[uid] || 0) + 1;
+            }
+          );
           const snapshot = roomData.voting?.snapshot;
           const playerMap = snapshot?.names
             ? snapshot.order.map((uid) => ({
                 uid,
                 name: snapshot.names[uid] || playerUidMap[uid]?.name || uid,
               }))
-            : (roomData.voting?.snapshotPlayers || []).map((p) => ({
-                uid: p.uid,
-                name: p.name,
-              }))
-            .filter((p) => p.uid) || [];
+            : (roomData.voting?.snapshotPlayers || [])
+                .map((p) => ({
+                  uid: p.uid,
+                  name: p.name,
+                }))
+                .filter((p) => p.uid) || [];
 
-          const fallbackPlayers = !playerMap.length
-            ? Object.entries(roomData.players || playerUidMap || {}).map(
-                ([uid, p]) => ({ uid, name: p?.name || uid })
-              )
-            : playerMap;
+          const filteredSnapshotPlayers = playerMap.filter((p) =>
+            aliveUids.has(p.uid)
+          );
+
+          const fallbackPlayers = !filteredSnapshotPlayers.length
+            ? Object.entries(roomData.players || playerUidMap || {})
+                .filter(([, p]) => isAlivePlayer(p))
+                .map(([uid, p]) => ({ uid, name: p?.name || uid }))
+            : filteredSnapshotPlayers;
 
           const ranked = fallbackPlayers.map((p) => ({
             uid: p.uid,
@@ -1739,19 +1776,24 @@ function updateRoleDisplay(myData, settings) {
         }
 
         const votingResult = currentVotingResult;
-        const allAlivePlayers = Object.keys(roomData.playerRoles || {});
-        const voteCount = Object.keys(roomData.votes || {}).filter((voter) =>
-          allAlivePlayers.includes(voter)
+        const aliveList = getActivePlayers(
+          roomData.playerRoles,
+          roomData.players
+        );
+        const allAlivePlayers = aliveList.map((p) => p.uid);
+        const voteCount = Object.entries(resolveVotes(roomData)).filter(
+          ([voter, target]) =>
+            allAlivePlayers.includes(voter) && allAlivePlayers.includes(target)
         ).length;
         const shouldFinalizeByCount =
           isCreator &&
-          roomData.voting?.active &&
+          roomData.voting?.status === "in_progress" &&
           allAlivePlayers.length > 0 &&
           voteCount === allAlivePlayers.length &&
           !votingResult?.finalizedAt;
         const shouldFinalizeByTimeout =
           isCreator &&
-          roomData.voting?.active &&
+          roomData.voting?.status === "in_progress" &&
           roomData.voting.endsAt &&
           Date.now() >= roomData.voting.endsAt &&
           !votingResult?.finalizedAt;
@@ -1763,7 +1805,7 @@ function updateRoleDisplay(myData, settings) {
         const finalizedAt = votingResult?.finalizedAt;
         const shouldScheduleCleanup =
           finalizedAt &&
-          !roomData.voting?.active &&
+          roomData.voting?.status !== "in_progress" &&
           roomData.status === "started" &&
           !currentGuessState &&
           (!hasElimination || endRoundTriggered);
