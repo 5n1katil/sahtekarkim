@@ -198,7 +198,7 @@ function formatSpyIntro(spyNames) {
   return namesText ? `${label} ${namesText}` : label;
 }
 
-function getServerNow() {
+export function getServerNow() {
   const source = window.serverTime;
   if (source && typeof source.now === "function") {
     return source.now();
