@@ -21,15 +21,14 @@ function getSpyUids(spies) {
   return [];
 }
 
-function isAlivePlayer(player) {
-  const status =
-    typeof player?.status === "string" ? player.status : "alive";
-  return status === "alive";
+function isPlayerAlive(player) {
+  const status = typeof player?.status === "string" ? player.status : null;
+  return status !== "eliminated";
 }
 
 function getAliveUids(playersObj) {
   return Object.entries(playersObj || {})
-    .filter(([, player]) => isAlivePlayer(player))
+    .filter(([, player]) => isPlayerAlive(player))
     .map(([uid]) => uid);
 }
 
@@ -1128,7 +1127,7 @@ export const gameLogic = {
       // Oyuncu listesi güncelle
       const playersObj = roomData.players || {};
       const players = Object.values(playersObj)
-        .filter((p) => (typeof p?.status === "string" ? p.status === "alive" : true))
+        .filter((p) => isPlayerAlive(p))
         .map((p) => p.name);
       const playerListEl = document.getElementById("playerList");
       if (playerListEl) {
