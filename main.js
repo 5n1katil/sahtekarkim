@@ -32,6 +32,22 @@ function resolveVotes(roomData) {
   return roomData?.voting?.votes || roomData?.votes || {};
 }
 
+function getExpectedVoterIds(expectedVotersMap) {
+  if (!expectedVotersMap || typeof expectedVotersMap !== "object") return [];
+  return Object.keys(expectedVotersMap);
+}
+
+function buildExpectedVoterList(expectedVotersMap, snapshot) {
+  const ids = getExpectedVoterIds(expectedVotersMap);
+  if (!ids.length) return [];
+  if (snapshot?.order?.length) {
+    const ordered = snapshot.order.filter((uid) => expectedVotersMap?.[uid]);
+    const remaining = ids.filter((uid) => !ordered.includes(uid));
+    return [...ordered, ...remaining];
+  }
+  return ids;
+}
+
 function getSpyUids(spies) {
   if (Array.isArray(spies)) return spies;
   if (spies && typeof spies === "object") return Object.keys(spies);
@@ -1185,9 +1201,10 @@ function updateRoleDisplay(myData, settings) {
   function lockVoteCandidates(roomData) {
     if (voteCandidatesSnapshot) return;
     const snapshot = roomData?.voting?.snapshot;
-    const expectedVoters = Array.isArray(roomData?.voting?.expectedVoters)
-      ? roomData.voting.expectedVoters.filter(Boolean)
-      : [];
+    const expectedVoters = buildExpectedVoterList(
+      roomData?.voting?.expectedVoters,
+      snapshot
+    );
     const playerEntries = roomData?.players || playerUidMap || {};
     const snapshotPlayers = roomData?.voting?.snapshotPlayers || [];
     const snapshotPlayerMap = snapshotPlayers.reduce((acc, p) => {
@@ -1916,9 +1933,9 @@ function updateRoleDisplay(myData, settings) {
 
         const votingResult = currentVotingResult;
         const votingVotes = resolveVotes(roomData) || {};
-        const expectedVoters = Array.isArray(roomData?.voting?.expectedVoters)
-          ? roomData.voting.expectedVoters.filter(Boolean)
-          : [];
+        const expectedVoters = getExpectedVoterIds(
+          roomData?.voting?.expectedVoters
+        );
         const expectedVoterSet = new Set(expectedVoters);
         const expectedVoterCount = expectedVoters.length;
         const voteCount = expectedVoters.reduce((count, voterUid) => {
