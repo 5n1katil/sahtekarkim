@@ -21,6 +21,58 @@ function getSpyUids(spies) {
   return [];
 }
 
+function isAlivePlayer(player) {
+  const status =
+    typeof player?.status === "string" ? player.status : "alive";
+  return status === "alive";
+}
+
+function getAliveUids(playersObj) {
+  return Object.entries(playersObj || {})
+    .filter(([, player]) => isAlivePlayer(player))
+    .map(([uid]) => uid);
+}
+
+function buildExpectedVotersMap(uids) {
+  return uids.reduce((acc, id) => {
+    acc[id] = true;
+    return acc;
+  }, {});
+}
+
+function resolveExpectedVoters(room) {
+  const votingState = room?.voting || {};
+  const expectedVotersMap = votingState.expectedVoters;
+  const expectedFromState =
+    expectedVotersMap && typeof expectedVotersMap === "object"
+      ? Object.keys(expectedVotersMap)
+      : [];
+
+  if (expectedFromState.length) {
+    return {
+      expectedVoters: expectedFromState,
+      expectedSet: new Set(expectedFromState),
+    };
+  }
+
+  const players = room?.players || {};
+  const roles = room?.playerRoles || {};
+  const activePlayers = getActivePlayers(roles, players);
+  const activeUids = activePlayers.map((p) => p.uid);
+  if (activeUids.length) {
+    return {
+      expectedVoters: activeUids,
+      expectedSet: new Set(activeUids),
+    };
+  }
+
+  const aliveUids = getAliveUids(players);
+  return {
+    expectedVoters: aliveUids,
+    expectedSet: new Set(aliveUids),
+  };
+}
+
 function appendFinalSpyInfo(updates, data) {
   if (data?.final?.spyNames) return updates;
 
@@ -1134,9 +1186,7 @@ export const gameLogic = {
       }
 
       const players = currentData.players || {};
-      const aliveUids = Object.entries(players)
-        .filter(([, p]) => typeof p?.status === "string" && p.status === "alive")
-        .map(([id]) => id);
+      const aliveUids = getAliveUids(players);
 
       if (!aliveUids.length || !aliveUids.includes(uid)) return currentData;
 
@@ -1170,10 +1220,7 @@ export const gameLogic = {
             startedAt: now,
             endsAt: now + 30000,
             startedBy,
-            expectedVoters: aliveUids.reduce((acc, id) => {
-              acc[id] = true;
-              return acc;
-            }, {}),
+            expectedVoters: buildExpectedVotersMap(aliveUids),
             votes: {},
             result: null,
             continueAcks: {},
@@ -1437,12 +1484,8 @@ export const gameLogic = {
         const votingState = room.voting || {};
         if (votingState.status !== "in_progress") return room;
 
-        const expectedVotersMap = votingState.expectedVoters;
-        const expectedVoters =
-          expectedVotersMap && typeof expectedVotersMap === "object"
-            ? Object.keys(expectedVotersMap)
-            : [];
-        const expectedSet = new Set(expectedVoters);
+        const { expectedVoters, expectedSet } = resolveExpectedVoters(room);
+        if (!expectedVoters.length) return room;
 
         if (!expectedSet.has(voterUid) || !expectedSet.has(targetUid)) {
           return room;
@@ -1450,11 +1493,16 @@ export const gameLogic = {
 
         const votes = { ...(votingState.votes || {}) };
         votes[voterUid] = targetUid;
+        const nextExpectedVoters =
+          votingState.expectedVoters && Object.keys(votingState.expectedVoters || {}).length
+            ? votingState.expectedVoters
+            : buildExpectedVotersMap(expectedVoters);
 
         return {
           ...room,
           voting: {
             ...votingState,
+            expectedVoters: nextExpectedVoters,
             votes,
           },
         };
@@ -1465,13 +1513,8 @@ export const gameLogic = {
         const votingState = roomData?.voting;
         if (!votingState || votingState.status !== "in_progress") return;
 
-        const expectedVotersMap = votingState.expectedVoters;
-        const expectedVoters =
-          expectedVotersMap && typeof expectedVotersMap === "object"
-            ? Object.keys(expectedVotersMap)
-            : [];
+        const { expectedVoters, expectedSet } = resolveExpectedVoters(roomData);
         if (!expectedVoters.length) return;
-        const expectedSet = new Set(expectedVoters);
         const votes = votingState.votes || {};
         const validVoteCount = expectedVoters.reduce((count, uid) => {
           const target = votes?.[uid];
@@ -1499,13 +1542,13 @@ export const gameLogic = {
       if (!room) return room;
       const votingState = room.voting || {};
 
-      const expectedVotersMap = votingState.expectedVoters;
-      const expectedVoters =
-        expectedVotersMap && typeof expectedVotersMap === "object"
-          ? Object.keys(expectedVotersMap)
-          : [];
-      const expectedSet = new Set(expectedVoters);
+      const { expectedVoters, expectedSet } = resolveExpectedVoters(room);
       const expectedVoterCount = expectedVoters.length;
+      const normalizedExpectedVotersMap =
+        votingState.expectedVoters &&
+        Object.keys(votingState.expectedVoters || {}).length
+          ? votingState.expectedVoters
+          : buildExpectedVotersMap(expectedVoters);
 
       const endsAt =
         typeof votingState.endsAt === "number" ? votingState.endsAt : null;
@@ -1663,6 +1706,7 @@ export const gameLogic = {
           status: "resolved",
           startedBy: null,
           votes: null,
+          expectedVoters: normalizedExpectedVotersMap,
           continueAcks: {},
           result: resultPayload,
         },
