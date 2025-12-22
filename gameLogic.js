@@ -32,6 +32,22 @@ function getAliveUids(playersObj) {
     .map(([uid]) => uid);
 }
 
+function getAlivePlayersFromState(players, roles) {
+  const candidates = new Set([
+    ...Object.keys(players || {}),
+    ...Object.keys(roles || {}),
+  ]);
+
+  const alive = [];
+  candidates.forEach((uid) => {
+    if (isPlayerAlive(players?.[uid])) {
+      alive.push(uid);
+    }
+  });
+
+  return alive;
+}
+
 function buildExpectedVotersMap(uids) {
   return uids.reduce((acc, id) => {
     acc[id] = true;
@@ -1542,23 +1558,35 @@ export const gameLogic = {
       const votingState = room.voting || {};
 
       const { expectedVoters, expectedSet } = resolveExpectedVoters(room);
-      const expectedVoterCount = expectedVoters.length;
+      let derivedExpectedVoters = expectedVoters;
+      let derivedExpectedSet = expectedSet;
+
+      if (derivedExpectedVoters.length === 0) {
+        const alive = getAlivePlayersFromState(room?.players, room?.playerRoles);
+        derivedExpectedVoters = alive;
+        derivedExpectedSet = new Set(alive);
+      }
+
+      const expectedVoterCount = derivedExpectedVoters.length;
       const normalizedExpectedVotersMap =
         votingState.expectedVoters &&
         Object.keys(votingState.expectedVoters || {}).length
           ? votingState.expectedVoters
-          : buildExpectedVotersMap(expectedVoters);
+          : buildExpectedVotersMap(derivedExpectedVoters);
 
       const endsAt =
         typeof votingState.endsAt === "number" ? votingState.endsAt : null;
       const votesMap = votingState.votes || {};
 
-      const validVotes = Object.entries(votesMap).reduce((acc, [voter, target]) => {
-        if (expectedSet.has(voter) && expectedSet.has(target)) {
-          acc[voter] = target;
-        }
-        return acc;
-      }, {});
+      const validVotes = Object.entries(votesMap).reduce(
+        (acc, [voter, target]) => {
+          if (derivedExpectedSet.has(voter) && derivedExpectedSet.has(target)) {
+            acc[voter] = target;
+          }
+          return acc;
+        },
+        {}
+      );
 
       const votesCount = Object.keys(validVotes).length;
       const serverNow = getServerNow();
@@ -1591,7 +1619,9 @@ export const gameLogic = {
         counts[target] = (counts[target] || 0) + 1;
       });
 
-      const tallyTargets = Object.keys(counts).filter((id) => expectedSet.has(id));
+      const tallyTargets = Object.keys(counts).filter((id) =>
+        derivedExpectedSet.has(id)
+      );
       let eliminatedUid = null;
       let eliminatedRole = null;
       let eliminatedName = null;
