@@ -1619,7 +1619,7 @@ export const gameLogic = {
         resultPayload.eliminatedUid = eliminatedUid;
         resultPayload.eliminatedName = eliminatedName;
         resultPayload.eliminatedRole = eliminatedRole;
-        resultPayload.isSpy = !!(eliminatedRole && eliminatedRole.isSpy);
+       resultPayload.isSpy = !!(eliminatedRole && eliminatedRole.isSpy);
         resultPayload.eliminatedAt = finalizedAt;
         resultPayload.roundId = room.roundId || null;
         if (eliminatedRole && eliminatedRole.role !== undefined) {
@@ -1644,7 +1644,7 @@ export const gameLogic = {
           status: "resolved",
           startedBy: null,
           votes: null,
-          continueAcks: null,
+          continueAcks: {},
           result: resultPayload,
         },
         votingStarted: false,
@@ -1685,6 +1685,67 @@ export const gameLogic = {
           });
         });
       }
+    });
+  },
+
+  continueAfterResults: async function (roomCode, uid) {
+    const userUid = uid || (await this.getUid());
+    if (!roomCode || !userUid) return;
+
+    const ref = window.db.ref("rooms/" + roomCode);
+    return ref.transaction((room) => {
+      if (!room) return room;
+
+      const phase = room.game?.phase || room.phase;
+      if (phase !== "results") return room;
+
+      const roles = room.playerRoles || {};
+      const players = room.players || {};
+      const playerStatus =
+        typeof players[userUid]?.status === "string"
+          ? players[userUid].status
+          : "alive";
+      if (playerStatus !== "alive") return room;
+      const alivePlayers = getActivePlayers(roles, players);
+      const aliveUids = alivePlayers.map((p) => p.uid);
+
+      if (!aliveUids.includes(userUid)) return room;
+
+      const continueAcks = { ...(room.voting?.continueAcks || {}) };
+      continueAcks[userUid] = true;
+
+      const allAcked =
+        aliveUids.length > 0 && aliveUids.every((id) => continueAcks[id]);
+
+      const nextRoom = {
+        ...room,
+        voting: {
+          ...(room.voting || {}),
+          status: room.voting?.status || "resolved",
+          continueAcks,
+        },
+      };
+
+      if (allAcked) {
+        nextRoom.voting = {
+          ...nextRoom.voting,
+          status: "idle",
+          startedBy: null,
+          expectedVoters: null,
+          votes: null,
+          result: null,
+          continueAcks: null,
+        };
+        nextRoom.votingStarted = false;
+        nextRoom.voteRequests = null;
+        nextRoom.voteStartRequests = null;
+        nextRoom.votes = null;
+        nextRoom.voteResult = null;
+        nextRoom.phase = "clue";
+        nextRoom.game = { ...(room.game || {}), phase: "playing" };
+      }
+
+      return nextRoom;
     });
   },
 
