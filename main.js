@@ -21,6 +21,13 @@ function isAlivePlayer(player) {
   return status === "alive";
 }
 
+function isCurrentPlayerEligible(roomData) {
+  const isEliminated =
+    roomData?.eliminated && roomData.eliminated[currentUid];
+  const playerEntry = roomData?.players?.[currentUid];
+  return !isEliminated && isAlivePlayer(playerEntry);
+}
+
 function resolveVotes(roomData) {
   return roomData?.voting?.votes || roomData?.votes || {};
 }
@@ -1177,13 +1184,48 @@ function updateRoleDisplay(myData, settings) {
   function lockVoteCandidates(roomData) {
     if (voteCandidatesSnapshot) return;
     const snapshot = roomData?.voting?.snapshot;
+    const expectedVoters = Array.isArray(roomData?.voting?.expectedVoters)
+      ? roomData.voting.expectedVoters.filter(Boolean)
+      : [];
     const playerEntries = roomData?.players || playerUidMap || {};
+    const snapshotPlayers = roomData?.voting?.snapshotPlayers || [];
+    const snapshotPlayerMap = snapshotPlayers.reduce((acc, p) => {
+      if (p?.uid) acc[p.uid] = p;
+      return acc;
+    }, {});
+    const shouldUseExpectedVoters =
+      resolveGamePhase(roomData) === "voting" &&
+      roomData?.voting?.status === "in_progress" &&
+      expectedVoters.length > 0;
+
+    const buildCandidateFromUid = (uid) => {
+      if (!uid || uid === currentUid) return null;
+      const playerEntry = playerEntries[uid];
+      if (playerEntry && !isAlivePlayer(playerEntry)) return null;
+      const name =
+        snapshot?.names?.[uid] ||
+        snapshotPlayerMap[uid]?.name ||
+        playerEntry?.name ||
+        playerUidMap[uid]?.name ||
+        uid;
+      return { uid, name };
+    };
+
+    if (shouldUseExpectedVoters) {
+      voteCandidatesSnapshot = expectedVoters
+        .map((uid) => buildCandidateFromUid(uid))
+        .filter(Boolean);
+      renderVoteOptions(voteCandidatesSnapshot);
+      return;
+    }
+
     if (snapshot?.order?.length) {
       voteCandidatesSnapshot = snapshot.order
         .map((uid) => ({
           uid,
           name:
             snapshot.names?.[uid] ||
+            snapshotPlayerMap[uid]?.name ||
             roomData?.players?.[uid]?.name ||
             playerUidMap[uid]?.name ||
             uid,
@@ -1389,6 +1431,7 @@ function updateRoleDisplay(myData, settings) {
         (voteOutcomeContext.outcome?.gameEnded ||
           voteOutcomeContext.outcome?.impostorVictory);
 
+      const canCurrentPlayerVote = isCurrentPlayerEligible(roomData);
       const isEliminatedPlayer =
         (roomData?.eliminated && roomData.eliminated[currentUid]) ||
         roomData?.players?.[currentUid]?.status === "eliminated";
@@ -1625,7 +1668,10 @@ function updateRoleDisplay(myData, settings) {
             roomData.voting?.votes && roomData.voting.votes[currentUid];
           const hasResult = currentVotingResult?.finalizedAt || currentVoteResult;
           const shouldShowVoting =
-            roomData.voting?.status === "in_progress" && !hasVoted && !hasResult;
+            roomData.voting?.status === "in_progress" &&
+            canCurrentPlayerVote &&
+            !hasVoted &&
+            !hasResult;
           if (votingSection) {
             votingSection.classList.toggle("hidden", !shouldShowVoting);
           }
@@ -1723,14 +1769,18 @@ function updateRoleDisplay(myData, settings) {
         const hasRequested = !!filteredRequests[currentUid];
         const threshold = Math.floor(playersCount / 2) + 1;
         const isWaiting =
+          canCurrentPlayerVote &&
           votingStatus !== "in_progress" &&
           !roomData.votingStarted &&
           hasRequested &&
           requestCount < threshold;
 
         if (startBtn) {
-          startBtn.classList.toggle("hidden", isVotingPhase || isWaiting);
-          startBtn.disabled = isWaiting;
+          startBtn.classList.toggle(
+            "hidden",
+            isVotingPhase || isWaiting || !canCurrentPlayerVote
+          );
+          startBtn.disabled = isWaiting || !canCurrentPlayerVote;
         }
         if (waitingEl) {
           waitingEl.classList.toggle("hidden", !isWaiting);
@@ -1740,7 +1790,9 @@ function updateRoleDisplay(myData, settings) {
           }
         }
         if (votingInstructionEl) {
-          if (!roomData.votingStarted && !hasRequested) {
+          if (!canCurrentPlayerVote) {
+            votingInstructionEl.classList.add("hidden");
+          } else if (!roomData.votingStarted && !hasRequested) {
             votingInstructionEl.classList.remove("hidden");
             votingInstructionEl.textContent =
               "Her tur tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
@@ -1851,25 +1903,24 @@ function updateRoleDisplay(myData, settings) {
         }
 
         const votingResult = currentVotingResult;
-        const aliveList = getActivePlayers(
-          roomData.playerRoles,
-          roomData.players
-        );
-        const allAlivePlayers = aliveList.map((p) => p.uid);
-        const voteCount = Object.entries(resolveVotes(roomData)).filter(
-          ([voter, target]) =>
-            allAlivePlayers.includes(voter) && allAlivePlayers.includes(target)
-        ).length;
+        const votingVotes = resolveVotes(roomData) || {};
+        const expectedVoters = Array.isArray(roomData?.voting?.expectedVoters)
+          ? roomData.voting.expectedVoters.filter(Boolean)
+          : [];
+        const expectedVoterSet = new Set(expectedVoters);
+        const expectedVoterCount = expectedVoters.length;
+        const voteCount = expectedVoters.reduce((count, voterUid) => {
+          const target = votingVotes[voterUid];
+          return count + (expectedVoterSet.has(target) ? 1 : 0);
+        }, 0);
         const shouldFinalizeByCount =
-          isCreator &&
           roomData.voting?.status === "in_progress" &&
-          allAlivePlayers.length > 0 &&
-          voteCount === allAlivePlayers.length &&
+          expectedVoterCount > 0 &&
+          voteCount === expectedVoterCount &&
           !votingResult?.finalizedAt;
         const shouldFinalizeByTimeout =
-          isCreator &&
           roomData.voting?.status === "in_progress" &&
-          roomData.voting.endsAt &&
+          typeof roomData.voting.endsAt === "number" &&
           Date.now() >= roomData.voting.endsAt &&
           !votingResult?.finalizedAt;
 
