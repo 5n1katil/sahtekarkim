@@ -312,28 +312,35 @@ function updateRoleDisplay(myData, settings) {
   }
 }
 
+  function normalizeVotingResult(rawResult) {
+    if (!rawResult) return null;
+    if (rawResult.tie) {
+      return { tie: true, roundId: rawResult.roundId };
+    }
+    const eliminatedUid = rawResult.eliminatedUid || rawResult.voted;
+    if (!eliminatedUid) return null;
+    return {
+      tie: false,
+      voted: eliminatedUid,
+      eliminatedUid,
+      eliminatedName: rawResult.eliminatedName,
+      isSpy: !!rawResult.isSpy,
+      role: rawResult.role,
+      location: rawResult.location,
+      remainingSpies: rawResult.remainingSpies,
+      lastSpy: rawResult.lastSpy,
+      roundId: rawResult.roundId,
+    };
+  }
+
   function getResolvedVoteResult(roomData) {
     const votingResult = roomData.voting?.result;
-    if (!isCurrentRoundPayload(roomData, votingResult)) return null;
-    if (votingResult) {
-      if (votingResult.tie) return { tie: true };
-      if (votingResult.eliminatedUid) {
-        return {
-          tie: false,
-          voted: votingResult.eliminatedUid,
-          eliminatedUid: votingResult.eliminatedUid,
-          eliminatedName: votingResult.eliminatedName,
-          isSpy: !!votingResult.isSpy,
-          role: votingResult.role,
-          location: votingResult.location,
-          remainingSpies: votingResult.remainingSpies,
-          lastSpy: votingResult.lastSpy,
-          roundId: votingResult.roundId,
-        };
-      }
+    if (isCurrentRoundPayload(roomData, votingResult)) {
+      const normalizedVotingResult = normalizeVotingResult(votingResult);
+      if (normalizedVotingResult) return normalizedVotingResult;
     }
     if (!isCurrentRoundPayload(roomData, roomData.voteResult)) return null;
-    return roomData.voteResult || null;
+    return normalizeVotingResult(roomData.voteResult) || null;
   }
 
   function getRoundKey(roomData) {
@@ -482,9 +489,20 @@ function updateRoleDisplay(myData, settings) {
     outcomeContext
   ) {
     const resolvedResultToRender =
-      resolvedResult || getResolvedVoteResult(roomData);
+      resolvedResult ||
+      getResolvedVoteResult(roomData) ||
+      (roomData?.voting?.status === "resolved"
+        ? normalizeVotingResult(roomData?.voting?.result)
+        : null);
+    const allowResolvedStatusFallback =
+      roomData?.voting?.status === "resolved" && roomData?.voting?.result;
     if (!resolvedResultToRender || resolvedResultToRender.tie) return false;
-    if (!isCurrentRoundPayload(roomData, resolvedResultToRender)) return false;
+    if (
+      !isCurrentRoundPayload(roomData, resolvedResultToRender) &&
+      !allowResolvedStatusFallback
+    ) {
+      return false;
+    }
 
     const context =
       outcomeContext ||
@@ -548,17 +566,29 @@ function updateRoleDisplay(myData, settings) {
       return;
     }
     const currentPhase = resolveGamePhase(roomData);
+    const normalizedResultForOverlay =
+      normalizeVotingResult(resolvedResult) ||
+      normalizeVotingResult(roomData?.voting?.result) ||
+      normalizeVotingResult(roomData?.voteResult);
+    const eliminatedUidFromResult =
+      votedUid ||
+      normalizedResultForOverlay?.eliminatedUid ||
+      normalizedResultForOverlay?.voted;
     const alivePlayers = getActivePlayers(roomData.playerRoles, roomData.players);
     const aliveUids = alivePlayers.map((p) => p.uid);
-    const isAlivePlayer = aliveUids.includes(currentUid);
+    const filteredAliveUids = eliminatedUidFromResult
+      ? aliveUids.filter((uid) => uid !== eliminatedUidFromResult)
+      : aliveUids;
+    const isAlivePlayer = filteredAliveUids.includes(currentUid);
     const continueAcks = roomData?.voting?.continueAcks || {};
-    const ackCount = aliveUids.filter((uid) => continueAcks[uid]).length;
+    const ackCount = filteredAliveUids.filter((uid) => continueAcks[uid]).length;
     const hasAcked = !!continueAcks[currentUid];
-    const isEliminatedPlayer = currentUid === votedUid || !isAlivePlayer;
+    const isEliminatedPlayer =
+      currentUid === eliminatedUidFromResult || !isAlivePlayer;
     const isResultsPhase = currentPhase === "results";
     const waitingText =
-      aliveUids.length > 0
-        ? `Devam için onay bekleniyor (${ackCount}/${aliveUids.length})`
+      filteredAliveUids.length > 0
+        ? `Devam için onay bekleniyor (${ackCount}/${filteredAliveUids.length})`
         : null;
     const cls = outcome.impostorVictory
       ? "impostor-animation"
@@ -666,7 +696,9 @@ function updateRoleDisplay(myData, settings) {
         });
       }
 
-      if (isAlivePlayer) {
+      const shouldShowContinueButton =
+        isAlivePlayer && eliminatedUidFromResult !== currentUid;
+      if (shouldShowContinueButton) {
         const btn = document.createElement("button");
         btn.id = "continueBtn";
         btn.classList.add("overlay-btn");
@@ -1440,9 +1472,16 @@ function updateRoleDisplay(myData, settings) {
       const roundSafeGameOver = getGameOverInfo(roomData);
 
       const resolvedVoteResult = getResolvedVoteResult(roomData);
+      const votingResultFallback =
+        !resolvedVoteResult &&
+        roomData?.voting?.status === "resolved" &&
+        roomData?.voting?.result
+          ? normalizeVotingResult(roomData.voting.result)
+          : null;
+      const activeVoteResult = resolvedVoteResult || votingResultFallback;
       const voteOutcomeContext = buildVoteOutcomeContext(
         roomData,
-        resolvedVoteResult
+        activeVoteResult
       );
       const voteEndsGame =
         !!voteOutcomeContext &&
@@ -1558,7 +1597,7 @@ function updateRoleDisplay(myData, settings) {
         ) {
           const handledByVote = renderVoteResultOverlay(
             roomData,
-            resolvedVoteResult,
+            activeVoteResult,
             voteOutcomeContext
           );
           if (handledByVote) return;
@@ -1914,21 +1953,21 @@ function updateRoleDisplay(myData, settings) {
         }
 
         const hasElimination =
-          resolvedVoteResult &&
-          !resolvedVoteResult.tie &&
-          (resolvedVoteResult.voted || resolvedVoteResult.eliminatedUid);
+          activeVoteResult &&
+          !activeVoteResult.tie &&
+          (activeVoteResult.voted || activeVoteResult.eliminatedUid);
         const endRoundTriggered = triggerEndRoundIfNeeded(
           roomData,
-          resolvedVoteResult
+          activeVoteResult
         );
 
-        if (resolvedVoteResult) {
-          if (resolvedVoteResult.tie) {
+        if (activeVoteResult) {
+          if (activeVoteResult.tie) {
             resultEl.classList.remove("hidden");
             outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
             document.getElementById("nextRoundBtn").classList.add("hidden");
           } else {
-            renderVoteResultOverlay(roomData, resolvedVoteResult, voteOutcomeContext);
+            renderVoteResultOverlay(roomData, activeVoteResult, voteOutcomeContext);
             resultEl.classList.add("hidden");
           }
         } else {
