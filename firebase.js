@@ -24,6 +24,27 @@ const db = firebase.database();
 window.auth = auth;
 window.db = db;
 
+// 3.1. Provide server time helpers using the RTDB offset
+let serverTimeOffset = 0;
+const offsetRef = db.ref(".info/serverTimeOffset");
+
+const serverTime = {
+  offset: serverTimeOffset,
+  now: () => Date.now() + serverTimeOffset,
+  getOffset: () => serverTimeOffset,
+};
+
+offsetRef.on("value", (snap) => {
+  const offset = snap.val();
+  if (typeof offset === "number") {
+    serverTimeOffset = offset;
+    serverTime.offset = offset;
+  }
+});
+
+// Expose a reusable server time source to modules
+window.serverTime = serverTime;
+
 // 4. Sign in anonymously on load
 auth
   .signInAnonymously()
