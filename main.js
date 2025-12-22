@@ -469,6 +469,8 @@ function updateRoleDisplay(myData, settings) {
     const renderKey = JSON.stringify({
       result: resolvedResultToRender,
       context,
+      continueAcks: roomData?.voting?.continueAcks || null,
+      phase: resolveGamePhase(roomData),
     });
     if (renderKey === lastVoteResult) return true;
     lastVoteResult = renderKey;
@@ -521,7 +523,19 @@ function updateRoleDisplay(myData, settings) {
       console.error("resultOverlay element not found");
       return;
     }
-    const isEliminatedPlayer = currentUid === votedUid;
+    const currentPhase = resolveGamePhase(roomData);
+    const alivePlayers = getActivePlayers(roomData.playerRoles, roomData.players);
+    const aliveUids = alivePlayers.map((p) => p.uid);
+    const isAlivePlayer = aliveUids.includes(currentUid);
+    const continueAcks = roomData?.voting?.continueAcks || {};
+    const ackCount = aliveUids.filter((uid) => continueAcks[uid]).length;
+    const hasAcked = !!continueAcks[currentUid];
+    const isEliminatedPlayer = currentUid === votedUid || !isAlivePlayer;
+    const isResultsPhase = currentPhase === "results";
+    const waitingText =
+      aliveUids.length > 0
+        ? `Devam için onay bekleniyor (${ackCount}/${aliveUids.length})`
+        : null;
     const cls = outcome.impostorVictory
       ? "impostor-animation"
       : "innocent-animation";
@@ -530,16 +544,17 @@ function updateRoleDisplay(myData, settings) {
     overlay.innerHTML = "";
     const actionsEl = document.getElementById("gameActions");
     const spyInfo = getSpyInfo(roomData);
-    const resolvedMessage = resolveGameOverMessage(
-      roomData,
-      outcome.message,
-      spyInfo
-    );
+    const resolvedMessage =
+      isResultsPhase && !isAlivePlayer
+        ? "Elendin! Oyun devam ediyor."
+        : resolveGameOverMessage(roomData, outcome.message, spyInfo);
     msgDiv.textContent = resolvedMessage;
-    appendSpyNamesLine(msgDiv, roomData, {
-      spyInfo,
-      primaryMessage: resolvedMessage,
-    });
+    if (!(isResultsPhase && !isAlivePlayer)) {
+      appendSpyNamesLine(msgDiv, roomData, {
+        spyInfo,
+        primaryMessage: resolvedMessage,
+      });
+    }
     if (outcome.gameEnded) {
       actionsEl?.classList.add("hidden");
     } else {
@@ -554,6 +569,7 @@ function updateRoleDisplay(myData, settings) {
     overlay.classList.add(cls);
 
     const shouldShowEliminationOverlay =
+      currentPhase !== "results" &&
       isEliminatedPlayer &&
       !outcome.gameEnded &&
       alivePlayersCount > 2 &&
@@ -570,7 +586,7 @@ function updateRoleDisplay(myData, settings) {
         restartBtn = document.createElement("button");
         restartBtn.id = "restartBtn";
         restartBtn.classList.add("overlay-btn");
-        restartBtn.textContent = "Yeniden oyna";
+        restartBtn.textContent = "Oyunu yeniden başlat";
         overlay.appendChild(restartBtn);
       }
       const exitBtn = document.createElement("button");
@@ -602,6 +618,43 @@ function updateRoleDisplay(myData, settings) {
           showSetupJoin();
         });
       });
+    } else if (isResultsPhase) {
+      if (waitingText) {
+        const info = document.createElement("div");
+        info.className = "result-subtext";
+        info.textContent = waitingText;
+        overlay.appendChild(info);
+      }
+
+      if (isCreator) {
+        const restartBtn = document.createElement("button");
+        restartBtn.id = "restartBtn";
+        restartBtn.classList.add("overlay-btn");
+        restartBtn.textContent = "Oyunu yeniden başlat";
+        overlay.appendChild(restartBtn);
+        restartBtn.addEventListener("click", () => {
+          restartBtn.disabled = true;
+          gameEnded = false;
+          parityHandled = false;
+          lastVoteResult = null;
+          lastGuessEvent = null;
+          gameLogic.restartGame(currentRoomCode);
+        });
+      }
+
+      if (isAlivePlayer) {
+        const btn = document.createElement("button");
+        btn.id = "continueBtn";
+        btn.classList.add("overlay-btn");
+        btn.textContent = hasAcked ? "Onay gönderildi" : "Devam et";
+        btn.disabled = hasAcked;
+        overlay.appendChild(btn);
+        btn.addEventListener("click", () => {
+          btn.disabled = true;
+          btn.textContent = "Onay gönderildi";
+          gameLogic.continueAfterResults(currentRoomCode, currentUid);
+        });
+      }
     } else if (!isEliminatedPlayer) {
       const btn = document.createElement("button");
       btn.id = "continueBtn";
@@ -1539,6 +1592,16 @@ function updateRoleDisplay(myData, settings) {
 
         // Oylama durumu
         const currentPhase = resolveGamePhase(roomData);
+        const overlayEl = document.getElementById("resultOverlay");
+        const shouldHideResultOverlay =
+          overlayEl &&
+          currentPhase !== "results" &&
+          roomData.status === "started" &&
+          !roundSafeGameOver;
+        if (shouldHideResultOverlay) {
+          overlayEl.classList.add("hidden");
+          overlayEl.classList.remove("impostor-animation", "innocent-animation");
+        }
         const isVotingPhase =
           currentPhase === "voting" ||
           roomData.votingStarted === true ||
@@ -1819,6 +1882,7 @@ function updateRoleDisplay(myData, settings) {
           finalizedAt &&
           roomData.voting?.status !== "in_progress" &&
           roomData.status === "started" &&
+          currentPhase !== "results" &&
           !currentGuessState &&
           (!hasElimination || endRoundTriggered);
         if (shouldScheduleCleanup && finalizedAt !== lastVotingFinalizedAt) {
