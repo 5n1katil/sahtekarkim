@@ -1493,12 +1493,11 @@ export const gameLogic = {
   },
 
   finalizeVoting: function (roomCode, reason) {
+    console.log("[finalizeVoting] called", { reason, roomId: roomCode });
     const ref = window.db.ref("rooms/" + roomCode);
-    const serverNow = getServerNow();
     return ref.transaction((room) => {
       if (!room) return room;
       const votingState = room.voting || {};
-      if (votingState.status !== "in_progress") return room;
 
       const expectedVotersMap = votingState.expectedVoters;
       const expectedVoters =
@@ -1520,9 +1519,26 @@ export const gameLogic = {
       }, {});
 
       const votesCount = Object.keys(validVotes).length;
+      const serverNow = getServerNow();
       const canFinalizeByCount =
         expectedVoterCount > 0 && votesCount === expectedVoterCount;
-      const canFinalizeByTime = endsAt !== null && serverNow >= endsAt;
+      const canFinalizeByTime =
+        reason === "time_up"
+          ? endsAt === null || serverNow >= endsAt
+          : endsAt !== null && serverNow >= endsAt;
+
+      console.log("[finalizeVoting] precheck", {
+        status: votingState.status,
+        endsAt,
+        votesCount,
+        expectedCount: expectedVoterCount,
+      });
+
+      if (votingState.status !== "in_progress") return room;
+
+      if (reason === "all_voted" && votesCount !== expectedVoterCount) {
+        return room;
+      }
 
       if (!canFinalizeByCount && !canFinalizeByTime) {
         return room;
@@ -1688,6 +1704,8 @@ export const gameLogic = {
           });
         });
       }
+    }).catch((err) => {
+      console.error("[finalizeVoting] error", err);
     });
   },
 
