@@ -22,7 +22,8 @@ function getSpyUids(spies) {
 }
 
 function isPlayerAlive(player) {
-  const status = typeof player?.status === "string" ? player.status : null;
+  const status =
+    typeof player?.status === "string" ? player.status : "alive";
   return status !== "eliminated";
 }
 
