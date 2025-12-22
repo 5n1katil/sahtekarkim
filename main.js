@@ -1766,18 +1766,14 @@ function updateRoleDisplay(myData, settings) {
         const threshold = Math.floor(aliveCount / 2) + 1;
         const isCurrentAlive = aliveUids.includes(currentUid);
 
-        if (startedBy[currentUid] && !hasRequestedStart) {
+        const hasStartedByCurrent = !!startedBy[currentUid];
+        if (hasStartedByCurrent) {
           hasRequestedStart = true;
-        } else if (
-          hasRequestedStart &&
-          !startedBy[currentUid] &&
-          votingStatus === "idle" &&
-          startedCount === 0
-        ) {
+        } else if (hasRequestedStart && votingStatus === "idle" && startedCount === 0) {
           hasRequestedStart = false;
         }
 
-        const hasJoinedStart = !!startedBy[currentUid] || hasRequestedStart;
+        const hasJoinedStart = hasStartedByCurrent || hasRequestedStart;
         const waitingForMajority =
           canCurrentPlayerVote &&
           isCurrentAlive &&
