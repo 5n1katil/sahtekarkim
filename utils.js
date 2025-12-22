@@ -48,10 +48,16 @@ export function getActivePlayers(playerRoles, playersObj) {
   return Object.keys(roles)
     .map((uid) => {
       const playerEntry = players[uid] || {};
+      const status =
+        typeof playerEntry?.status === "string"
+          ? playerEntry.status
+          : "alive";
+      if (status !== "alive") return null;
       if (!isPlayerActive(playerEntry, activeKey)) return null;
       return {
         uid,
         name: playerEntry?.name || uid,
+        status,
       };
     })
     .filter(Boolean);
