@@ -1528,15 +1528,34 @@ export const gameLogic = {
         const votingState = roomData?.voting;
         if (!votingState || votingState.status !== "in_progress") return;
 
-        const { expectedVoters, expectedSet } = resolveExpectedVoters(roomData);
-        if (!expectedVoters.length) return;
-        const votes = votingState.votes || {};
-        const validVoteCount = expectedVoters.reduce((count, uid) => {
-          const target = votes?.[uid];
-          return count + (expectedSet.has(target) ? 1 : 0);
-        }, 0);
+        const resolved = resolveExpectedVoters(roomData);
+        let expectedVoters = resolved.expectedVoters;
+        let expectedSet = resolved.expectedSet;
 
-        if (validVoteCount === expectedVoters.length) {
+        if (expectedVoters.length === 0) {
+          const alive = getAlivePlayersFromState(
+            roomData?.players,
+            roomData?.playerRoles
+          );
+          expectedVoters = alive;
+          expectedSet = new Set(alive);
+        }
+
+        const expectedCount = expectedVoters.length;
+        if (!expectedCount) return;
+
+        const votes = votingState.votes || {};
+        const validVotes = Object.entries(votes).reduce(
+          (acc, [voter, target]) => {
+            if (expectedSet.has(voter) && expectedSet.has(target)) {
+              acc[voter] = target;
+            }
+            return acc;
+          },
+          {}
+        );
+
+        if (Object.keys(validVotes).length === expectedCount) {
           finalizeVoting(roomCode, "all_voted");
         }
       });
