@@ -1043,12 +1043,15 @@ function updateRoleDisplay(myData, settings) {
   /** ------------------------
    *  ODA OLUŞTUR
    * ------------------------ */
-  function updatePlayerList(players) {
+  function updatePlayerList(playersObj) {
     const listEl = document.getElementById("playerList");
     const countEl = document.getElementById("playerCountDisplay");
     if (!listEl || !countEl) return;
 
-    const validPlayers = (players || []).filter((p) => p && p.trim() !== "");
+    const aliveEntries = Object.values(playersObj || {}).filter(isAlivePlayer);
+    const validPlayers = aliveEntries
+      .map((p) => p?.name || "")
+      .filter((p) => p && p.trim() !== "");
     listEl.innerHTML = validPlayers
       .map((p) => `<li>${escapeHtml(p)}</li>`)
       .join("");
@@ -1121,6 +1124,7 @@ function updateRoleDisplay(myData, settings) {
   function lockVoteCandidates(roomData) {
     if (voteCandidatesSnapshot) return;
     const snapshot = roomData?.voting?.snapshot;
+    const playerEntries = roomData?.players || playerUidMap || {};
     if (snapshot?.order?.length) {
       voteCandidatesSnapshot = snapshot.order
         .map((uid) => ({
@@ -1131,14 +1135,18 @@ function updateRoleDisplay(myData, settings) {
             playerUidMap[uid]?.name ||
             uid,
         }))
-        .filter((p) => p.uid && p.uid !== currentUid);
+        .filter((p) => {
+          if (!p.uid || p.uid === currentUid) return false;
+          const playerEntry = playerEntries[p.uid];
+          return !playerEntry || isAlivePlayer(playerEntry);
+        });
       renderVoteOptions(voteCandidatesSnapshot);
       return;
     }
     const legacySnapshot = roomData?.voting?.snapshotPlayers;
     const source = legacySnapshot && legacySnapshot.length
       ? legacySnapshot.reduce((acc, p) => {
-          if (p?.uid) acc[p.uid] = { name: p.name };
+          if (p?.uid) acc[p.uid] = { name: p.name, status: p.status };
           return acc;
         }, {})
       : roomData?.players || playerUidMap;
@@ -1243,13 +1251,16 @@ function updateRoleDisplay(myData, settings) {
     // Oyuncu listesi
     gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
       // İsim dizisini kullanarak UI'da oyuncu listesini ve oyuncu sayısını güncelle
-      updatePlayerList(playerNames);
+      updatePlayerList(playersObj);
       
       // Ham oyuncu nesnesini eşleştirme ve açılır menüyü doldurma için kullan
       playerUidMap = playersObj || {};
 
       // Geçerli oyuncuların (isimler) filtrelenmiş bir dizisini tut
-      currentPlayers = (playerNames || []).filter((p) => p && p.trim() !== "");
+      currentPlayers = Object.values(playersObj || {})
+        .filter(isAlivePlayer)
+        .map((p) => p?.name)
+        .filter((p) => p && p.trim() !== "");
 
       const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
       renderVoteOptions(candidates);
@@ -1399,9 +1410,10 @@ function updateRoleDisplay(myData, settings) {
         if (roomData && roomData.players) {
           playerUidMap = roomData.players;
           currentPlayers = Object.values(playerUidMap)
+            .filter(isAlivePlayer)
             .map((p) => p.name)
             .filter((p) => p && p.trim() !== "");
-          updatePlayerList(currentPlayers);
+          updatePlayerList(playerUidMap);
           const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
           renderVoteOptions(candidates);
           updateSelectedVoteName();
