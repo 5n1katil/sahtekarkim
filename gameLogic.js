@@ -198,6 +198,14 @@ function formatSpyIntro(spyNames) {
   return namesText ? `${label} ${namesText}` : label;
 }
 
+function getServerNow() {
+  const source = window.serverTime;
+  if (source && typeof source.now === "function") {
+    return source.now();
+  }
+  return Date.now();
+}
+
 // Konumlar ve kategoriler için veri havuzları
 export const POOLS = {
   locations: [
@@ -223,14 +231,6 @@ export const POOLS = {
     "Banka",
     "Hayvanat Bahçesi",
     "Lunapark",
-    "Çiftlik",
-    "Akvaryum",
-    "Tiyatro",
-    "Kumarhane",
-    "Uzay İstasyonu",
-    "Korsan Gemisi",
-    "Çöl",
-    "Orman",
     "Dağ",
     "Köy",
     "Liman",
@@ -1401,6 +1401,14 @@ export const gameLogic = {
           const activePlayers = Object.keys(data.playerRoles || {});
           const votes = data.votes || {};
           const activeVoteCount = Object.keys(votes).filter((v) =>
+      .set(target)
+      .then(() => {
+        ref.get().then((snap) => {
+          if (!snap.exists()) return;
+          const data = snap.val();
+          const activePlayers = Object.keys(data.playerRoles || {});
+          const votes = data.votes || {};
+          const activeVoteCount = Object.keys(votes).filter((v) =>
             activePlayers.includes(v)
           ).length;
           if (activeVoteCount >= activePlayers.length) {
@@ -1418,13 +1426,23 @@ export const gameLogic = {
       if (votingState.result && votingState.result.finalizedAt) return room;
       if (!room.votingStarted && !votingState.active) return room;
 
-      const players = Object.keys(room.playerRoles || {});
+      const activePlayers = getActivePlayers(room.playerRoles, room.players);
+      const players = activePlayers.map((p) => p.uid);
       if (!players.length) return room;
 
       const votes = room.votes || {};
       const voteEntries = Object.entries(votes).filter(([voter]) =>
         players.includes(voter)
       );
+      const allVoted = voteEntries.length === players.length;
+      const endsAt = votingState.endsAt;
+      const serverNow = getServerNow();
+      const canFinalizeByTime =
+        typeof endsAt === "number" && serverNow >= endsAt;
+
+      if (!allVoted && !canFinalizeByTime) {
+        return room;
+      }
       const counts = {};
       voteEntries.forEach(([, t]) => {
         if (players.includes(t)) {
@@ -1450,14 +1468,6 @@ export const gameLogic = {
 
       const nextRoom = { ...room };
       nextRoom.votingStarted = false;
-      nextRoom.voting = {
-        ...(votingState || {}),
-        active: false,
-        result: {
-          ...(votingState?.result || {}),
-          voteCounts: counts,
-          finalizedAt: window.firebase.database.ServerValue.TIMESTAMP,
-          roundId: room.roundId || null,
         },
       };
 
@@ -1511,7 +1521,7 @@ export const gameLogic = {
       if (guessAllowance) {
         nextRoom.guess = {
           spyUid: voted,
-          endsAt: Date.now() + 30000,
+          endsAt: getServerNow() + 30000,
           roundId: room.roundId || null,
         };
         nextRoom.voting.result.guessAllowed = true;
@@ -1582,7 +1592,7 @@ export const gameLogic = {
       if (data.status === "finished") return;
       const guessState = data.guess;
       if (!guessState || !guessState.endsAt) return;
-      if (Date.now() < guessState.endsAt) return;
+      if (getServerNow() < guessState.endsAt) return;
 
       const updates = { guess: null };
       const votingResult = data.voting?.result;
@@ -1608,7 +1618,6 @@ export const gameLogic = {
       }
     });
   },
-
   tallyVotes: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref.get().then((snap) => {
