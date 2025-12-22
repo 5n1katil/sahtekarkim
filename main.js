@@ -42,26 +42,19 @@ function showEliminationOverlay(roomCode) {
     actions?.classList.add("hidden");
   };
 
-  const actionBtn = document.createElement("button");
-  actionBtn.classList.add("overlay-btn");
-
   if (isCreator) {
-    actionBtn.textContent = "Yeniden başlat";
+    const actionBtn = document.createElement("button");
+    actionBtn.classList.add("overlay-btn");
+    actionBtn.textContent = "Yeniden oyna";
     actionBtn.addEventListener("click", () => {
       closeOverlay();
       gameLogic.restartGame(roomCode);
     });
+    overlay.appendChild(actionBtn);
   } else {
-    actionBtn.textContent = "Odadan ayrıl";
-    actionBtn.addEventListener("click", () => {
-      closeOverlay();
-      gameLogic.leaveRoom(roomCode).finally(() => {
-        showSetupJoin();
-      });
-    });
+    actions?.classList.add("hidden");
   }
 
-  overlay.appendChild(actionBtn);
   overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
   actions?.classList.add("hidden");
 }
@@ -604,7 +597,14 @@ function updateRoleDisplay(myData, settings) {
       btn.addEventListener("click", () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
-        gameLogic.endRound(currentRoomCode);
+        if (currentRoomCode && currentUid && window.db) {
+          window.db
+            .ref(`rooms/${currentRoomCode}/ui/${currentUid}`)
+            .update({ screen: "playing" })
+            .catch((err) =>
+              console.error("Kullanıcı ekran durumu güncellenemedi:", err)
+            );
+        }
       });
     }
   }
