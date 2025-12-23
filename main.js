@@ -1518,7 +1518,6 @@ function updateRoleDisplay(myData, settings) {
           }
           window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
           return;
-          return;
         }
         if (
           roomData &&
