@@ -1320,7 +1320,7 @@ function updateRoleDisplay(myData, settings) {
 
       // Geçerli oyuncuların (isimler) filtrelenmiş bir dizisini tut
       currentPlayers = Object.values(playersObj || {})
-        .filter(isAlivePlayer)
+        .filter(isPlayerAlive)
         .map((p) => p?.name)
         .filter((p) => p && p.trim() !== "");
 
