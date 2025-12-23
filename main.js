@@ -98,17 +98,6 @@ function showEliminationOverlay(roomCode) {
   actions?.classList.add("hidden");
 }
 
-// Sayfa yenilendiğinde oyun bilgilerini koru, yeni oturumda sıfırla
-try {
-  const nav = performance.getEntriesByType("navigation")[0];
-  const isReload = nav ? nav.type === "reload" : performance.navigation.type === 1;
-  if (!isReload) {
-    clearStoragePreservePromo();
-  }
-} catch (err) {
-  console.warn("Gezinme performans kontrolü başarısız oldu:", err);
-}
-
 let currentRoomCode = localStorage.getItem("roomCode") || null;
 let currentPlayerName = localStorage.getItem("playerName") || null;
 let isCreator = localStorage.getItem("isCreator") === "true";
