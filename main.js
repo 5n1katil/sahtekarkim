@@ -3,6 +3,7 @@ import {
   escapeHtml,
   getActivePlayers,
   hasInvalidChars,
+  isPlayerAlive,
   resolveRoleName,
 } from './utils.js';
 
@@ -15,17 +16,11 @@ function resolveGamePhase(roomData) {
   return roomData?.game?.phase || roomData?.phase;
 }
 
-function isAlivePlayer(player) {
-  const status =
-    typeof player?.status === "string" ? player.status : "alive";
-  return status === "alive";
-}
-
 function isCurrentPlayerEligible(roomData) {
   const isEliminated =
     roomData?.eliminated && roomData.eliminated[currentUid];
   const playerEntry = roomData?.players?.[currentUid];
-  return !isEliminated && isAlivePlayer(playerEntry);
+  return !isEliminated && isPlayerAlive(playerEntry);
 }
 
 function resolveVotes(roomData) {
@@ -353,6 +348,14 @@ function updateRoleDisplay(myData, settings) {
 
   function triggerEndRoundIfNeeded(roomData, resolvedResult) {
     if (!roomData || !resolvedResult || resolvedResult.tie) return false;
+    const gamePhase = resolveGamePhase(roomData);
+    if (
+      roomData?.voting?.status === "in_progress" ||
+      gamePhase === "voting" ||
+      gamePhase === "results"
+    ) {
+      return false;
+    }
     const roundKey = getRoundKey(roomData);
     const alreadyTriggered = endRoundTriggeredForRound === roundKey;
     if (alreadyTriggered) return true;
@@ -378,7 +381,6 @@ function updateRoleDisplay(myData, settings) {
       (spyNames || []).map((name) => sanitizeName(name))
     ).filter(Boolean);
     const impostorWinnersText = formatSpyWinnersText(normalizedSpyNames);
-
     if (eliminatedIsImpostor) {
       return {
         message: `Oylama sonucunda Sahtekar ${safeName} elendi ve oyunu masumlar kazandı!`,
