@@ -2301,7 +2301,15 @@ function initUI() {
       btn.disabled = true;
       btn.textContent = "Katıldınız";
     }
-    gameLogic.startVote(currentRoomCode, currentUid);
+    const startVotePromise = gameLogic.startVote(currentRoomCode, currentUid);
+    Promise.resolve(startVotePromise).catch((error) => {
+      console.error("[startVotingBtn] startVote error", error);
+      hasRequestedStart = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Oylamayı Başlat";
+      }
+    });
   });
 
   const voteList = document.getElementById("voteList");
