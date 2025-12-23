@@ -631,43 +631,6 @@ function updateRoleDisplay(myData, settings) {
       !outcome.gameEnded &&
       alivePlayersCount > 2 &&
       !outcome.impostorVictory;
-      ? "impostor-animation"
-      : "innocent-animation";
-    const msgDiv = document.createElement("div");
-    msgDiv.className = "result-message";
-    overlay.innerHTML = "";
-    const actionsEl = document.getElementById("gameActions");
-    const spyInfo = getSpyInfo(roomData);
-    const resolvedMessage =
-      isResultsPhase && !isAlivePlayer
-        ? "Elendin! Oyun devam ediyor."
-        : resolveGameOverMessage(roomData, outcome.message, spyInfo);
-    msgDiv.textContent = resolvedMessage;
-    if (!(isResultsPhase && !isAlivePlayer)) {
-      appendSpyNamesLine(msgDiv, roomData, {
-        spyInfo,
-        primaryMessage: resolvedMessage,
-      });
-    }
-    if (outcome.gameEnded) {
-      actionsEl?.classList.add("hidden");
-    } else {
-      actionsEl?.classList.remove("hidden");
-    }
-    overlay.appendChild(msgDiv);
-    overlay.classList.remove(
-      "hidden",
-      "impostor-animation",
-      "innocent-animation"
-    );
-    overlay.classList.add(cls);
-
-    const shouldShowEliminationOverlay =
-      currentPhase !== "results" &&
-      isEliminatedPlayer &&
-      !outcome.gameEnded &&
-      alivePlayersCount > 2 &&
-      !outcome.impostorVictory;
 
     if (shouldShowEliminationOverlay) {
       showEliminationOverlay(currentRoomCode);
