@@ -1,5 +1,11 @@
 export const ACTIVE_PLAYER_KEYS = ["active", "connected", "isOnline"];
 
+export function isPlayerAlive(player) {
+  const status =
+    typeof player?.status === "string" ? player.status : "alive";
+  return status !== "eliminated";
+}
+
 export function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (ch) =>
     ({
@@ -48,16 +54,12 @@ export function getActivePlayers(playerRoles, playersObj) {
   return Object.keys(roles)
     .map((uid) => {
       const playerEntry = players[uid] || {};
-      const status =
-        typeof playerEntry?.status === "string"
-          ? playerEntry.status
-          : "alive";
-      if (status !== "alive") return null;
+      if (!isPlayerAlive(playerEntry)) return null;
       if (!isPlayerActive(playerEntry, activeKey)) return null;
       return {
         uid,
         name: playerEntry?.name || uid,
-        status,
+        status: playerEntry?.status || "alive",
       };
     })
     .filter(Boolean);
