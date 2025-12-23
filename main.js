@@ -232,7 +232,6 @@ let lastRoundNumber = null;
 let endRoundTriggeredForRound = null;
 let hasRequestedStart = false;
 let latestRoomData = null;
-let latestRoomData = null;
 
 function isCurrentRoundPayload(roomData, payload) {
   if (!payload) return true;
