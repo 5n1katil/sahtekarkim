@@ -1833,6 +1833,40 @@ export const gameLogic = {
       if (!result.committed) return;
       const roomData = result.snapshot?.val();
       const votingResult = roomData?.voting?.result;
+      const votingStatus = roomData?.voting?.status;
+      const finalizedAt = votingResult?.finalizedAt;
+      const phase = roomData?.phase;
+      const gamePhase = roomData?.game?.phase;
+      const isEnded =
+        roomData?.status === "finished" ||
+        phase === "ended" ||
+        gamePhase === "ended";
+
+      console.log("[finalizeVoting] transaction result", {
+        committed: result.committed,
+        roomId: roomCode,
+        votingStatus: votingStatus ?? null,
+        finalizedAtPresent: !!finalizedAt,
+        phase: phase ?? null,
+        gamePhase: gamePhase ?? null,
+      });
+
+      const warnings = [];
+      if (!votingStatus) {
+        warnings.push("Missing rooms/{room}/voting/status");
+      }
+      if (finalizedAt === undefined || finalizedAt === null) {
+        warnings.push("Missing voting.result.finalizedAt");
+      }
+      if (!isEnded && !phase && !gamePhase) {
+        warnings.push("Missing phase and game.phase");
+      }
+      if (warnings.length) {
+        console.warn("[finalizeVoting] transaction diagnostics", {
+          roomId: roomCode,
+          warnings,
+        });
+      }
       if (
         roomData?.status === "finished" &&
         votingResult?.eliminatedUid
