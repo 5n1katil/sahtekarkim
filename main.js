@@ -9,6 +9,13 @@ import {
 
 console.log('main.js yüklendi');
 
+// Rollup edilen çıktılarda global bir temizleyici beklenebiliyor; henüz tanımlı
+// değilse oylama akışının tamamen durmasına yol açan ReferenceError'ları
+// engellemek için güvenli bir varsayılan oluşturuyoruz.
+if (typeof window.cleanupListener !== "function") {
+  window.cleanupListener = () => {};
+}
+
 const MIN_PLAYERS = 3;
 const DEFAULT_PLAYER_COUNT = 20; // Eski güvenlik kurallarıyla uyum için oyuncu sayısını varsayılanla gönder
 
