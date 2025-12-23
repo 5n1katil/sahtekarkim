@@ -3,7 +3,6 @@
 // Firebase compat setup (no modules)
 // -------------------------
 
-// 1. Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
   authDomain: "detektif-c17bb.firebaseapp.com",
@@ -14,17 +13,19 @@ const firebaseConfig = {
   appId: "1:422256375848:web:873b0a6372c992accf9d1d",
 };
 
-// 2. Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+// 2) Initialize Firebase (guard against double init)
+if (!firebase.apps || !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
 
-// 3. Initialize and expose Auth & Database
+// 3) Initialize and expose Auth & Database
 const auth = firebase.auth();
 const db = firebase.database();
 
 window.auth = auth;
 window.db = db;
 
-// 3.1. Provide server time helpers using the RTDB offset
+// 3.1) Server time offset helper
 let serverTimeOffset = 0;
 const offsetRef = db.ref(".info/serverTimeOffset");
 
@@ -42,24 +43,23 @@ offsetRef.on("value", (snap) => {
   }
 });
 
-// Expose a reusable server time source to modules
 window.serverTime = serverTime;
 
-// 4. Sign in anonymously on load
+// 4) Sign in anonymously ONCE with persistence
 auth
-  .signInAnonymously()
-  .then((userCredential) => {
-    console.log("Anonim giriş başarılı. UID:", userCredential.user.uid);
+  .setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+  .then(() => {
+    if (auth.currentUser) return auth.currentUser; // already signed in
+    return auth.signInAnonymously().then((cred) => cred.user);
+  })
+  .then((user) => {
+    if (user?.uid) console.log("Anonim giriş başarılı. UID:", user.uid);
   })
   .catch((err) => {
-    console.error("Anonim giriş hatası:", err.code, err.message);
+    console.error("Anonim giriş/persistence hatası:", err.code, err.message);
   });
 
-// 5. Listen for auth state changes
+// 5) Listen for auth state changes
 auth.onAuthStateChanged((user) => {
-  if (user) {
-    window.myUid = user.uid;
-  } else {
-    window.myUid = null;
-  }
+  window.myUid = user ? user.uid : null;
 });
