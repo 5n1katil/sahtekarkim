@@ -1,6 +1,7 @@
 import {
   escapeHtml,
   getActivePlayers,
+  isPlayerAlive,
   resolveRoleName,
 } from './utils.js';
 import { TR_ACTORS } from './data/characters_tr_actors.js';
@@ -22,10 +23,14 @@ function getSpyUids(spies) {
   return [];
 }
 
-function isPlayerAlive(player) {
-  const status =
-    typeof player?.status === "string" ? player.status : "alive";
-  return status !== "eliminated";
+function isVotingStateMachineActive(room) {
+  const votingStatus = room?.voting?.status;
+  const gamePhase = room?.game?.phase;
+  return (
+    votingStatus === "in_progress" ||
+    gamePhase === "voting" ||
+    gamePhase === "results"
+  );
 }
 
 function getAliveUids(playersObj) {
@@ -1408,6 +1413,7 @@ export const gameLogic = {
       const roles = data.playerRoles || {};
       const spyRole = roles[spyUid];
       if (!spyRole) return;
+      const blockLegacyVotingUpdates = !!data?.voting?.status;
       let guessesLeft = spyRole.guessesLeft || 0;
       if (guessesLeft <= 0) return;
       let correctAnswer = null;
@@ -1458,16 +1464,20 @@ export const gameLogic = {
             finalGuess,
             roundId: data.roundId || null,
           },
-            votingStarted: false,
-            votes: null,
-            voting: {
-              ...(data.voting || {}),
-              votes: null,
-            },
-            voteResult: null,
-            voteRequests: null,
             guess: null,
           };
+          if (data.voting) {
+            winUpdate.voting = {
+              ...(data.voting || {}),
+              votes: null,
+            };
+          }
+          if (!blockLegacyVotingUpdates) {
+            winUpdate.votingStarted = false;
+            winUpdate.votes = null;
+            winUpdate.voteResult = null;
+            winUpdate.voteRequests = null;
+          }
           appendFinalSpyInfo(winUpdate, data);
           ref
             .update(winUpdate)
@@ -1495,12 +1505,14 @@ export const gameLogic = {
             finalGuess,
             roundId: data.roundId || null,
           };
-          updates.votingStarted = false;
-          updates.votes = null;
           updates["voting/votes"] = null;
-          updates.voteResult = null;
-          updates.voteRequests = null;
           updates.guess = null;
+          if (!blockLegacyVotingUpdates) {
+            updates.votingStarted = false;
+            updates.votes = null;
+            updates.voteResult = null;
+            updates.voteRequests = null;
+          }
         } else {
           updates.lastGuess = {
             spy: spyUid,
@@ -1510,7 +1522,7 @@ export const gameLogic = {
             finalGuess,
             roundId: data.roundId || null,
           };
-          if (typeof preserveVotingStarted !== "undefined") {
+          if (!blockLegacyVotingUpdates && typeof preserveVotingStarted !== "undefined") {
             updates.votingStarted = preserveVotingStarted;
           }
           if (typeof preserveVotes !== "undefined") {
@@ -1902,6 +1914,7 @@ export const gameLogic = {
     const ref = window.db.ref("rooms/" + roomCode);
     return ref.transaction((room) => {
       if (!room) return room;
+      const blockLegacyVotingUpdates = !!room?.voting?.status;
 
       const phase = room.game?.phase || room.phase;
       if (phase !== "results") return room;
@@ -1943,11 +1956,13 @@ export const gameLogic = {
           result: null,
           continueAcks: null,
         };
-        nextRoom.votingStarted = false;
-        nextRoom.voteRequests = null;
-        nextRoom.voteStartRequests = null;
-        nextRoom.votes = null;
-        nextRoom.voteResult = null;
+        if (!blockLegacyVotingUpdates) {
+          nextRoom.votingStarted = false;
+          nextRoom.voteRequests = null;
+          nextRoom.voteStartRequests = null;
+          nextRoom.votes = null;
+          nextRoom.voteResult = null;
+        }
         nextRoom.phase = "clue";
         nextRoom.game = { ...(room.game || {}), phase: "playing" };
       }
@@ -1960,16 +1975,19 @@ export const gameLogic = {
     const ref = window.db.ref("rooms/" + roomCode);
     return ref.transaction((room) => {
       if (!room) return room;
+      const blockLegacyVotingUpdates = !!room?.voting?.status;
       if (room.voting?.status === "in_progress") return room;
       const hasResult = room.voting?.result?.finalizedAt || room.voteResult;
       if (!hasResult) return room;
 
       const nextRoom = { ...room };
-      nextRoom.votes = null;
-      nextRoom.voteRequests = null;
-      nextRoom.voteStartRequests = null;
-      nextRoom.votingStarted = false;
-      nextRoom.voteResult = null;
+      if (!blockLegacyVotingUpdates) {
+        nextRoom.votes = null;
+        nextRoom.voteRequests = null;
+        nextRoom.voteStartRequests = null;
+        nextRoom.votingStarted = false;
+        nextRoom.voteResult = null;
+      }
       nextRoom.voting = { status: "idle", startedBy: {} };
       nextRoom.phase = "clue";
       nextRoom.game = { ...(room.game || {}), phase: "playing" };
@@ -2016,6 +2034,7 @@ export const gameLogic = {
     ref.get().then((snap) => {
       if (!snap.exists()) return;
       const data = snap.val();
+      if (isVotingStateMachineActive(data)) return;
       if (data.voting?.status !== "in_progress") return;
       const alivePlayers = getActivePlayers(data.playerRoles, data.players);
       const players = alivePlayers.map((p) => p.uid);
@@ -2122,6 +2141,7 @@ export const gameLogic = {
     ref.get().then((snap) => {
       if (!snap.exists()) return;
       const data = snap.val();
+      if (isVotingStateMachineActive(data)) return;
       const vote = data.voteResult;
       const tasks = [];
       const votedUid = vote && vote.voted;
@@ -2228,6 +2248,7 @@ export const gameLogic = {
     ref.get().then((snap) => {
       if (!snap.exists()) return;
       const data = snap.val();
+      if (isVotingStateMachineActive(data)) return;
       const nextRound = (data.round || 1) + 1;
       ref.update({
         round: nextRound,
