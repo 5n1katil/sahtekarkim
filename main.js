@@ -98,12 +98,6 @@ function showEliminationOverlay(roomCode) {
   actions?.classList.add("hidden");
 }
 
-// Kullanıcının anonim şekilde doğrulandığından emin ol
-if (window.auth && !window.auth.currentUser) {
-  window.auth.signInAnonymously().catch((err) => {
-    console.error("Anonim giriş hatası:", err);
-  });
-}
 // Sayfa yenilendiğinde oyun bilgilerini koru, yeni oturumda sıfırla
 try {
   const nav = performance.getEntriesByType("navigation")[0];
