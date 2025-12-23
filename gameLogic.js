@@ -1193,7 +1193,7 @@ export const gameLogic = {
   // Oylamayı başlatma isteği kaydet
   startVote: function (roomCode, uid) {
     const roomRef = window.db.ref(`rooms/${roomCode}`);
-    roomRef.transaction((currentData) => {
+    return roomRef.transaction((currentData) => {
       if (!currentData) return currentData;
       const votingState = currentData.voting || {};
       const votingStatus = votingState.status || "idle";
@@ -1254,6 +1254,20 @@ export const gameLogic = {
           startedBy,
         },
       };
+    }).then((result) => {
+      if (!result?.committed || !result.snapshot) return result;
+      const votingSnap = result.snapshot.child("voting");
+      const status = votingSnap?.child("status")?.val();
+      if (status !== "in_progress") return result;
+      const startedAt = votingSnap?.child("startedAt")?.val();
+      const endsAt = votingSnap?.child("endsAt")?.val();
+      if (startedAt && endsAt == null) {
+        return roomRef
+          .child("voting/endsAt")
+          .set(startedAt + 30000)
+          .then(() => result);
+      }
+      return result;
     });
   },
 
