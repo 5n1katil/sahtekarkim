@@ -393,7 +393,6 @@ function updateRoleDisplay(myData, settings) {
       return {
         message: `Oylama sonucunda ${safeName} elendi. Elenen kişi masumdu — oyun devam ediyor.`,
         gameEnded: false,
-        gameEnded: false,
         impostorVictory: false,
       };
     }
