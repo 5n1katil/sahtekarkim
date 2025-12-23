@@ -461,7 +461,7 @@ function updateRoleDisplay(myData, settings) {
       playerUidMap[votedUid]?.name
     );
     const remaining = Object.entries(roomData.players || {})
-      .filter(([uid, p]) => uid !== votedUid && isAlivePlayer(p))
+      .filter(([uid, p]) => uid !== votedUid && isPlayerAlive(p))
       .map(([uid]) => uid);
     const activeSpies = getSpyUids(roomData.spies).filter((id) =>
       remaining.includes(id)
@@ -582,18 +582,55 @@ function updateRoleDisplay(myData, settings) {
     const filteredAliveUids = eliminatedUidFromResult
       ? aliveUids.filter((uid) => uid !== eliminatedUidFromResult)
       : aliveUids;
-    const isAlivePlayer = filteredAliveUids.includes(currentUid);
+    const isAliveCurrentPlayer = filteredAliveUids.includes(currentUid);
     const continueAcks = roomData?.voting?.continueAcks || {};
     const ackCount = filteredAliveUids.filter((uid) => continueAcks[uid]).length;
     const hasAcked = !!continueAcks[currentUid];
     const isEliminatedPlayer =
-      currentUid === eliminatedUidFromResult || !isAlivePlayer;
+      currentUid === eliminatedUidFromResult || !isAliveCurrentPlayer;
     const isResultsPhase = currentPhase === "results";
     const waitingText =
       filteredAliveUids.length > 0
         ? `Devam için onay bekleniyor (${ackCount}/${filteredAliveUids.length})`
         : null;
     const cls = outcome.impostorVictory
+      ? "impostor-animation"
+      : "innocent-animation";
+    const msgDiv = document.createElement("div");
+    msgDiv.className = "result-message";
+    overlay.innerHTML = "";
+    const actionsEl = document.getElementById("gameActions");
+    const spyInfo = getSpyInfo(roomData);
+    const resolvedMessage =
+      isResultsPhase && !isAliveCurrentPlayer
+        ? "Elendin! Oyun devam ediyor."
+        : resolveGameOverMessage(roomData, outcome.message, spyInfo);
+    msgDiv.textContent = resolvedMessage;
+    if (!(isResultsPhase && !isAliveCurrentPlayer)) {
+      appendSpyNamesLine(msgDiv, roomData, {
+        spyInfo,
+        primaryMessage: resolvedMessage,
+      });
+    }
+    if (outcome.gameEnded) {
+      actionsEl?.classList.add("hidden");
+    } else {
+      actionsEl?.classList.remove("hidden");
+    }
+    overlay.appendChild(msgDiv);
+    overlay.classList.remove(
+      "hidden",
+      "impostor-animation",
+      "innocent-animation"
+    );
+    overlay.classList.add(cls);
+
+    const shouldShowEliminationOverlay =
+      currentPhase !== "results" &&
+      isEliminatedPlayer &&
+      !outcome.gameEnded &&
+      alivePlayersCount > 2 &&
+      !outcome.impostorVictory;
       ? "impostor-animation"
       : "innocent-animation";
     const msgDiv = document.createElement("div");
@@ -700,7 +737,7 @@ function updateRoleDisplay(myData, settings) {
       }
 
       const shouldShowContinueButton =
-        isAlivePlayer && eliminatedUidFromResult !== currentUid;
+        isAliveCurrentPlayer && eliminatedUidFromResult !== currentUid;
       if (shouldShowContinueButton) {
         const btn = document.createElement("button");
         btn.id = "continueBtn";
@@ -1057,93 +1094,6 @@ function updateRoleDisplay(myData, settings) {
         gameLogic.restartGame(currentRoomCode);
       });
     }
-
-    exitBtn.addEventListener("click", () => {
-      hideOverlay();
-      gameLogic.leaveRoom(currentRoomCode).finally(() => {
-        showSetupJoin();
-      });
-    });
-  }
-
-  function showSpyFailOverlay(roomData, finalGuess, gameType, actualAnswer) {
-    const overlay = document.getElementById("resultOverlay");
-    if (!overlay) {
-      console.error("resultOverlay element not found");
-      return;
-    }
-    const spyInfo = getSpyInfo(roomData);
-    gameEnded = true;
-    overlay.innerHTML = "";
-    const msgDiv = document.createElement("div");
-    msgDiv.className = "result-message";
-    const guessWord = gameType === "category" ? "rolü" : "konumu";
-    const actualWord = gameType === "category" ? "rol" : "konum";
-    const guessedValue =
-      finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
-    const resolvedActualAnswer = resolveAnswerValue(
-      actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation,
-      gameType
-    );
-    const spyIntro = formatSpyIntro(spyInfo);
-    const guessDetail = guessedValue
-      ? `${guessWord} ${escapeHtml(String(guessedValue))} olarak`
-      : `${guessWord} olarak`;
-    const fallbackMessage = resolvedActualAnswer
-      ? `${spyIntro} ${guessDetail} yanlış tahmin etti. Doğru ${actualWord} ${escapeHtml(resolvedActualAnswer)} idi ve oyunu masumlar kazandı!`
-      : `${spyIntro} ${guessDetail} yanlış tahmin etti ve oyunu masumlar kazandı!`;
-    msgDiv.textContent = resolveGameOverMessage(
-      roomData,
-      fallbackMessage,
-      spyInfo
-    );
-    appendSpyNamesLine(msgDiv, roomData, {
-      spyInfo,
-      primaryMessage: msgDiv.textContent,
-    });
-    const detailLines = buildGuessDetails(
-      finalGuess,
-      resolvedActualAnswer,
-      gameType
-    );
-    appendGuessDetails(msgDiv, detailLines);
-    overlay.appendChild(msgDiv);
-    let restartBtn;
-    if (isCreator) {
-      restartBtn = document.createElement("button");
-      restartBtn.id = "restartBtn";
-      restartBtn.classList.add("overlay-btn");
-      restartBtn.textContent = "Yeniden oyna";
-      overlay.appendChild(restartBtn);
-    }
-    const exitBtn = document.createElement("button");
-    exitBtn.id = "exitBtn";
-    exitBtn.classList.add("overlay-btn");
-    exitBtn.textContent = "Odadan ayrıl";
-    overlay.appendChild(exitBtn);
-    overlay.classList.remove(
-      "hidden",
-      "impostor-animation",
-      "innocent-animation"
-    );
-    overlay.classList.add("innocent-animation");
-
-    const hideOverlay = () => {
-      overlay.classList.add("hidden");
-      overlay.classList.remove("impostor-animation", "innocent-animation");
-    };
-
-    if (restartBtn) {
-      restartBtn.addEventListener("click", () => {
-        hideOverlay();
-        gameEnded = false;
-        parityHandled = false;
-        lastVoteResult = null;
-        lastGuessEvent = null;
-        restartBtn.disabled = true;
-        gameLogic.restartGame(currentRoomCode);
-      });
-    }
     exitBtn.addEventListener("click", () => {
       hideOverlay();
       gameLogic.leaveRoom(currentRoomCode).finally(() => {
@@ -1160,7 +1110,7 @@ function updateRoleDisplay(myData, settings) {
     const countEl = document.getElementById("playerCountDisplay");
     if (!listEl || !countEl) return;
 
-    const aliveEntries = Object.values(playersObj || {}).filter(isAlivePlayer);
+    const aliveEntries = Object.values(playersObj || {}).filter(isPlayerAlive);
     const validPlayers = aliveEntries
       .map((p) => p?.name || "")
       .filter((p) => p && p.trim() !== "");
@@ -1194,7 +1144,7 @@ function updateRoleDisplay(myData, settings) {
     return Object.entries(source || {})
       .filter(
         ([uid, player]) =>
-          uid !== currentUid && isAlivePlayer(player)
+          uid !== currentUid && isPlayerAlive(player)
       )
       .map(([uid, p]) => ({ uid, name: p?.name || uid }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -1236,25 +1186,26 @@ function updateRoleDisplay(myData, settings) {
   function lockVoteCandidates(roomData) {
     if (voteCandidatesSnapshot) return;
     const snapshot = roomData?.voting?.snapshot;
+    const expectedVotersMap = roomData?.voting?.expectedVoters;
     const expectedVoters = buildExpectedVoterList(
-      roomData?.voting?.expectedVoters,
+      expectedVotersMap,
       snapshot
     );
+    const hasExpectedVoters = expectedVoters.length > 0;
+    const forceExpectedTargets =
+      roomData?.voting?.status === "in_progress" ||
+      resolveGamePhase(roomData) === "voting";
     const playerEntries = roomData?.players || playerUidMap || {};
     const snapshotPlayers = roomData?.voting?.snapshotPlayers || [];
     const snapshotPlayerMap = snapshotPlayers.reduce((acc, p) => {
       if (p?.uid) acc[p.uid] = p;
       return acc;
     }, {});
-    const shouldUseExpectedVoters =
-      resolveGamePhase(roomData) === "voting" &&
-      roomData?.voting?.status === "in_progress" &&
-      expectedVoters.length > 0;
 
     const buildCandidateFromUid = (uid) => {
       if (!uid || uid === currentUid) return null;
       const playerEntry = playerEntries[uid];
-      if (playerEntry && !isAlivePlayer(playerEntry)) return null;
+      if (playerEntry && !isPlayerAlive(playerEntry)) return null;
       const name =
         snapshot?.names?.[uid] ||
         snapshotPlayerMap[uid]?.name ||
@@ -1264,7 +1215,7 @@ function updateRoleDisplay(myData, settings) {
       return { uid, name };
     };
 
-    if (shouldUseExpectedVoters) {
+    if (hasExpectedVoters || forceExpectedTargets) {
       voteCandidatesSnapshot = expectedVoters
         .map((uid) => buildCandidateFromUid(uid))
         .filter(Boolean);
@@ -1286,7 +1237,7 @@ function updateRoleDisplay(myData, settings) {
         .filter((p) => {
           if (!p.uid || p.uid === currentUid) return false;
           const playerEntry = playerEntries[p.uid];
-          return !playerEntry || isAlivePlayer(playerEntry);
+          return !playerEntry || isPlayerAlive(playerEntry);
         });
       renderVoteOptions(voteCandidatesSnapshot);
       return;
@@ -1579,7 +1530,7 @@ function updateRoleDisplay(myData, settings) {
         if (roomData && roomData.players) {
           playerUidMap = roomData.players;
           currentPlayers = Object.values(playerUidMap)
-            .filter(isAlivePlayer)
+            .filter(isPlayerAlive)
             .map((p) => p.name)
             .filter((p) => p && p.trim() !== "");
           updatePlayerList(playerUidMap);
@@ -1604,6 +1555,7 @@ function updateRoleDisplay(myData, settings) {
             showSpyWinOverlay(roomData, finalGuess, gameType, actualAnswer);
           }
           window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
+          return;
           return;
         }
         if (
@@ -1946,11 +1898,11 @@ function updateRoleDisplay(myData, settings) {
             aliveUids.has(p.uid)
           );
 
-          const fallbackPlayers = !filteredSnapshotPlayers.length
-            ? Object.entries(roomData.players || playerUidMap || {})
-                .filter(([, p]) => isAlivePlayer(p))
-                .map(([uid, p]) => ({ uid, name: p?.name || uid }))
-            : filteredSnapshotPlayers;
+        const fallbackPlayers = !filteredSnapshotPlayers.length
+          ? Object.entries(roomData.players || playerUidMap || {})
+              .filter(([, p]) => isPlayerAlive(p))
+              .map(([uid, p]) => ({ uid, name: p?.name || uid }))
+          : filteredSnapshotPlayers;
 
           const ranked = fallbackPlayers.map((p) => ({
             uid: p.uid,
@@ -2407,10 +2359,10 @@ function initUI() {
   document.getElementById("nextRoundBtn").addEventListener("click", () => {
     const roomData = latestRoomData;
     const currentPhase = resolveGamePhase(roomData);
-    const isAlivePlayer = roomData ? isCurrentPlayerEligible(roomData) : true;
-    if (currentPhase === "results" && isAlivePlayer) {
+    const isAliveForNextRound = roomData ? isCurrentPlayerEligible(roomData) : true;
+    if (currentPhase === "results" && isAliveForNextRound) {
       gameLogic.continueAfterResults(currentRoomCode, currentUid);
-    } else if (isCreator && roomData && !isAlivePlayer) {
+    } else if (isCreator && roomData && !isAliveForNextRound) {
       gameLogic.restartGame(currentRoomCode);
     } else {
       gameLogic.nextRound(currentRoomCode);
