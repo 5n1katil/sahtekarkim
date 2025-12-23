@@ -9,6 +9,7 @@ let anonymousSignInPromise = null;
 
 const MIN_PLAYERS = 3;
 const ROOM_PLAYER_LIMIT = 20;
+const votingWatchers = new Map();
 
 function generateRoundId() {
   const newRef = window.db.ref().push();
@@ -272,6 +273,47 @@ export function getServerNow() {
     return source.now();
   }
   return Date.now();
+}
+
+function clearVotingWatcher(roomCode) {
+  const watcher = votingWatchers.get(roomCode);
+  if (watcher?.interval) {
+    clearInterval(watcher.interval);
+  }
+  votingWatchers.delete(roomCode);
+}
+
+function ensureVotingWatcher(roomCode, votingState, finalizeVoting) {
+  const status = votingState?.status;
+  const endsAt =
+    typeof votingState?.endsAt === "number" ? votingState.endsAt : null;
+
+  if (status !== "in_progress" || !endsAt) {
+    clearVotingWatcher(roomCode);
+    return;
+  }
+
+  // Immediate guard: if the vote timer already elapsed, request finalization once.
+  if (getServerNow() >= endsAt) {
+    clearVotingWatcher(roomCode);
+    finalizeVoting(roomCode, "time_up");
+    return;
+  }
+
+  const existing = votingWatchers.get(roomCode);
+  if (existing && existing.endsAt === endsAt) {
+    return;
+  }
+
+  clearVotingWatcher(roomCode);
+  const interval = setInterval(() => {
+    if (getServerNow() >= endsAt) {
+      // Time-up pathway lives here so multiple clients can safely converge on finalizeVoting.
+      clearVotingWatcher(roomCode);
+      finalizeVoting(roomCode, "time_up");
+    }
+  }, 1000);
+  votingWatchers.set(roomCode, { interval, endsAt });
 }
 
 // Konumlar ve kategoriler için veri havuzları
@@ -1140,6 +1182,9 @@ export const gameLogic = {
     roomRef.on("value", async (snapshot) => {
       const roomData = snapshot.val();
       if (!roomData) return;
+
+      // Watch for expired voting windows and finalize them once when time is up.
+      ensureVotingWatcher(roomCode, roomData.voting, this.finalizeVoting.bind(this));
 
       // Oyuncu listesi güncelle
       const playersObj = roomData.players || {};
