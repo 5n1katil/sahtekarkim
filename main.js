@@ -231,6 +231,8 @@ let lastRoundId = null;
 let lastRoundNumber = null;
 let endRoundTriggeredForRound = null;
 let hasRequestedStart = false;
+let latestRoomData = null;
+let latestRoomData = null;
 
 function isCurrentRoundPayload(roomData, payload) {
   if (!payload) return true;
@@ -1425,6 +1427,7 @@ function updateRoleDisplay(myData, settings) {
       const resultEl = document.getElementById("voteResults");
       const outcomeEl = document.getElementById("voteOutcome");
       const roomData = snapshot.val();
+      latestRoomData = roomData;
       const prevStatus = lastRoomStatus;
       lastRoomStatus = roomData ? roomData.status : null;
       const currentRoundId = roomData?.roundId || null;
@@ -1479,10 +1482,21 @@ function updateRoleDisplay(myData, settings) {
           ? normalizeVotingResult(roomData.voting.result)
           : null;
       const activeVoteResult = resolvedVoteResult || votingResultFallback;
+      const resolvedResultForOutcome =
+        activeVoteResult ||
+        resolvedVoteResult ||
+        (roomData?.voting?.status === "resolved"
+          ? normalizeVotingResult(roomData?.voting?.result)
+          : null);
       const voteOutcomeContext = buildVoteOutcomeContext(
         roomData,
         activeVoteResult
       );
+      const resolvedOutcomeContext =
+        voteOutcomeContext ||
+        (resolvedResultForOutcome
+          ? buildVoteOutcomeContext(roomData, resolvedResultForOutcome)
+          : null);
       const voteEndsGame =
         !!voteOutcomeContext &&
         (voteOutcomeContext.outcome?.gameEnded ||
@@ -1494,6 +1508,7 @@ function updateRoleDisplay(myData, settings) {
         roomData?.players?.[currentUid]?.status === "eliminated";
       const isGameFinished =
         roomData?.status === "finished" || roomData?.spyParityWin;
+      const isPlayerAliveForActions = isCurrentPlayerEligible(roomData);
 
       const shouldShowEliminationOverlay =
         isEliminatedPlayer && !isGameFinished && !voteEndsGame;
@@ -1960,6 +1975,17 @@ function updateRoleDisplay(myData, settings) {
           roomData,
           activeVoteResult
         );
+        const nextRoundBtn = document.getElementById("nextRoundBtn");
+        const shouldShowNextRound =
+          isPlayerAliveForActions &&
+          (roomData?.voting?.status === "resolved" ||
+            currentPhase === "results");
+        nextRoundBtn?.classList.toggle("hidden", !shouldShowNextRound);
+
+        const shouldShowVoteOutcome =
+          roomData?.voting?.status === "resolved" ||
+          currentPhase === "results";
+        const fallbackOutcomeMessage = resolvedOutcomeContext?.outcome?.message;
 
         if (activeVoteResult) {
           if (activeVoteResult.tie) {
@@ -1969,6 +1995,12 @@ function updateRoleDisplay(myData, settings) {
           } else {
             renderVoteResultOverlay(roomData, activeVoteResult, voteOutcomeContext);
             resultEl.classList.add("hidden");
+          }
+        } else if (shouldShowVoteOutcome) {
+          resultEl.classList.remove("hidden");
+          if (outcomeEl) {
+            outcomeEl.textContent =
+              fallbackOutcomeMessage || "Oylama sonucu hazırlanıyor...";
           }
         } else {
           resultEl.classList.add("hidden");
@@ -2372,7 +2404,16 @@ function initUI() {
 
   // Sonraki tur
   document.getElementById("nextRoundBtn").addEventListener("click", () => {
-    gameLogic.nextRound(currentRoomCode);
+    const roomData = latestRoomData;
+    const currentPhase = resolveGamePhase(roomData);
+    const isAlivePlayer = roomData ? isCurrentPlayerEligible(roomData) : true;
+    if (currentPhase === "results" && isAlivePlayer) {
+      gameLogic.continueAfterResults(currentRoomCode, currentUid);
+    } else if (isCreator && roomData && !isAlivePlayer) {
+      gameLogic.restartGame(currentRoomCode);
+    } else {
+      gameLogic.nextRound(currentRoomCode);
+    }
   });
 
   // Rol bilgisini kopyalama
