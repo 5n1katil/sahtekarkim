@@ -110,6 +110,42 @@ let selectedVoteUid = null;
 let selectedVoteName = null;
 let voteCountdownInterval = null;
 let guessCountdownInterval = null;
+let roomValueRef = null;
+let roomValueCallback = null;
+let roomValueUnsubscribe = null;
+let roomMissingTimeoutId = null;
+
+function clearRoomValueListener() {
+  if (roomValueUnsubscribe) {
+    roomValueUnsubscribe();
+  }
+  roomValueRef = null;
+  roomValueCallback = null;
+  roomValueUnsubscribe = null;
+}
+
+async function safeCheckRoomExists(roomRef) {
+  try {
+    const snapshot = await roomRef.get();
+    return { exists: snapshot.exists(), snapshot };
+  } catch (error) {
+    console.error("[ROOM GET FAILED - NON-BLOCKING]", error);
+    return { exists: true, error };
+  }
+}
+
+function handleConfirmedRoomMissing() {
+  if (roomMissingTimeoutId) {
+    clearTimeout(roomMissingTimeoutId);
+    roomMissingTimeoutId = null;
+  }
+  clearRoomValueListener();
+  clearStoragePreservePromo();
+  currentRoomCode = null;
+  currentPlayerName = null;
+  isCreator = false;
+  showSetupJoin();
+}
 if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
   window.auth.onAuthStateChanged(async (user) => {
     currentUid = user ? user.uid : null;
@@ -120,82 +156,61 @@ if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
 
       if (currentRoomCode && currentPlayerName) {
         const roomRef = window.db.ref("rooms/" + currentRoomCode);
-        roomRef
-          .get()
-          .then((roomSnap) => {
-            if (!roomSnap.exists()) {
-              clearStoragePreservePromo();
-              currentRoomCode = null;
-              currentPlayerName = null;
-              isCreator = false;
-              showSetupJoin();
-              return;
-            }
 
-            const roomData = roomSnap.val();
-            const uid = user.uid;
+        showRoomUI(currentRoomCode, currentPlayerName, isCreator);
+        listenPlayersAndRoom(currentRoomCode);
+        gameLogic.listenRoom(currentRoomCode);
 
-            if (
-              roomData?.eliminated &&
-              roomData.eliminated[uid] &&
-              roomData.status !== "finished"
-            ) {
-              wasEliminated = true;
-              showRoomUI(currentRoomCode, currentPlayerName, isCreator);
-              showEliminationOverlay(currentRoomCode);
-              listenPlayersAndRoom(currentRoomCode);
-              gameLogic.listenRoom(currentRoomCode);
-              return;
-            }
+        const { exists, snapshot } = await safeCheckRoomExists(roomRef);
+        if (!exists) {
+          handleConfirmedRoomMissing();
+          return;
+        }
 
-            const playerRef = window.db.ref(
-              `rooms/${currentRoomCode}/players/${uid}`
-            );
-            if (
-              typeof currentPlayerName === "string" &&
-              currentPlayerName.trim() !== ""
-            ) {
-              playerRef.set({ name: currentPlayerName, isCreator });
-            } else {
-              console.error(
-                "Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı."
-              );
-            }
+        if (!snapshot) return;
 
-            showRoomUI(currentRoomCode, currentPlayerName, isCreator);
-            listenPlayersAndRoom(currentRoomCode);
-            gameLogic.listenRoom(currentRoomCode);
+        const roomData = snapshot.val();
+        const uid = user.uid;
 
-            window.db
-              .ref("rooms/" + currentRoomCode)
-              .once("value", (snapshot) => {
-                const roomData = snapshot.val();
-                if (
-                  roomData &&
-                  roomData.status === "started" &&
-                  roomData.playerRoles &&
-                  roomData.playerRoles[currentUid]
-                ) {
-                  document
-                    .getElementById("leaveRoomBtn")
-                    ?.classList.add("hidden");
-                  document
-                    .getElementById("backToHomeBtn")
-                    ?.classList.remove("hidden");
-                  const myData = roomData.playerRoles[currentUid];
-                  document
-                    .getElementById("roomInfo")
-                    .classList.add("hidden");
-                  document
-                    .getElementById("playerRoleInfo")
-                    .classList.remove("hidden");
-                  updateRoleDisplay(myData, roomData.settings);
-                }
-              });
-          })
-          .catch((error) => {
-            console.error("[ROOM GET FAILED]", error);
-          });
+        if (
+          roomData?.eliminated &&
+          roomData.eliminated[uid] &&
+          roomData.status !== "finished"
+        ) {
+          wasEliminated = true;
+          showEliminationOverlay(currentRoomCode);
+          return;
+        }
+
+        const playerRef = window.db.ref(
+          `rooms/${currentRoomCode}/players/${uid}`
+        );
+        if (
+          typeof currentPlayerName === "string" &&
+          currentPlayerName.trim() !== ""
+        ) {
+          playerRef.set({ name: currentPlayerName, isCreator });
+        } else {
+          console.error(
+            "Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı."
+          );
+        }
+
+        if (
+          roomData &&
+          roomData.status === "started" &&
+          roomData.playerRoles &&
+          roomData.playerRoles[currentUid]
+        ) {
+          document.getElementById("leaveRoomBtn")?.classList.add("hidden");
+          document
+            .getElementById("backToHomeBtn")
+            ?.classList.remove("hidden");
+          const myData = roomData.playerRoles[currentUid];
+          document.getElementById("roomInfo").classList.add("hidden");
+          document.getElementById("playerRoleInfo").classList.remove("hidden");
+          updateRoleDisplay(myData, roomData.settings);
+        }
       } else {
         showSetupJoin();
       }
@@ -1404,7 +1419,7 @@ function updateRoleDisplay(myData, settings) {
     gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
       // İsim dizisini kullanarak UI'da oyuncu listesini ve oyuncu sayısını güncelle
       updatePlayerList(playersObj);
-      
+
       // Ham oyuncu nesnesini eşleştirme ve açılır menüyü doldurma için kullan
       playerUidMap = playersObj || {};
 
@@ -1419,16 +1434,38 @@ function updateRoleDisplay(myData, settings) {
       updateSelectedVoteName();
     });
 
-    // Oda silinirse herkesi at (oyun bitmediyse)
-    window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
-      if (!snapshot.exists() && !gameEnded) {
-        clearStoragePreservePromo();
-        location.reload();
-      }
-    });
+    if (roomMissingTimeoutId) {
+      clearTimeout(roomMissingTimeoutId);
+      roomMissingTimeoutId = null;
+    }
+    clearRoomValueListener();
 
-    // Oyun başlama durumunu canlı dinle
-    window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
+    const roomRef = window.db.ref("rooms/" + roomCode);
+    roomValueRef = roomRef;
+
+    const roomErrorCallback = (error) => {
+      console.error("[ROOM LISTEN FAILED - NON-BLOCKING]", error);
+    };
+
+    roomValueCallback = async (snapshot) => {
+      if (!snapshot.exists()) {
+        if (!gameEnded && !roomMissingTimeoutId) {
+          roomMissingTimeoutId = setTimeout(async () => {
+            roomMissingTimeoutId = null;
+            const { exists } = await safeCheckRoomExists(roomRef);
+            if (!exists) {
+              handleConfirmedRoomMissing();
+            }
+          }, 1500);
+        }
+        return;
+      }
+
+      if (roomMissingTimeoutId) {
+        clearTimeout(roomMissingTimeoutId);
+        roomMissingTimeoutId = null;
+      }
+
       try {
         const resultEl = document.getElementById("voteResults");
         const outcomeEl = document.getElementById("voteOutcome");
@@ -2084,7 +2121,10 @@ function updateRoleDisplay(myData, settings) {
     } catch (err) {
       console.error("[ROOM LISTENER CRASH]", err);
     }
-    });
+    };
+
+    roomRef.on("value", roomValueCallback, roomErrorCallback);
+    roomValueUnsubscribe = () => roomRef.off("value", roomValueCallback);
   }
 
   /** ------------------------
