@@ -114,6 +114,7 @@ let roomValueRef = null;
 let roomValueCallback = null;
 let roomValueUnsubscribe = null;
 let roomMissingTimeoutId = null;
+let roomMissingCounter = 0;
 let lastTieRestartAt = 0;
 
 function clearRoomValueListener() {
@@ -135,7 +136,10 @@ async function safeCheckRoomExists(roomRef) {
   }
 }
 
-function handleConfirmedRoomMissing() {
+function handleConfirmedRoomMissing(expectedRoomCode) {
+  if (expectedRoomCode && expectedRoomCode !== currentRoomCode) {
+    return;
+  }
   if (roomMissingTimeoutId) {
     clearTimeout(roomMissingTimeoutId);
     roomMissingTimeoutId = null;
@@ -157,60 +161,63 @@ if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
 
       if (currentRoomCode && currentPlayerName) {
         const roomRef = window.db.ref("rooms/" + currentRoomCode);
+        try {
+          const snapshot = await roomRef.get();
+          if (!snapshot.exists()) {
+            clearStoragePreservePromo();
+            showSetupJoin();
+            return;
+          }
 
-        showRoomUI(currentRoomCode, currentPlayerName, isCreator);
-        listenPlayersAndRoom(currentRoomCode);
-        gameLogic.listenRoom(currentRoomCode);
+          const roomData = snapshot.val();
+          const uid = user.uid;
 
-        const { exists, snapshot } = await safeCheckRoomExists(roomRef);
-        if (!exists) {
-          handleConfirmedRoomMissing();
-          return;
-        }
+          showRoomUI(currentRoomCode, currentPlayerName, isCreator);
+          listenPlayersAndRoom(currentRoomCode);
+          gameLogic.listenRoom(currentRoomCode);
 
-        if (!snapshot) return;
+          if (
+            roomData?.eliminated &&
+            roomData.eliminated[uid] &&
+            roomData.status !== "finished"
+          ) {
+            wasEliminated = true;
+            showEliminationOverlay(currentRoomCode);
+            return;
+          }
 
-        const roomData = snapshot.val();
-        const uid = user.uid;
-
-        if (
-          roomData?.eliminated &&
-          roomData.eliminated[uid] &&
-          roomData.status !== "finished"
-        ) {
-          wasEliminated = true;
-          showEliminationOverlay(currentRoomCode);
-          return;
-        }
-
-        const playerRef = window.db.ref(
-          `rooms/${currentRoomCode}/players/${uid}`
-        );
-        if (
-          typeof currentPlayerName === "string" &&
-          currentPlayerName.trim() !== ""
-        ) {
-          playerRef.set({ name: currentPlayerName, isCreator });
-        } else {
-          console.error(
-            "Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı."
+          const playerRef = window.db.ref(
+            `rooms/${currentRoomCode}/players/${uid}`
           );
-        }
+          if (
+            typeof currentPlayerName === "string" &&
+            currentPlayerName.trim() !== ""
+          ) {
+            playerRef.update({ name: currentPlayerName, isCreator });
+          } else {
+            console.error(
+              "Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı."
+            );
+          }
 
-        if (
-          roomData &&
-          roomData.status === "started" &&
-          roomData.playerRoles &&
-          roomData.playerRoles[currentUid]
-        ) {
-          document.getElementById("leaveRoomBtn")?.classList.add("hidden");
-          document
-            .getElementById("backToHomeBtn")
-            ?.classList.remove("hidden");
-          const myData = roomData.playerRoles[currentUid];
-          document.getElementById("roomInfo").classList.add("hidden");
-          document.getElementById("playerRoleInfo").classList.remove("hidden");
-          updateRoleDisplay(myData, roomData.settings);
+          if (
+            roomData &&
+            roomData.status === "started" &&
+            roomData.playerRoles &&
+            roomData.playerRoles[currentUid]
+          ) {
+            document.getElementById("leaveRoomBtn")?.classList.add("hidden");
+            document
+              .getElementById("backToHomeBtn")
+              ?.classList.remove("hidden");
+            const myData = roomData.playerRoles[currentUid];
+            document.getElementById("roomInfo").classList.add("hidden");
+            document.getElementById("playerRoleInfo").classList.remove("hidden");
+            updateRoleDisplay(myData, roomData.settings);
+          }
+        } catch (error) {
+          console.error("Oda bilgisi alınamadı", error);
+          showSetupJoin();
         }
       } else {
         showSetupJoin();
@@ -1443,6 +1450,7 @@ function updateRoleDisplay(myData, settings) {
 
     const roomRef = window.db.ref("rooms/" + roomCode);
     roomValueRef = roomRef;
+    roomMissingCounter = 0;
 
     const roomErrorCallback = (error) => {
       console.error("[ROOM LISTEN FAILED - NON-BLOCKING]", error);
@@ -1450,18 +1458,24 @@ function updateRoleDisplay(myData, settings) {
 
     roomValueCallback = async (snapshot) => {
       if (!snapshot.exists()) {
+        roomMissingCounter += 1;
         if (!gameEnded && !roomMissingTimeoutId) {
           roomMissingTimeoutId = setTimeout(async () => {
             roomMissingTimeoutId = null;
             const { exists } = await safeCheckRoomExists(roomRef);
-            if (!exists) {
-              handleConfirmedRoomMissing();
+            roomMissingCounter = exists ? 0 : roomMissingCounter + 1;
+            if (roomMissingCounter >= 3) {
+              handleConfirmedRoomMissing(roomCode);
             }
           }, 1500);
+        }
+        if (roomMissingCounter >= 3) {
+          handleConfirmedRoomMissing(roomCode);
         }
         return;
       }
 
+      roomMissingCounter = 0;
       if (roomMissingTimeoutId) {
         clearTimeout(roomMissingTimeoutId);
         roomMissingTimeoutId = null;
@@ -1573,7 +1587,7 @@ function updateRoleDisplay(myData, settings) {
         if (currentPlayerName) {
           window.db
             .ref(`rooms/${roomCode}/players/${currentUid}`)
-            .set({ name: currentPlayerName, isCreator });
+            .update({ name: currentPlayerName, isCreator });
         }
 
         const overlay = document.getElementById("resultOverlay");
