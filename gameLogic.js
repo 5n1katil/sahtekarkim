@@ -1781,17 +1781,30 @@ finalizeVoting: function (roomCode, reason) {
       let nextGamePhase = "results";
       const finalUpdates = {};
 
-      if (spyAlive === 0) {
-        nextStatus = "finished";
-        nextWinner = "innocent";
-        appendFinalSpyInfo(finalUpdates, room);
-        nextGamePhase = "ended";
-      } else if (aliveCount === 2 && spyAlive === 1) {
-        nextStatus = "finished";
-        nextWinner = "spy";
-        finalUpdates.spyParityWin = true;
-        nextGamePhase = "ended";
-      }
+// 🎯 KAZANMA KOŞULLARI (DOĞRU HALİ)
+
+// 1️⃣ Tüm sahtekarlar elendiyse → masumlar kazanır
+if (spyAlive === 0) {
+  nextStatus = "finished";
+  nextWinner = "innocent";
+  appendFinalSpyInfo(finalUpdates, room);
+  nextGamePhase = "ended";
+}
+
+// 2️⃣ SADECE son 2 kişi kaldıysa ve 1’i sahtekarsa → sahtekar kazanır
+else if (aliveCount === 2 && spyAlive === 1) {
+  nextStatus = "finished";
+  nextWinner = "spy";
+  finalUpdates.spyParityWin = true;
+  nextGamePhase = "ended";
+}
+
+// 3️⃣ Diğer tüm durumlarda oyun DEVAM EDER
+else {
+  nextStatus = room.status;
+  nextWinner = null;
+  nextGamePhase = "results";
+}
 
       const resultPayload = {
         ...(votingState.result || {}),
