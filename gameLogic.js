@@ -1888,14 +1888,19 @@ if (!isTie && eliminatedUid) {
       }
 
       return nextRoom;
-    }).then((result) => {
-      if (!result.committed) return;
+    })
+    .then((result) => {
+      if (!result?.committed) return;
+
       const roomData = result.snapshot?.val();
+      if (!roomData) return;
+
       const votingResult = roomData?.voting?.result;
       const votingStatus = roomData?.voting?.status;
       const finalizedAt = votingResult?.finalizedAt;
       const phase = roomData?.phase;
       const gamePhase = roomData?.game?.phase;
+
       const isEnded =
         roomData?.status === "finished" ||
         phase === "ended" ||
@@ -1911,9 +1916,7 @@ if (!isTie && eliminatedUid) {
       });
 
       const warnings = [];
-      if (!votingStatus) {
-        warnings.push("Missing rooms/{room}/voting/status");
-      }
+      if (!votingStatus) warnings.push("Missing rooms/{room}/voting/status");
       if (finalizedAt === undefined || finalizedAt === null) {
         warnings.push("Missing voting.result.finalizedAt");
       }
@@ -1926,42 +1929,41 @@ if (!isTie && eliminatedUid) {
           warnings,
         });
       }
-if (roomData?.status === "finished" && votingResult?.eliminatedUid) {
-  const eliminatedName =
-    votingResult.eliminatedName || votingResult.eliminatedUid;
 
-  const winner = normalizeWinnerValue(
-    roomData.winner === "innocent" ? "innocents" : roomData.winner
-  );
+      // ✅ Sadece oyun bittiyse ve elimizde elimine edilen varsa gameOver'u finalize et
+      if (roomData?.status !== "finished") return;
+      if (!votingResult?.eliminatedUid) return;
 
-  getSpyNamesForMessage(roomCode, roomData).then(({ spyNames }) => {
-    const spyIntro = formatSpyIntro(spyNames);
+      const eliminatedName =
+        votingResult.eliminatedName || votingResult.eliminatedUid;
 
-    const message =
-      winner === "innocents"
-        ? `Sahtekar ${eliminatedName} elendi! Oyunu masumlar kazandı!`
-        : `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`;
+      // roomData.winner "innocent/spy" veya "innocents/spies" olabilir → normalize ediyoruz
+      const winner = normalizeWinnerValue(
+        roomData.winner === "innocent"
+          ? "innocents"
+          : roomData.winner === "spy"
+            ? "spies"
+            : roomData.winner
+      );
 
-    finalizeGameOver(roomCode, roomData, {
-      winner,
-      reason: "vote",
-      eliminatedUid: votingResult.eliminatedUid,
-      eliminatedName,
-      message,
-    });
-  });
-}
+      return getSpyNamesForMessage(roomCode, roomData).then(({ spyNames }) => {
+        const spyIntro = formatSpyIntro(spyNames);
 
-    finalizeGameOver(roomCode, roomData, {
-      winner,
-      reason: "vote",
-      eliminatedUid: votingResult.eliminatedUid,
-      eliminatedName,
-      message,
-    });
-  });
-}
-    }).catch((err) => {
+        const message =
+          winner === "innocents"
+            ? `Sahtekar ${eliminatedName} elendi! Oyunu masumlar kazandı!`
+            : `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`;
+
+        return finalizeGameOver(roomCode, roomData, {
+          winner,
+          reason: "vote",
+          eliminatedUid: votingResult.eliminatedUid,
+          eliminatedName,
+          message,
+        });
+      });
+    })
+    .catch((err) => {
       console.error("[finalizeVoting] error", err);
     });
   },
