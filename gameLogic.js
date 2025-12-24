@@ -2319,6 +2319,17 @@ else {
   },
 
   checkSpyWin: function (roomCode, latestData) {
+    const shouldSkipSpyCheck = (data) =>
+      Boolean(
+        data?.voting?.status ||
+          data?.game?.phase === "results" ||
+          data?.status === "finished"
+      );
+
+    if (shouldSkipSpyCheck(latestData)) {
+      return Promise.resolve(false);
+    }
+
     const ref = window.db.ref("rooms/" + roomCode);
     const dataPromise = latestData
       ? Promise.resolve(latestData)
@@ -2326,6 +2337,7 @@ else {
 
     return dataPromise.then((data) => {
       if (!data) return false;
+      if (shouldSkipSpyCheck(data)) return false;
       const activePlayers = getActivePlayers(data.playerRoles, data.players);
       const activeUids = activePlayers.map((p) => p.uid);
       const activeSpies = getSpyUids(data.spies).filter((s) =>
