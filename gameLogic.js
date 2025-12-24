@@ -1807,6 +1807,27 @@ finalizeVoting: function (roomCode, reason) {
         nextGamePhase = "results";
       }
 
+      // Harmless sanity scenarios around vote resolution (counts derived from getAliveUids/getSpyUids)
+      console.assert(
+        !(spyAlive === 2 && innocentAlive === 1 && !isTie && eliminatedUid && !eliminatedRole?.isSpy) ||
+          nextWinner === "spy",
+        "2 spies + 2 innocents, innocent eliminated -> spies should win"
+      );
+      console.assert(
+        !(spyAlive === 1 && innocentAlive === 1 && !isTie && eliminatedUid && !eliminatedRole?.isSpy) ||
+          nextWinner === "spy",
+        "1 spy + 2 innocents, innocent eliminated -> spies should win"
+      );
+      console.assert(
+        !(spyAlive === 1 && innocentAlive === 2 && !isTie && eliminatedUid && eliminatedRole?.isSpy) ||
+          nextStatus !== "finished",
+        "2 spies + 2 innocents, spy eliminated -> game should continue"
+      );
+      console.assert(
+        spyAlive !== 0 || (nextWinner === "innocent" && nextStatus === "finished"),
+        "Any state with 0 spies -> innocents should win"
+      );
+
       const resultPayload = {
         ...(votingState.result || {}),
         round: votingRound,
