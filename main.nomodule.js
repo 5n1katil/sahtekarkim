@@ -1556,15 +1556,28 @@
       });
     },
     checkSpyWin: function (roomCode, latestData) {
+      const isVotingOrResultsPhase = data => Boolean(data?.voting?.status || data?.game?.phase === "results" || data?.game?.phase === "voting");
+      const shouldSkipSpyCheck = data => Boolean(isVotingOrResultsPhase(data) || data?.status === "finished");
+      const shouldExitEarly = data => {
+        if (!data) return false;
+        if (shouldSkipSpyCheck(data)) return true;
+        const activePlayers = getActivePlayers(data.playerRoles, data.players);
+        return activePlayers.length > 2;
+      };
+      if (shouldExitEarly(room) || shouldExitEarly(latestData)) {
+        return Promise.resolve(false);
+      }
       const ref = window.db.ref("rooms/" + roomCode);
       const dataPromise = latestData ? Promise.resolve(latestData) : ref.get().then(snap => snap.exists() ? snap.val() : null);
       return dataPromise.then(data => {
         if (!data) return false;
+        if (shouldExitEarly(data)) return false;
         const activePlayers = getActivePlayers(data.playerRoles, data.players);
         const activeUids = activePlayers.map(p => p.uid);
         const activeSpies = getSpyUids$1(data.spies).filter(s => activeUids.includes(s));
-        const innocentCount = activeUids.length - activeSpies.length;
-        if (innocentCount <= 1) {
+        const aliveCount = activeUids.length;
+        const spyAlive = activeSpies.length;
+        if (aliveCount === 2 && spyAlive === 1) {
           const updates = appendFinalSpyInfo({
             status: "finished",
             winner: "spy",
