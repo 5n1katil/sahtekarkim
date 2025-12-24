@@ -1166,11 +1166,19 @@ export const gameLogic = {
       const roomRef = window.db.ref(`rooms/${roomCode}`);
       roomRef.get().then((snap) => {
         const data = snap.val();
-        const creatorUid = data?.settings?.creatorUid;
+        const resolvedCreatorUid =
+          data?.settings?.creatorUid ||
+          data?.creatorUid ||
+          Object.entries(data?.players || {}).find(([, player]) =>
+            Boolean(player?.isCreator)
+          )?.[0];
+
+        // Only close the lobby when we know the creator is missing before start.
         if (
           data &&
           data.status !== "started" &&
-          (!creatorUid || !uids.includes(creatorUid))
+          resolvedCreatorUid &&
+          !uids.includes(resolvedCreatorUid)
         ) {
           roomRef.remove();
           localStorage.clear();
