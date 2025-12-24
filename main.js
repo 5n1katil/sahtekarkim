@@ -116,6 +116,31 @@ let roomValueUnsubscribe = null;
 let roomMissingTimeoutId = null;
 let roomMissingCounter = 0;
 let lastTieRestartAt = 0;
+const authReadyPromise = window.authReady || Promise.resolve();
+let reconnectNotice = null;
+
+function showConnectionNotice(message, tone = "info") {
+  const banner = document.getElementById("connectionBanner");
+  if (!banner) return;
+  reconnectNotice = { message, tone };
+  banner.textContent = message;
+  banner.classList.remove("hidden", "warning", "info");
+  if (tone === "warning") {
+    banner.classList.add("warning");
+  } else {
+    banner.classList.add("info");
+  }
+}
+
+function clearConnectionNotice(messageToKeep) {
+  if (messageToKeep && reconnectNotice?.message !== messageToKeep) return;
+  reconnectNotice = null;
+  const banner = document.getElementById("connectionBanner");
+  if (!banner) return;
+  banner.textContent = "";
+  banner.classList.add("hidden");
+  banner.classList.remove("warning", "info");
+}
 
 function clearRoomValueListener() {
   if (roomValueUnsubscribe) {
@@ -136,10 +161,17 @@ async function safeCheckRoomExists(roomRef) {
   }
 }
 
-function handleConfirmedRoomMissing(expectedRoomCode) {
+async function handleConfirmedRoomMissing(expectedRoomCode, options = {}) {
+  const roomCode = expectedRoomCode || currentRoomCode;
   if (expectedRoomCode && expectedRoomCode !== currentRoomCode) {
     return;
   }
+
+  if (!options.confirmedByGet && roomCode) {
+    const { exists } = await safeCheckRoomExists(window.db.ref(`rooms/${roomCode}`));
+    if (exists) return;
+  }
+
   if (roomMissingTimeoutId) {
     clearTimeout(roomMissingTimeoutId);
     roomMissingTimeoutId = null;
@@ -149,83 +181,161 @@ function handleConfirmedRoomMissing(expectedRoomCode) {
   currentRoomCode = null;
   currentPlayerName = null;
   isCreator = false;
+  showConnectionNotice("Oda bulunamadı veya silindi.", "warning");
   showSetupJoin();
 }
+
 if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
-  window.auth.onAuthStateChanged(async (user) => {
-    currentUid = user ? user.uid : null;
-    if (user) {
-      currentRoomCode = localStorage.getItem("roomCode") || null;
-      currentPlayerName = localStorage.getItem("playerName") || null;
-      isCreator = localStorage.getItem("isCreator") === "true";
+  showConnectionNotice("Oturum doğrulanıyor...");
 
-      if (currentRoomCode && currentPlayerName) {
-        const roomRef = window.db.ref("rooms/" + currentRoomCode);
-        try {
-          const snapshot = await roomRef.get();
-          if (!snapshot.exists()) {
-            clearStoragePreservePromo();
-            showSetupJoin();
-            return;
-          }
+  authReadyPromise
+    .catch((err) => {
+      console.error("Auth persistence hazırlanamadı", err);
+      showConnectionNotice(
+        "Bağlantı sorunu yaşandı, yeniden deniyoruz...",
+        "warning"
+      );
+    })
+    .finally(() => {
+      window.auth.onAuthStateChanged(async (user) => {
+        currentUid = user ? user.uid : null;
 
-          const roomData = snapshot.val();
-          const uid = user.uid;
-
-          showRoomUI(currentRoomCode, currentPlayerName, isCreator);
-          listenPlayersAndRoom(currentRoomCode);
-          gameLogic.listenRoom(currentRoomCode);
-
-          if (
-            roomData?.eliminated &&
-            roomData.eliminated[uid] &&
-            roomData.status !== "finished"
-          ) {
-            wasEliminated = true;
-            showEliminationOverlay(currentRoomCode);
-            return;
-          }
-
-          const playerRef = window.db.ref(
-            `rooms/${currentRoomCode}/players/${uid}`
+        if (!user) {
+          showConnectionNotice(
+            "Oturum açılamadı. Lütfen tekrar deneyin.",
+            "warning"
           );
-          if (
-            typeof currentPlayerName === "string" &&
-            currentPlayerName.trim() !== ""
-          ) {
-            playerRef.update({ name: currentPlayerName, isCreator });
-          } else {
-            console.error(
-              "Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı."
-            );
-          }
+          showSetupJoin();
+          return;
+        }
 
-          if (
-            roomData &&
-            roomData.status === "started" &&
-            roomData.playerRoles &&
-            roomData.playerRoles[currentUid]
-          ) {
-            document.getElementById("leaveRoomBtn")?.classList.add("hidden");
-            document
-              .getElementById("backToHomeBtn")
-              ?.classList.remove("hidden");
-            const myData = roomData.playerRoles[currentUid];
-            document.getElementById("roomInfo").classList.add("hidden");
-            document.getElementById("playerRoleInfo").classList.remove("hidden");
-            updateRoleDisplay(myData, roomData.settings);
+        currentRoomCode = localStorage.getItem("roomCode") || null;
+        currentPlayerName = localStorage.getItem("playerName") || null;
+        isCreator = localStorage.getItem("isCreator") === "true";
+
+        if (currentRoomCode && currentPlayerName) {
+          const roomRef = window.db.ref("rooms/" + currentRoomCode);
+          showConnectionNotice("Odaya bağlanılıyor...");
+          try {
+            const snapshot = await roomRef.get();
+            if (!snapshot.exists()) {
+              await handleConfirmedRoomMissing(currentRoomCode);
+              return;
+            }
+
+            const roomData = snapshot.val();
+            const uid = user.uid;
+            const players = roomData?.players || {};
+            let resolvedUid = uid;
+
+            if (!players[uid] && currentPlayerName) {
+              const previousUid = Object.keys(players).find(
+                (key) => players[key]?.name === currentPlayerName
+              );
+
+              if (previousUid) {
+                showConnectionNotice("Yeniden bağlanılıyor...");
+                const previousPlayer = players[previousUid] || {};
+                const updates = {};
+                const normalizedPlayer = {
+                  ...previousPlayer,
+                  name: currentPlayerName,
+                  isCreator,
+                };
+
+                updates[`rooms/${currentRoomCode}/players/${uid}`] = normalizedPlayer;
+                updates[`rooms/${currentRoomCode}/players/${previousUid}`] = null;
+
+                if (roomData.playerRoles?.[previousUid]) {
+                  updates[`rooms/${currentRoomCode}/playerRoles/${uid}`] =
+                    roomData.playerRoles[previousUid];
+                  updates[`rooms/${currentRoomCode}/playerRoles/${previousUid}`] = null;
+                }
+
+                try {
+                  await window.db.ref().update(updates);
+                  resolvedUid = uid;
+                } catch (moveErr) {
+                  console.warn("Eski oyuncu kaydı taşınamadı", moveErr);
+                  showConnectionNotice(
+                    "Yeniden bağlanılamadı, lütfen tekrar katılmayı deneyin.",
+                    "warning"
+                  );
+                  showSetupJoin();
+                  return;
+                }
+              } else {
+                showConnectionNotice(
+                  "Oyuncu kaydın bulunamadı, lütfen yeniden katıl.",
+                  "warning"
+                );
+                showSetupJoin();
+                return;
+              }
+            }
+
+            showRoomUI(currentRoomCode, currentPlayerName, isCreator);
+            listenPlayersAndRoom(currentRoomCode);
+            gameLogic.listenRoom(currentRoomCode);
+            clearConnectionNotice();
+
+            if (
+              roomData?.eliminated &&
+              roomData.eliminated[resolvedUid] &&
+              roomData.status !== "finished"
+            ) {
+              wasEliminated = true;
+              showEliminationOverlay(currentRoomCode);
+              return;
+            }
+
+            const playerRef = window.db.ref(
+              `rooms/${currentRoomCode}/players/${resolvedUid}`
+            );
+            if (
+              typeof currentPlayerName === "string" &&
+              currentPlayerName.trim() !== ""
+            ) {
+              playerRef
+                .update({ name: currentPlayerName, isCreator })
+                .catch((err) =>
+                  console.error("Oyuncu kaydı güncellenemedi", err)
+                );
+            } else {
+              console.error(
+                "Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı."
+              );
+            }
+
+            if (
+              roomData &&
+              roomData.status === "started" &&
+              roomData.playerRoles &&
+              roomData.playerRoles[resolvedUid]
+            ) {
+              document.getElementById("leaveRoomBtn")?.classList.add("hidden");
+              document
+                .getElementById("backToHomeBtn")
+                ?.classList.remove("hidden");
+              const myData = roomData.playerRoles[resolvedUid];
+              document.getElementById("roomInfo").classList.add("hidden");
+              document.getElementById("playerRoleInfo").classList.remove("hidden");
+              updateRoleDisplay(myData, roomData.settings);
+            }
+          } catch (error) {
+            console.error("Oda bilgisi alınamadı", error);
+            showConnectionNotice(
+              "Odaya bağlanırken sorun oluştu, lütfen tekrar deneyin.",
+              "warning"
+            );
+            showSetupJoin();
           }
-        } catch (error) {
-          console.error("Oda bilgisi alınamadı", error);
+        } else {
+          clearConnectionNotice();
           showSetupJoin();
         }
-      } else {
-        showSetupJoin();
-      }
-    } else {
-      showSetupJoin();
-    }
-  });
+      });
+    });
 } else {
   console.warn("Firebase Auth yüklenmedi, temel arayüz başlatılıyor");
   showSetupJoin();
@@ -1454,23 +1564,30 @@ function updateRoleDisplay(myData, settings) {
 
     const roomErrorCallback = (error) => {
       console.error("[ROOM LISTEN FAILED - NON-BLOCKING]", error);
+      showConnectionNotice(
+        "Odaya erişilemiyor, yeniden bağlanılıyor...",
+        "warning"
+      );
     };
 
     roomValueCallback = async (snapshot) => {
       if (!snapshot.exists()) {
         roomMissingCounter += 1;
+        showConnectionNotice("Odaya yeniden bağlanılıyor...");
         if (!gameEnded && !roomMissingTimeoutId) {
           roomMissingTimeoutId = setTimeout(async () => {
             roomMissingTimeoutId = null;
             const { exists } = await safeCheckRoomExists(roomRef);
-            roomMissingCounter = exists ? 0 : roomMissingCounter + 1;
-            if (roomMissingCounter >= 3) {
-              handleConfirmedRoomMissing(roomCode);
+            if (exists) {
+              roomMissingCounter = 0;
+              clearConnectionNotice();
+            } else {
+              roomMissingCounter += 1;
+              if (roomMissingCounter >= 3) {
+                await handleConfirmedRoomMissing(roomCode, { confirmedByGet: true });
+              }
             }
           }, 1500);
-        }
-        if (roomMissingCounter >= 3) {
-          handleConfirmedRoomMissing(roomCode);
         }
         return;
       }
@@ -1480,72 +1597,73 @@ function updateRoleDisplay(myData, settings) {
         clearTimeout(roomMissingTimeoutId);
         roomMissingTimeoutId = null;
       }
+      clearConnectionNotice();
 
       try {
         const resultEl = document.getElementById("voteResults");
         const outcomeEl = document.getElementById("voteOutcome");
         const roomData = snapshot.val();
         latestRoomData = roomData;
-      const prevStatus = lastRoomStatus;
-      lastRoomStatus = roomData ? roomData.status : null;
-      const currentRoundId = roomData?.roundId || null;
-      const currentRoundNumber = roomData?.round ?? null;
-      const roundIdChanged =
-        currentRoundId !== null &&
-        lastRoundId !== null &&
-        currentRoundId !== lastRoundId;
-      const roundNumberChanged =
-        currentRoundNumber !== null &&
-        lastRoundNumber !== null &&
-        currentRoundNumber !== lastRoundNumber;
-      const roundChanged = roundIdChanged || roundNumberChanged;
-      const roundResetNeeded =
-        roomData?.status === "waiting" &&
-        ((currentRoundId === null && lastRoundId !== null) ||
-          (currentRoundNumber === null && lastRoundNumber !== null));
-      if (roundChanged || roundResetNeeded) {
-        resetLocalRoundState();
-      }
-      lastRoundId = currentRoundId;
-      lastRoundNumber = currentRoundNumber;
+        const prevStatus = lastRoomStatus;
+        lastRoomStatus = roomData ? roomData.status : null;
+        const currentRoundId = roomData?.roundId || null;
+        const currentRoundNumber = roomData?.round ?? null;
+        const roundIdChanged =
+          currentRoundId !== null &&
+          lastRoundId !== null &&
+          currentRoundId !== lastRoundId;
+        const roundNumberChanged =
+          currentRoundNumber !== null &&
+          lastRoundNumber !== null &&
+          currentRoundNumber !== lastRoundNumber;
+        const roundChanged = roundIdChanged || roundNumberChanged;
+        const roundResetNeeded =
+          roomData?.status === "waiting" &&
+          ((currentRoundId === null && lastRoundId !== null) ||
+            (currentRoundNumber === null && lastRoundNumber !== null));
+        if (roundChanged || roundResetNeeded) {
+          resetLocalRoundState();
+        }
+        lastRoundId = currentRoundId;
+        lastRoundNumber = currentRoundNumber;
 
-      const currentVotingResult = isCurrentRoundPayload(
-        roomData,
-        roomData?.voting?.result
-      )
-        ? roomData?.voting?.result
-        : null;
-      const currentVoteResult = isCurrentRoundPayload(
-        roomData,
-        roomData?.voteResult
-      )
-        ? roomData?.voteResult
-        : null;
-      const currentGuessState = isCurrentRoundPayload(roomData, roomData?.guess)
-        ? roomData?.guess
-        : null;
-      const currentLastGuess = isCurrentRoundPayload(
-        roomData,
-        roomData?.lastGuess
-      )
-        ? roomData?.lastGuess
-        : null;
-      const roundSafeGameOver = getGameOverInfo(roomData);
-
-      const resolvedVoteResult = getResolvedVoteResult(roomData);
-      const votingResultFallback =
-        !resolvedVoteResult &&
-        roomData?.voting?.status === "resolved" &&
-        roomData?.voting?.result
-          ? normalizeVotingResult(roomData.voting.result)
+        const currentVotingResult = isCurrentRoundPayload(
+          roomData,
+          roomData?.voting?.result
+        )
+          ? roomData?.voting?.result
           : null;
-      const activeVoteResult = resolvedVoteResult || votingResultFallback;
-      const resolvedResultForOutcome =
-        activeVoteResult ||
-        resolvedVoteResult ||
-        (roomData?.voting?.status === "resolved"
-          ? normalizeVotingResult(roomData?.voting?.result)
-          : null);
+        const currentVoteResult = isCurrentRoundPayload(
+          roomData,
+          roomData?.voteResult
+        )
+          ? roomData?.voteResult
+          : null;
+        const currentGuessState = isCurrentRoundPayload(roomData, roomData?.guess)
+          ? roomData?.guess
+          : null;
+        const currentLastGuess = isCurrentRoundPayload(
+          roomData,
+          roomData?.lastGuess
+        )
+          ? roomData?.lastGuess
+          : null;
+        const roundSafeGameOver = getGameOverInfo(roomData);
+
+        const resolvedVoteResult = getResolvedVoteResult(roomData);
+        const votingResultFallback =
+          !resolvedVoteResult &&
+          roomData?.voting?.status === "resolved" &&
+          roomData?.voting?.result
+            ? normalizeVotingResult(roomData.voting.result)
+            : null;
+        const activeVoteResult = resolvedVoteResult || votingResultFallback;
+        const resolvedResultForOutcome =
+          activeVoteResult ||
+          resolvedVoteResult ||
+          (roomData?.voting?.status === "resolved"
+            ? normalizeVotingResult(roomData?.voting?.result)
+            : null);
       const voteOutcomeContext = buildVoteOutcomeContext(
         roomData,
         activeVoteResult
