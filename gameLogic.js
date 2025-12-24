@@ -2401,7 +2401,7 @@ checkSpyWin: function (roomCode, latestData) {
     }
     return false;
   });
-}
+  },
   nextRound: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref.get().then((snap) => {
