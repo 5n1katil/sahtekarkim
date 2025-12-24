@@ -2140,16 +2140,19 @@ else {
     });
   },
   tallyVotes: function (roomCode) {
-    if (
-      room.voting?.status ||
-      room.game?.phase === "results" ||
-      room.game?.phase === "voting"
-    )
-      return;
     const ref = window.db.ref("rooms/" + roomCode);
     ref.get().then((snap) => {
       if (!snap.exists()) return;
       const data = snap.val();
+
+      if (
+        data?.voting ||
+        data?.game?.phase === "voting" ||
+        data?.game?.phase === "results"
+      ) {
+        return;
+      }
+
       if (isVotingStateMachineActive(data)) return;
       if (data.voting?.status !== "in_progress") return;
       const alivePlayers = getActivePlayers(data.playerRoles, data.players);
