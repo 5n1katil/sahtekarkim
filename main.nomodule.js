@@ -1562,7 +1562,10 @@
         if (!data) return false;
         if (shouldSkipSpyCheck(data)) return true;
         const activePlayers = getActivePlayers(data.playerRoles, data.players);
-        return activePlayers.length > 2;
+        const activeUids = activePlayers.map(p => p.uid);
+        const activeSpies = getSpyUids$1(data.spies).filter(s => activeUids.includes(s));
+        const innocentAlive = activePlayers.length - activeSpies.length;
+        return innocentAlive > 1;
       };
       if (shouldExitEarly(room) || shouldExitEarly(latestData)) {
         return Promise.resolve(false);
@@ -1575,18 +1578,35 @@
         const activePlayers = getActivePlayers(data.playerRoles, data.players);
         const activeUids = activePlayers.map(p => p.uid);
         const activeSpies = getSpyUids$1(data.spies).filter(s => activeUids.includes(s));
-        const aliveCount = activeUids.length;
         const spyAlive = activeSpies.length;
-        if (aliveCount === 2 && spyAlive === 1) {
+        const innocentAlive = activePlayers.length - spyAlive;
+        if (spyAlive === 0) {
           const updates = appendFinalSpyInfo({
             status: "finished",
-            winner: "spy",
-            spyParityWin: true
+            winner: "innocents"
           }, data);
           return ref.update(updates).then(() => getSpyNamesForMessage(roomCode, data)).then(_ref14 => {
             let {
               spyNames
             } = _ref14;
+            const spyIntro = formatSpyIntro$1(spyNames);
+            return finalizeGameOver(roomCode, data, {
+              winner: "innocents",
+              reason: "parity",
+              message: `${spyIntro} arasından son sahtekar elendi ve oyunu masumlar kazandı!`
+            });
+          }).then(() => true);
+        }
+        if (innocentAlive <= 1 && spyAlive > 0) {
+          const updates = appendFinalSpyInfo({
+            status: "finished",
+            winner: "spy",
+            spyParityWin: true
+          }, data);
+          return ref.update(updates).then(() => getSpyNamesForMessage(roomCode, data)).then(_ref15 => {
+            let {
+              spyNames
+            } = _ref15;
             const spyIntro = formatSpyIntro$1(spyNames);
             return finalizeGameOver(roomCode, data, {
               winner: "spies",
