@@ -2115,12 +2115,25 @@ else {
       if (!guessState || !guessState.endsAt) return;
       if (getServerNow() < guessState.endsAt) return;
 
+      const aliveUids = getAlivePlayersFromState(data?.players, data?.playerRoles);
+      const aliveCount = aliveUids.length;
+      const spyAlive = getSpyUids(data?.spies).filter((id) => aliveUids.includes(id)).length;
+
       const updates = { guess: null };
       const votingResult = data.voting?.result;
-      if (votingResult && votingResult.eliminatedUid) {
+      const canInnocentsWin =
+        votingResult &&
+        votingResult.eliminatedUid &&
+        aliveCount === 2 &&
+        spyAlive === 1;
+
+      if (canInnocentsWin) {
         updates.status = "finished";
         updates.winner = "innocent";
         appendFinalSpyInfo(updates, data);
+      } else {
+        ref.update(updates);
+        return;
       }
       const updatePromise = ref.update(updates);
       if (updates.status === "finished") {
