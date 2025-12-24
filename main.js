@@ -120,77 +120,82 @@ if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
 
       if (currentRoomCode && currentPlayerName) {
         const roomRef = window.db.ref("rooms/" + currentRoomCode);
-        roomRef.get().then((roomSnap) => {
-          if (!roomSnap.exists()) {
-            clearStoragePreservePromo();
-            currentRoomCode = null;
-            currentPlayerName = null;
-            isCreator = false;
-            showSetupJoin();
-            return;
-          }
+        roomRef
+          .get()
+          .then((roomSnap) => {
+            if (!roomSnap.exists()) {
+              clearStoragePreservePromo();
+              currentRoomCode = null;
+              currentPlayerName = null;
+              isCreator = false;
+              showSetupJoin();
+              return;
+            }
 
-          const roomData = roomSnap.val();
-          const uid = user.uid;
+            const roomData = roomSnap.val();
+            const uid = user.uid;
 
-          if (
-            roomData?.eliminated &&
-            roomData.eliminated[uid] &&
-            roomData.status !== "finished"
-          ) {
-            wasEliminated = true;
+            if (
+              roomData?.eliminated &&
+              roomData.eliminated[uid] &&
+              roomData.status !== "finished"
+            ) {
+              wasEliminated = true;
+              showRoomUI(currentRoomCode, currentPlayerName, isCreator);
+              showEliminationOverlay(currentRoomCode);
+              listenPlayersAndRoom(currentRoomCode);
+              gameLogic.listenRoom(currentRoomCode);
+              return;
+            }
+
+            const playerRef = window.db.ref(
+              `rooms/${currentRoomCode}/players/${uid}`
+            );
+            if (
+              typeof currentPlayerName === "string" &&
+              currentPlayerName.trim() !== ""
+            ) {
+              playerRef.set({ name: currentPlayerName, isCreator });
+            } else {
+              console.error(
+                "Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı."
+              );
+            }
+
             showRoomUI(currentRoomCode, currentPlayerName, isCreator);
-            showEliminationOverlay(currentRoomCode);
             listenPlayersAndRoom(currentRoomCode);
             gameLogic.listenRoom(currentRoomCode);
-            return;
-          }
 
-          const playerRef = window.db.ref(
-            `rooms/${currentRoomCode}/players/${uid}`
-          );
-          if (
-            typeof currentPlayerName === "string" &&
-            currentPlayerName.trim() !== ""
-          ) {
-            playerRef.set({ name: currentPlayerName, isCreator });
-          } else {
-            console.error(
-              "Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı."
-            );
-          }
-
-          showRoomUI(currentRoomCode, currentPlayerName, isCreator);
-          listenPlayersAndRoom(currentRoomCode);
-          gameLogic.listenRoom(currentRoomCode);
-
-          window.db
-            .ref("rooms/" + currentRoomCode)
-            .once("value", (snapshot) => {
-              const roomData = snapshot.val();
-              if (
-                roomData &&
-                roomData.status === "started" &&
-                roomData.playerRoles &&
-                roomData.playerRoles[currentUid]
-              ) {
-                document
-                  .getElementById("leaveRoomBtn")
-                  ?.classList.add("hidden");
-                document
-                  .getElementById("backToHomeBtn")
-                  ?.classList.remove("hidden");
-                const myData = roomData.playerRoles[currentUid];
-                document
-                  .getElementById("roomInfo")
-                  .classList.add("hidden");
-                document
-                  .getElementById("playerRoleInfo")
-                  .classList.remove("hidden");
-                updateRoleDisplay(myData, roomData.settings);
-              }
-            });
-        });
+            window.db
+              .ref("rooms/" + currentRoomCode)
+              .once("value", (snapshot) => {
+                const roomData = snapshot.val();
+                if (
+                  roomData &&
+                  roomData.status === "started" &&
+                  roomData.playerRoles &&
+                  roomData.playerRoles[currentUid]
+                ) {
+                  document
+                    .getElementById("leaveRoomBtn")
+                    ?.classList.add("hidden");
+                  document
+                    .getElementById("backToHomeBtn")
+                    ?.classList.remove("hidden");
+                  const myData = roomData.playerRoles[currentUid];
+                  document
+                    .getElementById("roomInfo")
+                    .classList.add("hidden");
+                  document
+                    .getElementById("playerRoleInfo")
+                    .classList.remove("hidden");
+                  updateRoleDisplay(myData, roomData.settings);
+                }
+              });
+          })
+          .catch((error) => {
+            console.error("[ROOM GET FAILED]", error);
+          });
       } else {
         showSetupJoin();
       }
@@ -1601,9 +1606,12 @@ function updateRoleDisplay(myData, settings) {
           const actualAnswer = getActualAnswer(roomData);
           const gameType = roomData.settings?.gameType;
           if (!parityHandled) {
+            parityHandled = true;
             showSpyWinOverlay(roomData, finalGuess, gameType, actualAnswer);
           }
-          window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
+          if (isCreator) {
+            window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
+          }
           return;
         }
         if (
@@ -1624,7 +1632,10 @@ function updateRoleDisplay(myData, settings) {
           );
           const actualAnswer = getActualAnswer(roomData);
           const gameType = roomData.settings?.gameType;
-          showSpyFailOverlay(roomData, finalGuess, gameType, actualAnswer);
+          if (!parityHandled) {
+            parityHandled = true;
+            showSpyFailOverlay(roomData, finalGuess, gameType, actualAnswer);
+          }
           return;
         }
         if (!roomData || roomData.status !== "started") {
@@ -1650,7 +1661,6 @@ function updateRoleDisplay(myData, settings) {
         }
 
         updateRoleDisplay(myData, roomData.settings);
-
         if (myData && myData.role) {
           const guessesLeft = myData.guessesLeft ?? 0;
           const roleDisplay = myData.role?.name ?? myData.role;
