@@ -797,7 +797,7 @@ export const gameLogic = {
       creatorUid: uid,
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       status: "waiting",
-      settings: { ...settings, spyGuessLimit },
+      settings: { ...settings, spyGuessLimit, creatorUid: uid },
       players: {
         [uid]: {
           name: creatorName,
@@ -1063,8 +1063,15 @@ export const gameLogic = {
       spyParityWin: null,
       gameOver: null,
       final: null,
-      spiesSnapshot: null,
     });
+
+    const spiesSnapshotSnap = await window.db
+      .ref(`rooms/${roomCode}/spiesSnapshot`)
+      .get();
+    console.assert(
+      spiesSnapshotSnap.exists(),
+      "spiesSnapshot kaydı startGame sonrasında korunamadı"
+    );
   },
 
   restartGame: async function (roomCode) {
@@ -1135,7 +1142,9 @@ export const gameLogic = {
     const uid = await this.getUid();
     if (!uid) return Promise.resolve();
     const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
-    localStorage.clear();
+    ["roomCode", "playerName", "isCreator"].forEach((key) =>
+      localStorage.removeItem(key)
+    );
     return playerRef.remove();
   },
 
@@ -2348,64 +2357,51 @@ else {
     });
   },
 
-  checkSpyWin: function (roomCode, latestData) {
-    const isVotingOrResultsPhase = (data) =>
-      Boolean(
-        data?.voting?.status ||
-          data?.game?.phase === "results" ||
-          data?.game?.phase === "voting"
+checkSpyWin: function (roomCode, latestData) {
+  const isVotingOrResultsPhase = (data) =>
+    Boolean(
+      data?.voting?.status ||
+      data?.game?.phase === "results" ||
+      data?.game?.phase === "voting"
+    );
+
+  const shouldExitEarly = (data) => {
+    if (!data) return true;
+    if (data?.status === "finished") return true;
+    if (isVotingOrResultsPhase(data)) return true;
+    const activePlayers = getActivePlayers(data.playerRoles, data.players);
+    return activePlayers.length > 2; // sadece 2 kişi kalınca parity kontrolü
+  };
+
+  const ref = window.db.ref("rooms/" + roomCode);
+  const dataPromise = latestData
+    ? Promise.resolve(latestData)
+    : ref.get().then((snap) => (snap.exists() ? snap.val() : null));
+
+  return dataPromise.then((data) => {
+    if (shouldExitEarly(data)) return false;
+
+    const activePlayers = getActivePlayers(data.playerRoles, data.players);
+    const activeUids = activePlayers.map((p) => p.uid);
+    const activeSpies = getSpyUids(data.spies).filter((s) => activeUids.includes(s));
+
+    if (activeUids.length === 2 && activeSpies.length === 1) {
+      const updates = appendFinalSpyInfo(
+        { status: "finished", winner: "spy", spyParityWin: true },
+        data
       );
-
-    const shouldSkipSpyCheck = (data) =>
-      Boolean(isVotingOrResultsPhase(data) || data?.status === "finished");
-
-    const shouldExitEarly = (data) => {
-      if (!data) return false;
-      if (shouldSkipSpyCheck(data)) return true;
-      const activePlayers = getActivePlayers(data.playerRoles, data.players);
-      return activePlayers.length > 2;
-    };
-
-    if (shouldExitEarly(room) || shouldExitEarly(latestData)) {
-      return Promise.resolve(false);
+      return ref.update(updates)
+        .then(() => getSpyNamesForMessage(roomCode, data))
+        .then(({ spyNames }) => finalizeGameOver(roomCode, data, {
+          winner: "spies",
+          reason: "parity",
+          message: `${formatSpyIntro(spyNames)} sayıca üstünlük sağladı ve oyunu kazandı!`,
+        }))
+        .then(() => true);
     }
-
-    const ref = window.db.ref("rooms/" + roomCode);
-    const dataPromise = latestData
-      ? Promise.resolve(latestData)
-      : ref.get().then((snap) => (snap.exists() ? snap.val() : null));
-
-    return dataPromise.then((data) => {
-      if (!data) return false;
-      if (shouldExitEarly(data)) return false;
-      const activePlayers = getActivePlayers(data.playerRoles, data.players);
-      const activeUids = activePlayers.map((p) => p.uid);
-      const activeSpies = getSpyUids(data.spies).filter((s) =>
-        activeUids.includes(s)
-      );
-      const aliveCount = activeUids.length;
-      const spyAlive = activeSpies.length;
-      if (aliveCount === 2 && spyAlive === 1) {
-        const updates = appendFinalSpyInfo(
-          { status: "finished", winner: "spy", spyParityWin: true },
-          data
-        );
-        return ref
-          .update(updates)
-          .then(() => getSpyNamesForMessage(roomCode, data))
-          .then(({ spyNames }) => {
-            const spyIntro = formatSpyIntro(spyNames);
-            return finalizeGameOver(roomCode, data, {
-              winner: "spies",
-              reason: "parity",
-              message: `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`,
-            });
-          })
-          .then(() => true);
-      }
-      return false;
-    });
-  },
+    return false;
+  });
+}
   nextRound: function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
     ref.get().then((snap) => {
