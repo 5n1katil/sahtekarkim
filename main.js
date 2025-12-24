@@ -808,9 +808,13 @@ function updateRoleDisplay(myData, settings) {
 
       exitBtn.addEventListener("click", () => {
         hideOverlay();
-        gameLogic.leaveRoom(currentRoomCode).finally(() => {
-          showSetupJoin();
-        });
+        Promise.resolve(gameLogic.leaveRoom(currentRoomCode))
+          .catch((error) => {
+            console.error("[gameEnded overlay] leaveRoom failed", error);
+          })
+          .finally(() => {
+            handleRoomGone("manual exit");
+          });
       });
     } else if (isResultsPhase) {
       if (waitingText) {
@@ -861,9 +865,13 @@ function updateRoleDisplay(myData, settings) {
       exitBtn.addEventListener("click", () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
-        gameLogic.leaveRoom(currentRoomCode).finally(() => {
-          showSetupJoin();
-        });
+        Promise.resolve(gameLogic.leaveRoom(currentRoomCode))
+          .catch((error) => {
+            console.error("[results overlay] leaveRoom failed", error);
+          })
+          .finally(() => {
+            handleRoomGone("manual exit");
+          });
       });
     } else if (!isEliminatedPlayer) {
       const btn = document.createElement("button");
@@ -1208,9 +1216,13 @@ function updateRoleDisplay(myData, settings) {
     }
     exitBtn.addEventListener("click", () => {
       hideOverlay();
-      gameLogic.leaveRoom(currentRoomCode).finally(() => {
-        showSetupJoin();
-      });
+      Promise.resolve(gameLogic.leaveRoom(currentRoomCode))
+        .catch((error) => {
+          console.error("[spyWin overlay] leaveRoom failed", error);
+        })
+        .finally(() => {
+          handleRoomGone("manual exit");
+        });
     });
   }
 
@@ -1304,9 +1316,13 @@ function updateRoleDisplay(myData, settings) {
 
     exitBtn.addEventListener("click", () => {
       hideOverlay();
-      gameLogic.leaveRoom(currentRoomCode).finally(() => {
-        showSetupJoin();
-      });
+      Promise.resolve(gameLogic.leaveRoom(currentRoomCode))
+        .catch((error) => {
+          console.error("[spyFail overlay] leaveRoom failed", error);
+        })
+        .finally(() => {
+          handleRoomGone("manual exit");
+        });
     });
   }
 
