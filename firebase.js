@@ -46,7 +46,7 @@ offsetRef.on("value", (snap) => {
 window.serverTime = serverTime;
 
 // 4) Sign in anonymously ONCE with persistence
-auth
+const authReady = auth
   .setPersistence(firebase.auth.Auth.Persistence.LOCAL)
   .then(() => {
     if (auth.currentUser) return auth.currentUser; // already signed in
@@ -54,12 +54,17 @@ auth
   })
   .then((user) => {
     if (user?.uid) console.log("Anonim giriş başarılı. UID:", user.uid);
+    return user;
   })
   .catch((err) => {
     console.error("Anonim giriş/persistence hatası:", err.code, err.message);
+    throw err;
   });
 
 // 5) Listen for auth state changes
 auth.onAuthStateChanged((user) => {
   window.myUid = user ? user.uid : null;
 });
+
+// 6) Expose auth readiness promise for consumers
+window.authReady = authReady;
