@@ -1666,6 +1666,9 @@
   }
   function clearStoragePreservePromo() {
     const promoDismissedFlag = localStorage.getItem("promoModalDismissed");
+    localStorage.removeItem("roomCode");
+    localStorage.removeItem("playerName");
+    localStorage.removeItem("isCreator");
     localStorage.clear();
     if (promoDismissedFlag) {
       localStorage.setItem("promoModalDismissed", promoDismissedFlag);
@@ -3194,10 +3197,14 @@
     joinRoomBtn.addEventListener("pointerdown", handleJoinRoom);
     document.getElementById("leaveRoomBtn").addEventListener("click", () => {
       const action = isCreator ? gameLogic.deleteRoom(currentRoomCode) : gameLogic.leaveRoom(currentRoomCode);
-      Promise.resolve(action).then(() => {
-        clearStoragePreservePromo();
-        location.reload();
-      });
+      Promise.resolve(action)
+        .catch(error => {
+          console.error("[leaveRoomBtn] room action failed", error);
+        })
+        .finally(() => {
+          clearStoragePreservePromo();
+          window.location.replace("./index.html");
+        });
     });
     document.getElementById("startGameBtn").addEventListener("click", async e => {
       if (!currentRoomCode) {
