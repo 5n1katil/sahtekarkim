@@ -796,13 +796,7 @@ function updateRoleDisplay(myData, settings) {
 
       if (restartBtn) {
         restartBtn.addEventListener("click", () => {
-          hideOverlay();
-          gameEnded = false;
-          parityHandled = false;
-          lastVoteResult = null;
-          lastGuessEvent = null;
-          restartBtn.disabled = true;
-          gameLogic.restartGame(currentRoomCode);
+          handleRestart(restartBtn, hideOverlay);
         });
       }
 
@@ -831,12 +825,7 @@ function updateRoleDisplay(myData, settings) {
         restartBtn.textContent = "Oyunu yeniden başlat";
         overlay.appendChild(restartBtn);
         restartBtn.addEventListener("click", () => {
-          restartBtn.disabled = true;
-          gameEnded = false;
-          parityHandled = false;
-          lastVoteResult = null;
-          lastGuessEvent = null;
-          gameLogic.restartGame(currentRoomCode);
+          handleRestart(restartBtn);
         });
       }
 
@@ -1205,13 +1194,7 @@ function updateRoleDisplay(myData, settings) {
 
     if (restartBtn) {
       restartBtn.addEventListener("click", () => {
-        hideOverlay();
-        gameEnded = false;
-        parityHandled = false;
-        lastVoteResult = null;
-        lastGuessEvent = null;
-        restartBtn.disabled = true;
-        gameLogic.restartGame(currentRoomCode);
+        handleRestart(restartBtn, hideOverlay);
       });
     }
     exitBtn.addEventListener("click", () => {
@@ -1304,13 +1287,7 @@ function updateRoleDisplay(myData, settings) {
 
     if (restartBtn) {
       restartBtn.addEventListener("click", () => {
-        hideOverlay();
-        gameEnded = false;
-        parityHandled = false;
-        lastVoteResult = null;
-        lastGuessEvent = null;
-        restartBtn.disabled = true;
-        gameLogic.restartGame(currentRoomCode);
+        handleRestart(restartBtn, hideOverlay);
       });
     }
 
@@ -1565,6 +1542,19 @@ function updateRoleDisplay(myData, settings) {
       overlay.classList.remove("impostor-animation", "innocent-animation");
       overlay.innerHTML = "";
     }
+  }
+
+  function handleRestart(restartBtn, hideOverlay) {
+    if (restartBtn) {
+      restartBtn.disabled = true;
+    }
+
+    if (typeof hideOverlay === "function") {
+      hideOverlay();
+    }
+
+    resetLocalRoundState();
+    gameLogic.restartGame(currentRoomCode);
   }
 
   function handleRoomGone(reason, options = {}) {
