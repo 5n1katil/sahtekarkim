@@ -2322,6 +2322,9 @@ function showSetupJoin() {
   document.getElementById("gameActions").classList.add("hidden");
 }
 
+// Export for use in other modules (e.g., cleanup when a room disappears)
+window.showSetupJoin = showSetupJoin;
+
 /** ------------------------
  *  EVENT LISTENERS
  * ------------------------ */
