@@ -1803,6 +1803,28 @@ const remainingSpies = getSpyUids(room.spies).filter((id) =>
         roundId: room.roundId || null,
       };
 
+// Public message: oyun bitmediyse rol ifşası yok
+if (!isTie && eliminatedUid) {
+  const publicName = eliminatedName || eliminatedUid;
+
+  if (nextStatus === "finished") {
+    // Oyun bittiyse final mesajları
+    const normalizedWinner = normalizeWinnerValue(nextWinner);
+    if (normalizedWinner === "innocents") {
+      // Oyun bittiği için burada ifşa edebiliriz
+      resultPayload.publicMessage = `Sahtekar ${publicName} elendi! Oyunu masumlar kazandı!`;
+      resultPayload.revealSpies = true;
+    } else {
+      resultPayload.publicMessage = `${publicName} elendi! Sahtekarlar sayıca üstünlük sağladı ve oyunu kazandı!`;
+      resultPayload.revealSpies = true;
+    }
+  } else {
+    // Oyun bitmediyse: rol söyleme!
+    resultPayload.publicMessage = `${publicName} elendi! Fakat oyun henüz bitmiş değil...`;
+    resultPayload.revealSpies = false;
+  }
+}
+      
       if (reason) {
         resultPayload.reason = reason;
       }
@@ -1908,22 +1930,27 @@ if (roomData?.status === "finished" && votingResult?.eliminatedUid) {
   const eliminatedName =
     votingResult.eliminatedName || votingResult.eliminatedUid;
 
-  const winner =
-    roomData.winner === "innocent" ? "innocents" : roomData.winner;
-
-  const eliminatedWasSpy = !!votingResult?.isSpy;
+  const winner = normalizeWinnerValue(
+    roomData.winner === "innocent" ? "innocents" : roomData.winner
+  );
 
   getSpyNamesForMessage(roomCode, roomData).then(({ spyNames }) => {
-    const spyIntro = formatSpyIntro(spyNames); // "Sahtekar alp" / "Sahtekarlar A,B" / "Sahtekar"
+    const spyIntro = formatSpyIntro(spyNames);
 
-    let message;
-    if (winner === "innocents") {
-      message = `${spyIntro} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`;
-    } else {
-      message = eliminatedWasSpy
-        ? `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`
-        : `${eliminatedName} elendi ama masumdu, oyunu ${spyIntro} kazandı!`;
-    }
+    const message =
+      winner === "innocents"
+        ? `Sahtekar ${eliminatedName} elendi! Oyunu masumlar kazandı!`
+        : `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`;
+
+    finalizeGameOver(roomCode, roomData, {
+      winner,
+      reason: "vote",
+      eliminatedUid: votingResult.eliminatedUid,
+      eliminatedName,
+      message,
+    });
+  });
+}
 
     finalizeGameOver(roomCode, roomData, {
       winner,
