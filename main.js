@@ -1572,23 +1572,19 @@ function updateRoleDisplay(myData, settings) {
     };
 
     roomValueCallback = async (snapshot) => {
-      if (!snapshot.exists()) {
-        roomMissingCounter += 1;
-        showConnectionNotice("Odaya yeniden bağlanılıyor...");
-        if (!gameEnded && !roomMissingTimeoutId) {
-          roomMissingTimeoutId = setTimeout(async () => {
-            roomMissingTimeoutId = null;
-            const { exists } = await safeCheckRoomExists(roomRef);
-            if (exists) {
-              roomMissingCounter = 0;
-              clearConnectionNotice();
-            } else {
-              roomMissingCounter += 1;
-              if (roomMissingCounter >= 3) {
-                await handleConfirmedRoomMissing(roomCode, { confirmedByGet: true });
-              }
-            }
-          }, 1500);
+      if (!snapshot.exists() || snapshot.val() === null) {
+        roomRef.off("value", roomValueCallback);
+        localStorage.removeItem("roomCode");
+        localStorage.removeItem("playerName");
+        localStorage.removeItem("isCreator");
+
+        const setupEl = document.getElementById("setup");
+        const isSetupHidden = setupEl?.classList.contains("hidden");
+
+        if (isSetupHidden) {
+          window.location.replace("./index.html");
+        } else {
+          showSetupJoin();
         }
         return;
       }
