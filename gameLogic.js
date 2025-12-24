@@ -2363,7 +2363,10 @@ checkSpyWin: function (roomCode, latestData) {
     if (data?.status === "finished") return true;
     if (isVotingOrResultsPhase(data)) return true;
     const activePlayers = getActivePlayers(data.playerRoles, data.players);
-    return activePlayers.length > 2; // sadece 2 kişi kalınca parity kontrolü
+    const activeUids = activePlayers.map((p) => p.uid);
+    const activeSpies = getSpyUids(data.spies).filter((s) => activeUids.includes(s));
+    const innocentAlive = activePlayers.length - activeSpies.length;
+    return innocentAlive > 1; // sadece 1 veya daha az masum kalınca parity kontrolü
   };
 
   const ref = window.db.ref("rooms/" + roomCode);
@@ -2377,19 +2380,42 @@ checkSpyWin: function (roomCode, latestData) {
     const activePlayers = getActivePlayers(data.playerRoles, data.players);
     const activeUids = activePlayers.map((p) => p.uid);
     const activeSpies = getSpyUids(data.spies).filter((s) => activeUids.includes(s));
+    const spyAlive = activeSpies.length;
+    const innocentAlive = activePlayers.length - spyAlive;
 
-    if (activeUids.length === 2 && activeSpies.length === 1) {
+    if (spyAlive === 0) {
+      const updates = appendFinalSpyInfo(
+        { status: "finished", winner: "innocents" },
+        data
+      );
+      return ref
+        .update(updates)
+        .then(() => getSpyNamesForMessage(roomCode, data))
+        .then(({ spyNames }) =>
+          finalizeGameOver(roomCode, data, {
+            winner: "innocents",
+            reason: "parity",
+            message: `${formatSpyIntro(spyNames)} arasından son sahtekar elendi ve oyunu masumlar kazandı!`,
+          })
+        )
+        .then(() => true);
+    }
+
+    if (innocentAlive <= 1 && spyAlive > 0) {
       const updates = appendFinalSpyInfo(
         { status: "finished", winner: "spy", spyParityWin: true },
         data
       );
-      return ref.update(updates)
+      return ref
+        .update(updates)
         .then(() => getSpyNamesForMessage(roomCode, data))
-        .then(({ spyNames }) => finalizeGameOver(roomCode, data, {
-          winner: "spies",
-          reason: "parity",
-          message: `${formatSpyIntro(spyNames)} sayıca üstünlük sağladı ve oyunu kazandı!`,
-        }))
+        .then(({ spyNames }) =>
+          finalizeGameOver(roomCode, data, {
+            winner: "spies",
+            reason: "parity",
+            message: `${formatSpyIntro(spyNames)} sayıca üstünlük sağladı ve oyunu kazandı!`,
+          })
+        )
         .then(() => true);
     }
     return false;
