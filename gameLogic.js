@@ -2258,6 +2258,7 @@ else {
       if (!snap.exists()) return;
       const data = snap.val();
       const room = data;
+      if (room?.voting || room?.game?.phase !== "playing") return;
       if (
         room.voting?.status ||
         room.game?.phase === "results" ||
