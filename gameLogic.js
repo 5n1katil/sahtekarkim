@@ -1791,6 +1791,7 @@ export const gameLogic = {
         votes: validVotes,
         aliveCount,
         spyAlive,
+        roundId: room.roundId || null,
       };
 
       if (reason) {
@@ -1817,8 +1818,6 @@ export const gameLogic = {
       const nextRoom = {
         ...room,
         ...finalUpdates,
-        status: nextStatus,
-        winner: nextWinner,
         players: nextPlayers,
         eliminated: nextEliminated,
         voting: {
@@ -1839,6 +1838,23 @@ export const gameLogic = {
         phase: nextGamePhase,
         guess: null,
       };
+
+      if (nextStatus !== undefined) {
+        nextRoom.status = nextStatus;
+      }
+
+      const resolvedWinner =
+        typeof nextWinner === "string"
+          ? nextWinner
+          : typeof room.winner === "string" && room.status === "finished"
+            ? room.winner
+            : null;
+
+      if (resolvedWinner) {
+        nextRoom.winner = resolvedWinner;
+      } else {
+        delete nextRoom.winner;
+      }
 
       return nextRoom;
     }).then((result) => {
@@ -1905,6 +1921,56 @@ export const gameLogic = {
     }).catch((err) => {
       console.error("[finalizeVoting] error", err);
     });
+  },
+
+  restartVotingAfterTie: function (roomCode) {
+    if (!roomCode) return Promise.resolve(null);
+
+    const votingRef = window.db.ref(`rooms/${roomCode}/voting`);
+    return votingRef
+      .transaction((voting) => {
+        if (!voting) return voting;
+
+        const isResolvedTie =
+          voting.status === "resolved" &&
+          voting.result &&
+          typeof voting.result === "object" &&
+          voting.result.tie === true;
+
+        if (!isResolvedTie) return voting;
+        if (voting.status === "in_progress") return voting;
+
+        const now = getServerNow();
+        const endsAt = now + 30000;
+
+        const expectedVoters =
+          voting.expectedVoters && typeof voting.expectedVoters === "object"
+            ? voting.expectedVoters
+            : voting.snapshot?.expectedVoters &&
+                typeof voting.snapshot.expectedVoters === "object"
+              ? voting.snapshot.expectedVoters
+              : undefined;
+
+        const nextVoting = {
+          ...voting,
+          status: "in_progress",
+          startedAt: now,
+          endsAt,
+          startedBy: null,
+          continueAcks: {},
+          votes: {},
+          result: null,
+        };
+
+        if (expectedVoters) {
+          nextVoting.expectedVoters = expectedVoters;
+        }
+
+        return nextVoting;
+      })
+      .catch((err) => {
+        console.error("[restartVotingAfterTie] error", err);
+      });
   },
 
   continueAfterResults: async function (roomCode, uid) {
