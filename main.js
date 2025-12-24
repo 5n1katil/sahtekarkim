@@ -851,6 +851,20 @@ function updateRoleDisplay(myData, settings) {
           gameLogic.continueAfterResults(currentRoomCode, currentUid);
         });
       }
+
+      const exitBtn = document.createElement("button");
+      exitBtn.id = "exitBtn";
+      exitBtn.classList.add("overlay-btn");
+      exitBtn.textContent = "Odadan ayrıl";
+      overlay.appendChild(exitBtn);
+
+      exitBtn.addEventListener("click", () => {
+        overlay.classList.add("hidden");
+        overlay.classList.remove("impostor-animation", "innocent-animation");
+        gameLogic.leaveRoom(currentRoomCode).finally(() => {
+          showSetupJoin();
+        });
+      });
     } else if (!isEliminatedPlayer) {
       const btn = document.createElement("button");
       btn.id = "continueBtn";
