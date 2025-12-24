@@ -1895,29 +1895,36 @@ export const gameLogic = {
           warnings,
         });
       }
-      if (
-        roomData?.status === "finished" &&
-        votingResult?.eliminatedUid
-      ) {
-        const eliminatedName =
-          votingResult.eliminatedName || votingResult.eliminatedUid;
-        const winner =
-          roomData.winner === "innocent" ? "innocents" : roomData.winner;
-        getSpyNamesForMessage(roomCode, roomData).then(({ spyNames }) => {
-          const spyIntro = formatSpyIntro(spyNames);
-          const message =
-            winner === "innocents"
-              ? `${spyIntro} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`
-              : `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`;
-          finalizeGameOver(roomCode, roomData, {
-            winner,
-            reason: "vote",
-            eliminatedUid: votingResult.eliminatedUid,
-            eliminatedName,
-            message,
-          });
-        });
-      }
+if (roomData?.status === "finished" && votingResult?.eliminatedUid) {
+  const eliminatedName =
+    votingResult.eliminatedName || votingResult.eliminatedUid;
+
+  const winner =
+    roomData.winner === "innocent" ? "innocents" : roomData.winner;
+
+  const eliminatedWasSpy = !!votingResult?.isSpy;
+
+  getSpyNamesForMessage(roomCode, roomData).then(({ spyNames }) => {
+    const spyIntro = formatSpyIntro(spyNames); // "Sahtekar alp" / "Sahtekarlar A,B" / "Sahtekar"
+
+    let message;
+    if (winner === "innocents") {
+      message = `${spyIntro} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`;
+    } else {
+      message = eliminatedWasSpy
+        ? `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`
+        : `${eliminatedName} elendi ama masumdu, oyunu ${spyIntro} kazandı!`;
+    }
+
+    finalizeGameOver(roomCode, roomData, {
+      winner,
+      reason: "vote",
+      eliminatedUid: votingResult.eliminatedUid,
+      eliminatedName,
+      message,
+    });
+  });
+}
     }).catch((err) => {
       console.error("[finalizeVoting] error", err);
     });
