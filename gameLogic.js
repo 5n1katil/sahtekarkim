@@ -321,6 +321,113 @@ function ensureVotingWatcher(roomCode, votingState, finalizeVoting) {
   votingWatchers.set(roomCode, { interval, endsAt });
 }
 
+function buildRoleAssignments(roomCode, settings, players, roundId) {
+  const uids = Object.keys(players);
+  const spyCount = Math.min(settings?.spyCount || 0, uids.length);
+  const spyUids = samplePool([...uids], spyCount);
+
+  const updates = {};
+  updates[`rooms/${roomCode}/spies`] = spyUids.reduce((acc, uid) => {
+    acc[uid] = true;
+    return acc;
+  }, {});
+  updates[`rooms/${roomCode}/playerNames`] = uids.reduce((acc, uid) => {
+    const name = players[uid]?.name;
+    if (name) acc[uid] = name;
+    return acc;
+  }, {});
+
+  const gameType = settings?.gameType;
+  const isLocationGame = gameType === "location";
+  const isCategoryGame = gameType === "category";
+
+  if (isLocationGame) {
+    const pool = samplePool([...POOLS.locations], settings.poolSize);
+    const chosenLocation = randomFrom(pool);
+    uids.forEach((uid) => {
+      const isSpy = spyUids.includes(uid);
+      updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
+        ? {
+            isSpy: true,
+            role: "Sahtekar",
+            location: null,
+            allLocations: pool,
+            guessesLeft: settings.spyGuessLimit,
+          }
+        : {
+            isSpy: false,
+            role: "Masum",
+            location: chosenLocation,
+            allLocations: pool,
+          };
+    });
+  } else if (isCategoryGame) {
+    const categoryName = settings.categoryName;
+    const allItems = POOLS[categoryName] || [];
+    const pool = samplePool([...allItems], settings.poolSize);
+    if (pool.length < 1) {
+      throw new Error("Kategori havuzunda yeterli öğe yok");
+    }
+    const chosenRole = randomFrom(pool);
+    const chosenRoleIsObject = chosenRole && typeof chosenRole === "object";
+    const poolNames = pool.map((item) => {
+      if (item && typeof item === "object") {
+        return item.name ?? "";
+      }
+      return item ?? "";
+    });
+    const chosenRoleName =
+      chosenRole && typeof chosenRole === "object"
+        ? chosenRole.name ?? ""
+        : chosenRole;
+    const chosenRoleHint =
+      chosenRoleIsObject ? chosenRole.hint ?? null : null;
+    const chosenRoleFameTier = chosenRoleIsObject
+      ? chosenRole.fameTier ?? chosenRole.tier ?? null
+      : null;
+    uids.forEach((uid) => {
+      const isSpy = spyUids.includes(uid);
+      updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
+        ? {
+            isSpy: true,
+            role: "Sahtekar",
+            location: null,
+            allLocations: poolNames,
+            guessesLeft: settings.spyGuessLimit,
+          }
+        : {
+            isSpy: false,
+            role: chosenRole,
+            roleName: chosenRoleName,
+            location: categoryName,
+            allLocations: poolNames,
+            ...(chosenRoleIsObject
+              ? {
+                  roleHint: chosenRoleHint,
+                  ...(chosenRoleFameTier !== null
+                    ? { roleFameTier: chosenRoleFameTier }
+                    : {}),
+                }
+              : {}),
+          };
+    });
+  } else {
+    throw new Error("Bilinmeyen oyun türü");
+  }
+
+  const spiesArr = spyUids
+    .map((uid) => ({ uid, name: players[uid]?.name || "" }))
+    .filter((s) => s.name);
+
+  const spiesSnapshotPayload = {
+    createdAt: window.firebase.database.ServerValue.TIMESTAMP,
+    roundId: roundId || null,
+    spies: spiesArr,
+  };
+
+  return { updates, spiesSnapshotPayload };
+}
+
 // Konumlar ve kategoriler için veri havuzları
 export const POOLS = {
   locations: [
@@ -883,115 +990,29 @@ export const gameLogic = {
   },
 
   /** Oyunculara roller atayın */
-  assignRoles: async function (roomCode, roundId) {
+  assignRoles: async function (roomCode, roundId, prefetched = {}) {
     const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
-    const [settingsSnap, playersSnap] = await Promise.all([
-      settingsRef.get(),
-      playersRef.get(),
-    ]);
+    const needsFetch = !prefetched.settings || !prefetched.players;
+    const [settingsSnap, playersSnap] = needsFetch
+      ? await Promise.all([settingsRef.get(), playersRef.get()])
+      : [
+          { exists: () => true, val: () => prefetched.settings },
+          { exists: () => true, val: () => prefetched.players },
+        ];
+
     if (!settingsSnap.exists() || !playersSnap.exists()) {
       throw new Error("Oda bulunamadı");
     }
 
     const settings = settingsSnap.val();
     const players = playersSnap.val() || {};
-    const uids = Object.keys(players);
-    const spyCount = Math.min(settings.spyCount || 0, uids.length);
-    const spyUids = samplePool([...uids], spyCount);
-
-    const updates = {};
-    updates[`rooms/${roomCode}/spies`] = spyUids.reduce((acc, uid) => {
-      acc[uid] = true;
-      return acc;
-    }, {});
-    updates[`rooms/${roomCode}/playerNames`] = uids.reduce((acc, uid) => {
-      const name = players[uid]?.name;
-      if (name) acc[uid] = name;
-      return acc;
-    }, {});
-
-    const gameType = settings.gameType;
-    const isLocationGame = gameType === "location";
-    const isCategoryGame = gameType === "category";
-
-    if (isLocationGame) {
-      const pool = samplePool([...POOLS.locations], settings.poolSize);
-      const chosenLocation = randomFrom(pool);
-      uids.forEach((uid) => {
-        const isSpy = spyUids.includes(uid);
-        updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
-          ? {
-              isSpy: true,
-              role: "Sahtekar",
-              location: null,
-              allLocations: pool,
-              guessesLeft: settings.spyGuessLimit,
-            }
-          : {
-              isSpy: false,
-              role: "Masum",
-              location: chosenLocation,
-              allLocations: pool,
-            };
-      });
-    } else if (isCategoryGame) {
-      const categoryName = settings.categoryName;
-      const allItems = POOLS[categoryName] || [];
-      const pool = samplePool([...allItems], settings.poolSize);
-      if (pool.length < 1) {
-        throw new Error("Kategori havuzunda yeterli öğe yok");
-      }
-      const chosenRole = randomFrom(pool);
-      const chosenRoleIsObject = chosenRole && typeof chosenRole === "object";
-      const poolNames = pool.map((item) => {
-        if (item && typeof item === "object") {
-          return item.name ?? "";
-        }
-        return item ?? "";
-      });
-      const chosenRoleName =
-        chosenRole && typeof chosenRole === "object"
-          ? chosenRole.name ?? ""
-          : chosenRole;
-      const chosenRoleHint =
-        chosenRoleIsObject ? chosenRole.hint ?? null : null;
-      const chosenRoleFameTier = chosenRoleIsObject
-        ? chosenRole.fameTier ?? chosenRole.tier ?? null
-        : null;
-      uids.forEach((uid) => {
-        const isSpy = spyUids.includes(uid);
-        updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
-          ? {
-              isSpy: true,
-              role: "Sahtekar",
-              location: null,
-              allLocations: poolNames,
-              guessesLeft: settings.spyGuessLimit,
-            }
-          : {
-              isSpy: false,
-              role: chosenRole,
-              roleName: chosenRoleName,
-              location: categoryName,
-              allLocations: poolNames,
-              ...(chosenRoleIsObject
-                ? {
-                    roleHint: chosenRoleHint,
-                    ...(chosenRoleFameTier !== null
-                      ? { roleFameTier: chosenRoleFameTier }
-                      : {}),
-                  }
-                : {}),
-            };
-      });
-    } else {
-      throw new Error("Bilinmeyen oyun türü");
-    }
-
-    const spiesArr = spyUids
-      .map((uid) => ({ uid, name: players[uid]?.name || "" }))
-      .filter((s) => s.name);
+    const { updates, spiesSnapshotPayload } = buildRoleAssignments(
+      roomCode,
+      settings,
+      players,
+      roundId
+    );
 
     await window.db.ref().update(updates);
     await window.db
@@ -1000,22 +1021,24 @@ export const gameLogic = {
         if (current && Array.isArray(current.spies) && current.spies.length) {
           return current;
         }
-        return {
-          createdAt: window.firebase.database.ServerValue.TIMESTAMP,
-          roundId: roundId || null,
-          spies: spiesArr,
-        };
+        return spiesSnapshotPayload;
       });
   },
 
   startGame: async function (roomCode) {
+    clearVotingWatcher(roomCode);
     const roundId = generateRoundId();
     const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     const [settingsSnap, playersSnap] = await Promise.all([
       settingsRef.get(),
-      playersRef.get()
+      playersRef.get(),
     ]);
+
+    if (!settingsSnap.exists() || !playersSnap.exists()) {
+      throw new Error("Oda bulunamadı");
+    }
+
     const settings = settingsSnap.val();
     const allPlayers = playersSnap.val() || {};
     const players = Object.fromEntries(
@@ -1030,106 +1053,127 @@ export const gameLogic = {
       throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
     }
 
-    const playerStatusUpdates = {};
-    Object.keys(players).forEach((uid) => {
-      playerStatusUpdates[`${uid}/status`] = "alive";
-      playerStatusUpdates[`${uid}/eliminatedAt`] = null;
-    });
+    const revivedPlayers = Object.fromEntries(
+      Object.entries(players).map(([uid, player]) => [
+        uid,
+        { ...player, status: "alive", eliminatedAt: null },
+      ])
+    );
 
-    if (Object.keys(playerStatusUpdates).length > 0) {
-      await playersRef.update(playerStatusUpdates);
-    }
+    const { updates, spiesSnapshotPayload } = buildRoleAssignments(
+      roomCode,
+      settings,
+      revivedPlayers,
+      roundId
+    );
 
-    await this.assignRoles(roomCode, roundId);
-    await window.db.ref(`rooms/${roomCode}`).update({
-      roundId,
-      status: "started",
-      round: 1,
-      phase: "clue",
-      game: {
+    const roomBasePath = `rooms/${roomCode}`;
+    const updatePayload = {
+      ...updates,
+      [`${roomBasePath}/spiesSnapshot`]: spiesSnapshotPayload,
+      [`${roomBasePath}/roundId`]: roundId,
+      [`${roomBasePath}/status`]: "started",
+      [`${roomBasePath}/round`]: 1,
+      [`${roomBasePath}/phase`]: "clue",
+      [`${roomBasePath}/game`]: {
         phase: "playing",
       },
-      votes: null,
-      voteResult: null,
-      votingStarted: false,
-      voteRequests: null,
-      voteStartRequests: null,
-      voting: null,
-      guess: null,
-      lastGuess: null,
-      eliminated: null,
-      eliminatedUid: null,
-      winner: null,
-      spyParityWin: null,
-      gameOver: null,
-      final: null,
+      [`${roomBasePath}/votes`]: null,
+      [`${roomBasePath}/voteResult`]: null,
+      [`${roomBasePath}/votingStarted`]: false,
+      [`${roomBasePath}/voteRequests`]: null,
+      [`${roomBasePath}/voteStartRequests`]: null,
+      [`${roomBasePath}/voting`]: null,
+      [`${roomBasePath}/guess`]: null,
+      [`${roomBasePath}/lastGuess`]: null,
+      [`${roomBasePath}/eliminated`]: null,
+      [`${roomBasePath}/eliminatedUid`]: null,
+      [`${roomBasePath}/winner`]: null,
+      [`${roomBasePath}/spyParityWin`]: null,
+      [`${roomBasePath}/gameOver`]: null,
+      [`${roomBasePath}/final`]: null,
+    };
+
+    Object.entries(revivedPlayers).forEach(([uid, player]) => {
+      updatePayload[`${roomBasePath}/players/${uid}`] = player;
     });
 
-    const spiesSnapshotSnap = await window.db
-      .ref(`rooms/${roomCode}/spiesSnapshot`)
-      .get();
-    console.assert(
-      spiesSnapshotSnap.exists(),
-      "spiesSnapshot kaydı startGame sonrasında korunamadı"
-    );
+    await window.db.ref().update(updatePayload);
   },
 
   restartGame: async function (roomCode) {
-    const roomRef = window.db.ref(`rooms/${roomCode}`);
-    const settingsRef = roomRef.child("settings");
-    const playersRef = roomRef.child("players");
-    const eliminatedRef = roomRef.child("eliminated");
+    clearVotingWatcher(roomCode);
+    const roundId = generateRoundId();
+    const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
+    const playersRef = window.db.ref(`rooms/${roomCode}/players`);
+    const eliminatedRef = window.db.ref(`rooms/${roomCode}/eliminated`);
     const [settingsSnap, playersSnap, eliminatedSnap] = await Promise.all([
       settingsRef.get(),
       playersRef.get(),
       eliminatedRef.get(),
     ]);
+
+    if (!settingsSnap.exists() || !playersSnap.exists()) {
+      throw new Error("Oda bulunamadı");
+    }
+
     const settings = settingsSnap.val();
     const players = playersSnap.val() || {};
     const eliminatedPlayers = eliminatedSnap.val() || {};
+    const mergedPlayers = { ...eliminatedPlayers, ...players };
 
-    // Re-add eliminated players before restarting
-    await Promise.all(
-      Object.entries(eliminatedPlayers).map(([uid, pdata]) =>
-        playersRef
-          .child(uid)
-          .set({ ...pdata, status: "alive", eliminatedAt: null })
-      )
-    );
+    const revivedPlayers = {};
+    Object.entries(mergedPlayers).forEach(([uid, player]) => {
+      if (!player?.name) {
+        throw new Error("Tüm oyuncuların bir adı olmalıdır.");
+      }
+      revivedPlayers[uid] = { ...player, status: "alive", eliminatedAt: null };
+    });
 
-    // Clear eliminated list
-    if (Object.keys(eliminatedPlayers).length > 0) {
-      await eliminatedRef.remove();
-    }
-
-    const allPlayers = { ...players, ...eliminatedPlayers };
-    const playerCount = Object.keys(allPlayers).length;
+    const playerCount = Object.keys(revivedPlayers).length;
     if (playerCount < MIN_PLAYERS) {
       throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
     }
-    await roomRef.update({
-      status: "waiting",
-      round: 0,
-      roundId: null,
-      votes: null,
-      voteResult: null,
-      votingStarted: false,
-      voteRequests: null,
-      voteStartRequests: null,
-      voting: null,
-      guess: null,
-      spies: null,
-      spiesSnapshot: null,
-      playerRoles: null,
-      winner: null,
-      spyParityWin: null,
-      lastGuess: null,
-      eliminated: null,
-      gameOver: null,
-      final: null,
+
+    const { updates, spiesSnapshotPayload } = buildRoleAssignments(
+      roomCode,
+      settings,
+      revivedPlayers,
+      roundId
+    );
+
+    const roomBasePath = `rooms/${roomCode}`;
+    const updatePayload = {
+      ...updates,
+      [`${roomBasePath}/spiesSnapshot`]: spiesSnapshotPayload,
+      [`${roomBasePath}/roundId`]: roundId,
+      [`${roomBasePath}/status`]: "started",
+      [`${roomBasePath}/round`]: 1,
+      [`${roomBasePath}/phase`]: "clue",
+      [`${roomBasePath}/game`]: {
+        phase: "playing",
+      },
+      [`${roomBasePath}/votes`]: null,
+      [`${roomBasePath}/voteResult`]: null,
+      [`${roomBasePath}/votingStarted`]: false,
+      [`${roomBasePath}/voteRequests`]: null,
+      [`${roomBasePath}/voteStartRequests`]: null,
+      [`${roomBasePath}/voting`]: null,
+      [`${roomBasePath}/guess`]: null,
+      [`${roomBasePath}/lastGuess`]: null,
+      [`${roomBasePath}/eliminated`]: null,
+      [`${roomBasePath}/eliminatedUid`]: null,
+      [`${roomBasePath}/winner`]: null,
+      [`${roomBasePath}/spyParityWin`]: null,
+      [`${roomBasePath}/gameOver`]: null,
+      [`${roomBasePath}/final`]: null,
+    };
+
+    Object.entries(revivedPlayers).forEach(([uid, player]) => {
+      updatePayload[`${roomBasePath}/players/${uid}`] = player;
     });
-    // Start game after players have been restored and room reset
-    await this.startGame(roomCode);
+
+    await window.db.ref().update(updatePayload);
   },
 
   /** Odayı sil */
