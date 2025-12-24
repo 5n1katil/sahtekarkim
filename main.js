@@ -114,6 +114,7 @@ let roomValueRef = null;
 let roomValueCallback = null;
 let roomValueUnsubscribe = null;
 let roomMissingTimeoutId = null;
+let lastTieRestartAt = 0;
 
 function clearRoomValueListener() {
   if (roomValueUnsubscribe) {
@@ -2040,6 +2041,13 @@ function updateRoleDisplay(myData, settings) {
             resultEl.classList.remove("hidden");
             outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
             document.getElementById("nextRoundBtn").classList.add("hidden");
+            if (isCreator) {
+              const now = getServerNow();
+              if (!lastTieRestartAt || now - lastTieRestartAt > 2000) {
+                lastTieRestartAt = now;
+                gameLogic.restartVotingAfterTie(roomCode);
+              }
+            }
           } else {
             renderVoteResultOverlay(roomData, activeVoteResult, voteOutcomeContext);
             resultEl.classList.add("hidden");
