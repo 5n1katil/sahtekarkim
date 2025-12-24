@@ -1779,41 +1779,33 @@ finalizeVoting: function (roomCode, reason) {
 
       // Daha güvenli: canlıları direkt players status'ünden say (role sync hatalarından etkilenmez)
       const aliveUids = getAliveUids(nextPlayers);
-
       const remainingSpies = getSpyUids(room.spies).filter((id) => aliveUids.includes(id));
 
-      const aliveCount = aliveUids.length;
       const spyAlive = remainingSpies.length;
+      const aliveCount = aliveUids.length;
+      const innocentAlive = Math.max(aliveCount - spyAlive, 0);
 
       let nextStatus = room.status;
       let nextWinner = room.winner;
       let nextGamePhase = "results";
       const finalUpdates = {};
 
-// 🎯 KAZANMA KOŞULLARI (DOĞRU HALİ)
-
-// 1️⃣ Tüm sahtekarlar elendiyse → masumlar kazanır
-if (spyAlive === 0) {
-  nextStatus = "finished";
-  nextWinner = "innocent";
-  appendFinalSpyInfo(finalUpdates, room);
-  nextGamePhase = "ended";
-}
-
-// 2️⃣ SADECE son 2 kişi kaldıysa ve 1’i sahtekarsa → sahtekar kazanır
-else if (aliveCount === 2 && spyAlive === 1) {
-  nextStatus = "finished";
-  nextWinner = "spy";
-  finalUpdates.spyParityWin = true;
-  nextGamePhase = "ended";
-}
-
-// 3️⃣ Diğer tüm durumlarda oyun DEVAM EDER
-else {
-  nextStatus = room.status;
-  nextWinner = null;
-  nextGamePhase = "results";
-}
+      // 🎯 KAZANMA KOŞULLARI (DOĞRU HALİ)
+      if (spyAlive === 0) {
+        nextStatus = "finished";
+        nextWinner = "innocent";
+        appendFinalSpyInfo(finalUpdates, room);
+        nextGamePhase = "ended";
+      } else if (innocentAlive <= 1) {
+        nextStatus = "finished";
+        nextWinner = "spy";
+        finalUpdates.spyParityWin = true;
+        nextGamePhase = "ended";
+      } else {
+        nextStatus = room.status;
+        nextWinner = null;
+        nextGamePhase = "results";
+      }
 
       const resultPayload = {
         ...(votingState.result || {}),
@@ -1823,6 +1815,7 @@ else {
         votes: validVotes,
         aliveCount,
         spyAlive,
+        innocentAlive,
         roundId: room.roundId || null,
       };
 
