@@ -1151,8 +1151,35 @@ export const gameLogic = {
   /** Oyuncuları canlı dinle */
   listenPlayers: function (roomCode, callback) {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
-    playersRef.on("value", (snapshot) => {
-      const playersObj = snapshot.val() || {};
+    const cleanupSession = () => {
+      ["roomCode", "playerName", "isCreator"].forEach((key) =>
+        localStorage.removeItem(key)
+      );
+    };
+
+    playersRef.on("value", async (snapshot) => {
+      const roomRef = snapshot.ref.parent;
+      const roomSnap = roomRef ? await roomRef.get() : null;
+      const playersData = snapshot.val();
+
+      if (!roomSnap?.exists() || playersData === null) {
+        playersRef.off("value");
+        cleanupSession();
+
+        const setupHidden = document
+          .getElementById("setup")
+          ?.classList.contains("hidden");
+
+        if (setupHidden) {
+          window.location.replace("./index.html");
+        } else {
+          window.showSetupJoin?.();
+        }
+
+        return;
+      }
+
+      const playersObj = playersData || {};
       const playersArr = Object.entries(playersObj).map(([uid, p]) => ({
         uid,
         ...p,
@@ -1172,28 +1199,25 @@ export const gameLogic = {
       }
 
       // Kurucu ayrıldıysa ve oyun başlamadıysa odayı kapat
-      const roomRef = window.db.ref(`rooms/${roomCode}`);
-      roomRef.get().then((snap) => {
-        const data = snap.val();
-        const resolvedCreatorUid =
-          data?.settings?.creatorUid ||
-          data?.creatorUid ||
-          Object.entries(data?.players || {}).find(([, player]) =>
-            Boolean(player?.isCreator)
-          )?.[0];
+      const roomData = roomSnap.val();
+      const resolvedCreatorUid =
+        roomData?.settings?.creatorUid ||
+        roomData?.creatorUid ||
+        Object.entries(roomData?.players || {}).find(([, player]) =>
+          Boolean(player?.isCreator)
+        )?.[0];
 
-        // Only close the lobby when we know the creator is missing before start.
-        if (
-          data &&
-          data.status !== "started" &&
-          resolvedCreatorUid &&
-          !uids.includes(resolvedCreatorUid)
-        ) {
-          roomRef.remove();
-          localStorage.clear();
-          location.reload();
-        }
-      });
+      // Only close the lobby when we know the creator is missing before start.
+      if (
+        roomData &&
+        roomData.status !== "started" &&
+        resolvedCreatorUid &&
+        !uids.includes(resolvedCreatorUid)
+      ) {
+        roomRef.remove();
+        localStorage.clear();
+        location.reload();
+      }
     });
   },
 
