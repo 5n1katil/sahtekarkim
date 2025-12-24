@@ -2332,6 +2332,13 @@ else {
   },
 
   checkSpyWin: function (roomCode, latestData) {
+    if (
+      room.voting?.status ||
+      room.game?.phase === "results" ||
+      room.game?.phase === "voting"
+    )
+      return Promise.resolve(false);
+
     const shouldSkipSpyCheck = (data) =>
       Boolean(
         data?.voting?.status ||
