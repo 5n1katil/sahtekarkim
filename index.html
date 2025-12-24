@@ -99,6 +99,30 @@
       margin-top: 0.5rem;
     }
 
+    .connection-banner {
+      width: 90%;
+      max-width: 500px;
+      margin: 0.75rem auto 0;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .connection-banner.info {
+      color: #dbeafe;
+      border-color: rgba(66, 153, 225, 0.45);
+      background: rgba(66, 153, 225, 0.15);
+    }
+
+    .connection-banner.warning {
+      color: #ffe2b3;
+      border-color: rgba(255, 193, 7, 0.5);
+      background: rgba(255, 193, 7, 0.16);
+    }
+
     .vote-list {
       list-style: none;
       padding: 0;
@@ -364,6 +388,8 @@
       >Davaları İncele</a>
     </div>
   </div>
+
+  <div id="connectionBanner" class="connection-banner hidden"></div>
 
   <!-- Kurucu için oyun ayarları ekranı -->
   <div class="container" id="setup">
