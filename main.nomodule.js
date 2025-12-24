@@ -2,6 +2,10 @@
   'use strict';
 
   const ACTIVE_PLAYER_KEYS = ["active", "connected", "isOnline"];
+  function isPlayerAlive(player) {
+    const status = typeof player?.status === "string" ? player.status : "alive";
+    return status !== "eliminated";
+  }
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, ch => ({
       '&': '&amp;',
@@ -41,13 +45,12 @@
     const activeKey = detectActivePlayerKey(players);
     return Object.keys(roles).map(uid => {
       const playerEntry = players[uid] || {};
-      const status = typeof playerEntry?.status === "string" ? playerEntry.status : "alive";
-      if (status !== "alive") return null;
+      if (!isPlayerAlive(playerEntry)) return null;
       if (!isPlayerActive(playerEntry, activeKey)) return null;
       return {
         uid,
         name: playerEntry?.name || uid,
-        status
+        status: playerEntry?.status || "alive"
       };
     }).filter(Boolean);
   }
@@ -197,6 +200,7 @@
   let anonymousSignInPromise = null;
   const MIN_PLAYERS$1 = 3;
   const ROOM_PLAYER_LIMIT = 20;
+  const votingWatchers = new Map();
   function generateRoundId() {
     const newRef = window.db.ref().push();
     return newRef.key || String(Date.now());
@@ -205,6 +209,62 @@
     if (Array.isArray(spies)) return spies;
     if (spies && typeof spies === "object") return Object.keys(spies);
     return [];
+  }
+  function isVotingStateMachineActive(room) {
+    const votingStatus = room?.voting?.status;
+    const gamePhase = room?.game?.phase;
+    return votingStatus === "in_progress" || gamePhase === "voting" || gamePhase === "results";
+  }
+  function getAliveUids(playersObj) {
+    return Object.entries(playersObj || {}).filter(_ref => {
+      let [, player] = _ref;
+      return isPlayerAlive(player);
+    }).map(_ref2 => {
+      let [uid] = _ref2;
+      return uid;
+    });
+  }
+  function getAlivePlayersFromState(players, roles) {
+    const candidates = new Set([...Object.keys(players || {}), ...Object.keys(roles || {})]);
+    const alive = [];
+    candidates.forEach(uid => {
+      if (isPlayerAlive(players?.[uid])) {
+        alive.push(uid);
+      }
+    });
+    return alive;
+  }
+  function buildExpectedVotersMap(uids) {
+    return uids.reduce((acc, id) => {
+      acc[id] = true;
+      return acc;
+    }, {});
+  }
+  function resolveExpectedVoters(room) {
+    const votingState = room?.voting || {};
+    const expectedVotersMap = votingState.expectedVoters;
+    const expectedFromState = expectedVotersMap && typeof expectedVotersMap === "object" ? Object.keys(expectedVotersMap) : [];
+    if (expectedFromState.length) {
+      return {
+        expectedVoters: expectedFromState,
+        expectedSet: new Set(expectedFromState)
+      };
+    }
+    const players = room?.players || {};
+    const roles = room?.playerRoles || {};
+    const activePlayers = getActivePlayers(roles, players);
+    const activeUids = activePlayers.map(p => p.uid);
+    if (activeUids.length) {
+      return {
+        expectedVoters: activeUids,
+        expectedSet: new Set(activeUids)
+      };
+    }
+    const aliveUids = getAliveUids(players);
+    return {
+      expectedVoters: aliveUids,
+      expectedSet: new Set(aliveUids)
+    };
   }
   function appendFinalSpyInfo(updates, data) {
     if (data?.final?.spyNames) return updates;
@@ -227,8 +287,8 @@
     const roles = data?.playerRoles || {};
     const players = data?.players || {};
     const spyCandidates = new Set(getSpyUids$1(data?.spies));
-    Object.entries(roles).forEach(_ref => {
-      let [uid, role] = _ref;
+    Object.entries(roles).forEach(_ref3 => {
+      let [uid, role] = _ref3;
       if (!role) return;
       if (role.isSpy || role.roleType === "spy" || role.isImpostor) {
         spyCandidates.add(uid);
@@ -353,6 +413,136 @@
       return source.now();
     }
     return Date.now();
+  }
+  function clearVotingWatcher(roomCode) {
+    const watcher = votingWatchers.get(roomCode);
+    if (watcher?.interval) {
+      clearInterval(watcher.interval);
+    }
+    votingWatchers.delete(roomCode);
+  }
+  function ensureVotingWatcher(roomCode, votingState, finalizeVoting) {
+    const status = votingState?.status;
+    const endsAt = typeof votingState?.endsAt === "number" ? votingState.endsAt : null;
+    if (status !== "in_progress" || !endsAt) {
+      clearVotingWatcher(roomCode);
+      return;
+    }
+
+    // Immediate guard: if the vote timer already elapsed, request finalization once.
+    if (getServerNow() >= endsAt) {
+      clearVotingWatcher(roomCode);
+      finalizeVoting(roomCode, "time_up");
+      return;
+    }
+    const existing = votingWatchers.get(roomCode);
+    if (existing && existing.endsAt === endsAt) {
+      return;
+    }
+    clearVotingWatcher(roomCode);
+    const interval = setInterval(() => {
+      if (getServerNow() >= endsAt) {
+        // Time-up pathway lives here so multiple clients can safely converge on finalizeVoting.
+        clearVotingWatcher(roomCode);
+        finalizeVoting(roomCode, "time_up");
+      }
+    }, 1000);
+    votingWatchers.set(roomCode, {
+      interval,
+      endsAt
+    });
+  }
+  function buildRoleAssignments(roomCode, settings, players, roundId) {
+    const uids = Object.keys(players);
+    const spyCount = Math.min(settings?.spyCount || 0, uids.length);
+    const spyUids = samplePool([...uids], spyCount);
+    const updates = {};
+    updates[`rooms/${roomCode}/spies`] = spyUids.reduce((acc, uid) => {
+      acc[uid] = true;
+      return acc;
+    }, {});
+    updates[`rooms/${roomCode}/playerNames`] = uids.reduce((acc, uid) => {
+      const name = players[uid]?.name;
+      if (name) acc[uid] = name;
+      return acc;
+    }, {});
+    const gameType = settings?.gameType;
+    const isLocationGame = gameType === "location";
+    const isCategoryGame = gameType === "category";
+    if (isLocationGame) {
+      const pool = samplePool([...POOLS.locations], settings.poolSize);
+      const chosenLocation = randomFrom(pool);
+      uids.forEach(uid => {
+        const isSpy = spyUids.includes(uid);
+        updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy ? {
+          isSpy: true,
+          role: "Sahtekar",
+          location: null,
+          allLocations: pool,
+          guessesLeft: settings.spyGuessLimit
+        } : {
+          isSpy: false,
+          role: "Masum",
+          location: chosenLocation,
+          allLocations: pool
+        };
+      });
+    } else if (isCategoryGame) {
+      const categoryName = settings.categoryName;
+      const allItems = POOLS[categoryName] || [];
+      const pool = samplePool([...allItems], settings.poolSize);
+      if (pool.length < 1) {
+        throw new Error("Kategori havuzunda yeterli öğe yok");
+      }
+      const chosenRole = randomFrom(pool);
+      const chosenRoleIsObject = chosenRole && typeof chosenRole === "object";
+      const poolNames = pool.map(item => {
+        if (item && typeof item === "object") {
+          return item.name ?? "";
+        }
+        return item ?? "";
+      });
+      const chosenRoleName = chosenRole && typeof chosenRole === "object" ? chosenRole.name ?? "" : chosenRole;
+      const chosenRoleHint = chosenRoleIsObject ? chosenRole.hint ?? null : null;
+      const chosenRoleFameTier = chosenRoleIsObject ? chosenRole.fameTier ?? chosenRole.tier ?? null : null;
+      uids.forEach(uid => {
+        const isSpy = spyUids.includes(uid);
+        updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy ? {
+          isSpy: true,
+          role: "Sahtekar",
+          location: null,
+          allLocations: poolNames,
+          guessesLeft: settings.spyGuessLimit
+        } : {
+          isSpy: false,
+          role: chosenRole,
+          roleName: chosenRoleName,
+          location: categoryName,
+          allLocations: poolNames,
+          ...(chosenRoleIsObject ? {
+            roleHint: chosenRoleHint,
+            ...(chosenRoleFameTier !== null ? {
+              roleFameTier: chosenRoleFameTier
+            } : {})
+          } : {})
+        };
+      });
+    } else {
+      throw new Error("Bilinmeyen oyun türü");
+    }
+    const spiesArr = spyUids.map(uid => ({
+      uid,
+      name: players[uid]?.name || ""
+    })).filter(s => s.name);
+    const spiesSnapshotPayload = {
+      createdAt: window.firebase.database.ServerValue.TIMESTAMP,
+      roundId: roundId || null,
+      spies: spiesArr
+    };
+    return {
+      updates,
+      spiesSnapshotPayload
+    };
   }
 
   // Konumlar ve kategoriler için veri havuzları
@@ -485,7 +675,8 @@
         status: "waiting",
         settings: {
           ...settings,
-          spyGuessLimit
+          spyGuessLimit,
+          creatorUid: uid
         },
         players: {
           [uid]: {
@@ -517,7 +708,7 @@
               throw retryErr;
             }
           } else {
-            throw new Error("Oturum doğrulanamadı. Lütfen sayfayı yenileyip yeniden deneyin.")
+            throw new Error("Oturum doğrulanamadı. Lütfen sayfayı yenileyip yeniden deneyin.");
           }
         } else {
           throw err;
@@ -564,6 +755,37 @@
     },
     /** Oyunculara roller atayın */
     assignRoles: async function (roomCode, roundId) {
+      let prefetched = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+      const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
+      const playersRef = window.db.ref(`rooms/${roomCode}/players`);
+      const needsFetch = !prefetched.settings || !prefetched.players;
+      const [settingsSnap, playersSnap] = needsFetch ? await Promise.all([settingsRef.get(), playersRef.get()]) : [{
+        exists: () => true,
+        val: () => prefetched.settings
+      }, {
+        exists: () => true,
+        val: () => prefetched.players
+      }];
+      if (!settingsSnap.exists() || !playersSnap.exists()) {
+        throw new Error("Oda bulunamadı");
+      }
+      const settings = settingsSnap.val();
+      const players = playersSnap.val() || {};
+      const {
+        updates,
+        spiesSnapshotPayload
+      } = buildRoleAssignments(roomCode, settings, players, roundId);
+      await window.db.ref().update(updates);
+      await window.db.ref(`rooms/${roomCode}/spiesSnapshot`).transaction(current => {
+        if (current && Array.isArray(current.spies) && current.spies.length) {
+          return current;
+        }
+        return spiesSnapshotPayload;
+      });
+    },
+    startGame: async function (roomCode) {
+      clearVotingWatcher(roomCode);
+      const roundId = generateRoundId();
       const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
       const playersRef = window.db.ref(`rooms/${roomCode}/players`);
       const [settingsSnap, playersSnap] = await Promise.all([settingsRef.get(), playersRef.get()]);
@@ -571,109 +793,9 @@
         throw new Error("Oda bulunamadı");
       }
       const settings = settingsSnap.val();
-      const players = playersSnap.val() || {};
-      const uids = Object.keys(players);
-      const spyCount = Math.min(settings.spyCount || 0, uids.length);
-      const spyUids = samplePool([...uids], spyCount);
-      const updates = {};
-      updates[`rooms/${roomCode}/spies`] = spyUids.reduce((acc, uid) => {
-        acc[uid] = true;
-        return acc;
-      }, {});
-      updates[`rooms/${roomCode}/playerNames`] = uids.reduce((acc, uid) => {
-        const name = players[uid]?.name;
-        if (name) acc[uid] = name;
-        return acc;
-      }, {});
-      const gameType = settings.gameType;
-      const isLocationGame = gameType === "location";
-      const isCategoryGame = gameType === "category";
-      if (isLocationGame) {
-        const pool = samplePool([...POOLS.locations], settings.poolSize);
-        const chosenLocation = randomFrom(pool);
-        uids.forEach(uid => {
-          const isSpy = spyUids.includes(uid);
-          updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy ? {
-            isSpy: true,
-            role: "Sahtekar",
-            location: null,
-            allLocations: pool,
-            guessesLeft: settings.spyGuessLimit
-          } : {
-            isSpy: false,
-            role: "Masum",
-            location: chosenLocation,
-            allLocations: pool
-          };
-        });
-      } else if (isCategoryGame) {
-        const categoryName = settings.categoryName;
-        const allItems = POOLS[categoryName] || [];
-        const pool = samplePool([...allItems], settings.poolSize);
-        if (pool.length < 1) {
-          throw new Error("Kategori havuzunda yeterli öğe yok");
-        }
-        const chosenRole = randomFrom(pool);
-        const chosenRoleIsObject = chosenRole && typeof chosenRole === "object";
-        const poolNames = pool.map(item => {
-          if (item && typeof item === "object") {
-            return item.name ?? "";
-          }
-          return item ?? "";
-        });
-        const chosenRoleName = chosenRole && typeof chosenRole === "object" ? chosenRole.name ?? "" : chosenRole;
-        const chosenRoleHint = chosenRoleIsObject ? chosenRole.hint ?? null : null;
-        const chosenRoleFameTier = chosenRoleIsObject ? chosenRole.fameTier ?? chosenRole.tier ?? null : null;
-        uids.forEach(uid => {
-          const isSpy = spyUids.includes(uid);
-          updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy ? {
-            isSpy: true,
-            role: "Sahtekar",
-            location: null,
-            allLocations: poolNames,
-            guessesLeft: settings.spyGuessLimit
-          } : {
-            isSpy: false,
-            role: chosenRole,
-            roleName: chosenRoleName,
-            location: categoryName,
-            allLocations: poolNames,
-            ...(chosenRoleIsObject ? {
-              roleHint: chosenRoleHint,
-              ...(chosenRoleFameTier !== null ? {
-                roleFameTier: chosenRoleFameTier
-              } : {})
-            } : {})
-          };
-        });
-      } else {
-        throw new Error("Bilinmeyen oyun türü");
-      }
-      const spiesArr = spyUids.map(uid => ({
-        uid,
-        name: players[uid]?.name || ""
-      })).filter(s => s.name);
-      await window.db.ref().update(updates);
-      await window.db.ref(`rooms/${roomCode}/spiesSnapshot`).transaction(current => {
-        if (current && Array.isArray(current.spies) && current.spies.length) {
-          return current;
-        }
-        return {
-          createdAt: window.firebase.database.ServerValue.TIMESTAMP,
-          roundId: roundId || null,
-          spies: spiesArr
-        };
-      });
-    },
-    startGame: async function (roomCode) {
-      const roundId = generateRoundId();
-      const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
-      const playersRef = window.db.ref(`rooms/${roomCode}/players`);
-      const [settingsSnap, playersSnap] = await Promise.all([settingsRef.get(), playersRef.get()]);
-      settingsSnap.val();
       const allPlayers = playersSnap.val() || {};
-      const players = Object.fromEntries(Object.entries(allPlayers).filter(_ref2 => {
-        let [_, p] = _ref2;
+      const players = Object.fromEntries(Object.entries(allPlayers).filter(_ref4 => {
+        let [_, p] = _ref4;
         return p && p.name;
       }));
       if (Object.keys(players).length !== Object.keys(allPlayers).length) {
@@ -683,95 +805,118 @@
       if (playerCount < MIN_PLAYERS$1) {
         throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
       }
-      const playerStatusUpdates = {};
-      Object.keys(players).forEach(uid => {
-        playerStatusUpdates[`${uid}/status`] = "alive";
-        playerStatusUpdates[`${uid}/eliminatedAt`] = null;
-      });
-      if (Object.keys(playerStatusUpdates).length > 0) {
-        await playersRef.update(playerStatusUpdates);
-      }
-      await this.assignRoles(roomCode, roundId);
-      await window.db.ref(`rooms/${roomCode}`).update({
-        roundId,
-        status: "started",
-        round: 1,
-        phase: "clue",
-        game: {
-          phase: "playing"
-        },
-        votes: null,
-        voteResult: null,
-        votingStarted: false,
-        voteRequests: null,
-        voteStartRequests: null,
-        voting: null,
-        guess: null,
-        lastGuess: null,
-        eliminated: null,
-        eliminatedUid: null,
-        winner: null,
-        spyParityWin: null,
-        gameOver: null,
-        final: null,
-        spiesSnapshot: null
-      });
-    },
-    restartGame: async function (roomCode) {
-      const roomRef = window.db.ref(`rooms/${roomCode}`);
-      const settingsRef = roomRef.child("settings");
-      const playersRef = roomRef.child("players");
-      const eliminatedRef = roomRef.child("eliminated");
-      const [settingsSnap, playersSnap, eliminatedSnap] = await Promise.all([settingsRef.get(), playersRef.get(), eliminatedRef.get()]);
-      settingsSnap.val();
-      const players = playersSnap.val() || {};
-      const eliminatedPlayers = eliminatedSnap.val() || {};
-
-      // Re-add eliminated players before restarting
-      await Promise.all(Object.entries(eliminatedPlayers).map(_ref3 => {
-        let [uid, pdata] = _ref3;
-        return playersRef.child(uid).set({
-          ...pdata,
+      const revivedPlayers = Object.fromEntries(Object.entries(players).map(_ref5 => {
+        let [uid, player] = _ref5;
+        return [uid, {
+          ...player,
           status: "alive",
           eliminatedAt: null
-        });
+        }];
       }));
-
-      // Clear eliminated list
-      if (Object.keys(eliminatedPlayers).length > 0) {
-        await eliminatedRef.remove();
-      }
-      const allPlayers = {
-        ...players,
-        ...eliminatedPlayers
+      const {
+        updates,
+        spiesSnapshotPayload
+      } = buildRoleAssignments(roomCode, settings, revivedPlayers, roundId);
+      const roomBasePath = `rooms/${roomCode}`;
+      const updatePayload = {
+        ...updates,
+        [`${roomBasePath}/spiesSnapshot`]: spiesSnapshotPayload,
+        [`${roomBasePath}/roundId`]: roundId,
+        [`${roomBasePath}/status`]: "started",
+        [`${roomBasePath}/round`]: 1,
+        [`${roomBasePath}/phase`]: "clue",
+        [`${roomBasePath}/game`]: {
+          phase: "playing"
+        },
+        [`${roomBasePath}/votes`]: null,
+        [`${roomBasePath}/voteResult`]: null,
+        [`${roomBasePath}/votingStarted`]: false,
+        [`${roomBasePath}/voteRequests`]: null,
+        [`${roomBasePath}/voteStartRequests`]: null,
+        [`${roomBasePath}/voting`]: null,
+        [`${roomBasePath}/guess`]: null,
+        [`${roomBasePath}/lastGuess`]: null,
+        [`${roomBasePath}/eliminated`]: null,
+        [`${roomBasePath}/eliminatedUid`]: null,
+        [`${roomBasePath}/winner`]: null,
+        [`${roomBasePath}/spyParityWin`]: null,
+        [`${roomBasePath}/gameOver`]: null,
+        [`${roomBasePath}/final`]: null
       };
-      const playerCount = Object.keys(allPlayers).length;
+      Object.entries(revivedPlayers).forEach(_ref6 => {
+        let [uid, player] = _ref6;
+        updatePayload[`${roomBasePath}/players/${uid}`] = player;
+      });
+      await window.db.ref().update(updatePayload);
+    },
+    restartGame: async function (roomCode) {
+      clearVotingWatcher(roomCode);
+      const roundId = generateRoundId();
+      const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
+      const playersRef = window.db.ref(`rooms/${roomCode}/players`);
+      const eliminatedRef = window.db.ref(`rooms/${roomCode}/eliminated`);
+      const [settingsSnap, playersSnap, eliminatedSnap] = await Promise.all([settingsRef.get(), playersRef.get(), eliminatedRef.get()]);
+      if (!settingsSnap.exists() || !playersSnap.exists()) {
+        throw new Error("Oda bulunamadı");
+      }
+      const settings = settingsSnap.val();
+      const players = playersSnap.val() || {};
+      const eliminatedPlayers = eliminatedSnap.val() || {};
+      const mergedPlayers = {
+        ...eliminatedPlayers,
+        ...players
+      };
+      const revivedPlayers = {};
+      Object.entries(mergedPlayers).forEach(_ref7 => {
+        let [uid, player] = _ref7;
+        if (!player?.name) {
+          throw new Error("Tüm oyuncuların bir adı olmalıdır.");
+        }
+        revivedPlayers[uid] = {
+          ...player,
+          status: "alive",
+          eliminatedAt: null
+        };
+      });
+      const playerCount = Object.keys(revivedPlayers).length;
       if (playerCount < MIN_PLAYERS$1) {
         throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
       }
-      await roomRef.update({
-        status: "waiting",
-        round: 0,
-        roundId: null,
-        votes: null,
-        voteResult: null,
-        votingStarted: false,
-        voteRequests: null,
-        voteStartRequests: null,
-        voting: null,
-        guess: null,
-        spies: null,
-        spiesSnapshot: null,
-        playerRoles: null,
-        winner: null,
-        spyParityWin: null,
-        lastGuess: null,
-        eliminated: null,
-        gameOver: null,
-        final: null
+      const {
+        updates,
+        spiesSnapshotPayload
+      } = buildRoleAssignments(roomCode, settings, revivedPlayers, roundId);
+      const roomBasePath = `rooms/${roomCode}`;
+      const updatePayload = {
+        ...updates,
+        [`${roomBasePath}/spiesSnapshot`]: spiesSnapshotPayload,
+        [`${roomBasePath}/roundId`]: roundId,
+        [`${roomBasePath}/status`]: "started",
+        [`${roomBasePath}/round`]: 1,
+        [`${roomBasePath}/phase`]: "clue",
+        [`${roomBasePath}/game`]: {
+          phase: "playing"
+        },
+        [`${roomBasePath}/votes`]: null,
+        [`${roomBasePath}/voteResult`]: null,
+        [`${roomBasePath}/votingStarted`]: false,
+        [`${roomBasePath}/voteRequests`]: null,
+        [`${roomBasePath}/voteStartRequests`]: null,
+        [`${roomBasePath}/voting`]: null,
+        [`${roomBasePath}/guess`]: null,
+        [`${roomBasePath}/lastGuess`]: null,
+        [`${roomBasePath}/eliminated`]: null,
+        [`${roomBasePath}/eliminatedUid`]: null,
+        [`${roomBasePath}/winner`]: null,
+        [`${roomBasePath}/spyParityWin`]: null,
+        [`${roomBasePath}/gameOver`]: null,
+        [`${roomBasePath}/final`]: null
+      };
+      Object.entries(revivedPlayers).forEach(_ref8 => {
+        let [uid, player] = _ref8;
+        updatePayload[`${roomBasePath}/players/${uid}`] = player;
       });
-      // Start game after players have been restored and room reset
-      await this.startGame(roomCode);
+      await window.db.ref().update(updatePayload);
     },
     /** Odayı sil */
     deleteRoom: function (roomCode) {
@@ -782,39 +927,22 @@
       const uid = await this.getUid();
       if (!uid) return Promise.resolve();
       const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
-      localStorage.clear();
+      ["roomCode", "playerName", "isCreator"].forEach(key => localStorage.removeItem(key));
       return playerRef.remove();
     },
     /** Oyuncuları canlı dinle */
     listenPlayers: function (roomCode, callback) {
       const playersRef = window.db.ref(`rooms/${roomCode}/players`);
-      const cleanupSession = () => {
-        ["roomCode", "playerName", "isCreator"].forEach(key => localStorage.removeItem(key));
-      };
-
-      playersRef.on("value", async snapshot => {
+      const listener = async snapshot => {
         const roomRef = snapshot.ref.parent;
         const roomSnap = roomRef ? await roomRef.get() : null;
         const playersData = snapshot.val();
-
-        if (!(roomSnap && roomSnap.exists()) || playersData === null) {
-          playersRef.off("value");
-          cleanupSession();
-
-          const setupHidden = document.getElementById("setup")?.classList.contains("hidden");
-
-          if (setupHidden) {
-            window.location.replace("./index.html");
-          } else {
-            window.showSetupJoin?.();
-          }
-
+        if (!roomSnap?.exists() || playersData === null) {
           return;
         }
-
         const playersObj = playersData || {};
-        const playersArr = Object.entries(playersObj).map(_ref4 => {
-          let [uid, p] = _ref4;
+        const playersArr = Object.entries(playersObj).map(_ref9 => {
+          let [uid, p] = _ref9;
           return {
             uid,
             ...p
@@ -835,7 +963,10 @@
 
         // Kurucu ayrıldıysa ve oyun başlamadıysa odayı kapat
         const roomData = roomSnap.val();
-        const resolvedCreatorUid = roomData?.settings?.creatorUid || roomData?.creatorUid || Object.entries(roomData?.players || {}).find(([, player]) => Boolean(player?.isCreator))?.[0];
+        const resolvedCreatorUid = roomData?.settings?.creatorUid || roomData?.creatorUid || Object.entries(roomData?.players || {}).find(_ref0 => {
+          let [, player] = _ref0;
+          return Boolean(player?.isCreator);
+        })?.[0];
 
         // Only close the lobby when we know the creator is missing before start.
         if (roomData && roomData.status !== "started" && resolvedCreatorUid && !uids.includes(resolvedCreatorUid)) {
@@ -843,18 +974,23 @@
           localStorage.clear();
           location.reload();
         }
-      });
+      };
+      playersRef.on("value", listener);
+      return () => playersRef.off("value", listener);
     },
     /** Oda ve oyun durumunu canlı dinle */
     listenRoom: function (roomCode) {
       const roomRef = window.db.ref("rooms/" + roomCode);
-      roomRef.on("value", async snapshot => {
+      const listener = async snapshot => {
         const roomData = snapshot.val();
         if (!roomData) return;
 
+        // Watch for expired voting windows and finalize them once when time is up.
+        ensureVotingWatcher(roomCode, roomData.voting, this.finalizeVoting.bind(this));
+
         // Oyuncu listesi güncelle
         const playersObj = roomData.players || {};
-        const players = Object.values(playersObj).map(p => p.name);
+        const players = Object.values(playersObj).filter(p => isPlayerAlive(p)).map(p => p.name);
         const playerListEl = document.getElementById("playerList");
         if (playerListEl) {
           playerListEl.innerHTML = players.map(p => `<li>${escapeHtml(p)}</li>`).join("");
@@ -882,41 +1018,35 @@
             }
           }
         }
-      });
+      };
+      roomRef.on("value", listener);
+      return () => roomRef.off("value", listener);
     },
     // Oylamayı başlatma isteği kaydet
     startVote: function (roomCode, uid) {
       const roomRef = window.db.ref(`rooms/${roomCode}`);
-      roomRef.transaction(currentData => {
-        if (!currentData) return;
+      return roomRef.transaction(currentData => {
+        if (!currentData) return currentData;
         const votingState = currentData.voting || {};
-        if (votingState.status === "in_progress") return;
-        const voteRequests = {
-          ...(currentData.voteStartRequests || {})
-        };
-        voteRequests[uid] = true;
-        const roles = currentData.playerRoles || {};
+        const votingStatus = votingState.status || "idle";
+        if (currentData.game?.phase !== "playing" || votingStatus !== "idle") {
+          return currentData;
+        }
         const players = currentData.players || {};
-        const alivePlayers = getActivePlayers(roles, players);
-        const aliveUids = alivePlayers.map(p => p.uid);
-        if (!aliveUids.includes(uid)) return currentData;
-        const filteredRequests = aliveUids.reduce((acc, id) => {
-          if (voteRequests[id]) acc[id] = true;
+        const aliveUids = getAliveUids(players);
+        if (!aliveUids.length || !aliveUids.includes(uid)) return currentData;
+        const startedBy = aliveUids.reduce((acc, id) => {
+          if (votingState.startedBy?.[id]) acc[id] = true;
+          if (id === uid) acc[id] = true;
           return acc;
         }, {});
-        const requestCount = Object.keys(filteredRequests).length;
-        const required = Math.floor(alivePlayers.length / 2) + 1;
-        if (alivePlayers.length && requestCount >= required) {
-          const snapshotOrder = alivePlayers.map(p => p.uid);
-          const snapshotNames = alivePlayers.reduce((acc, p) => {
-            if (p?.uid) acc[p.uid] = p.name;
-            return acc;
-          }, {});
-          const aliveAtStart = snapshotOrder.reduce((acc, playerId) => {
-            acc[playerId] = true;
-            return acc;
-          }, {});
-          const startedAt = window.firebase.database.ServerValue.TIMESTAMP;
+        const aliveCount = aliveUids.length;
+        const required = Math.floor(aliveCount / 2) + 1;
+        const startedCount = Object.keys(startedBy).length;
+        if (startedCount >= required) {
+          const now = getServerNow();
+          const baseRound = typeof votingState.round === "number" ? votingState.round : typeof currentData.round === "number" ? currentData.round : 0;
+          const nextRound = baseRound + 1;
           return {
             ...currentData,
             phase: "voting",
@@ -924,114 +1054,111 @@
               ...(currentData.game || {}),
               phase: "voting"
             },
-            votingStarted: true,
-            votes: null,
-            voteResult: null,
-            voteRequests: null,
-            voteStartRequests: null,
             voting: {
-              ...votingState,
               status: "in_progress",
-              round: votingState.round || currentData.round || 1,
-              startedAt,
-              startedBy: uid,
-              endsAt: null,
-              roster: alivePlayers,
+              round: nextRound,
+              startedAt: now,
+              endsAt: now + 30000,
+              startedBy,
+              expectedVoters: buildExpectedVotersMap(aliveUids),
               votes: {},
               result: null,
-              snapshot: {
-                order: snapshotOrder,
-                names: snapshotNames,
-                aliveAtStart
-              },
-              snapshotPlayers: alivePlayers
-            }
+              continueAcks: {}
+            },
+            votes: null,
+            voteResult: null
           };
         }
         return {
           ...currentData,
-          voteStartRequests: filteredRequests
+          voting: {
+            ...votingState,
+            status: "idle",
+            startedBy
+          }
         };
-      }).then(_ref5 => {
-        let {
-          committed,
-          snapshot
-        } = _ref5;
-        if (!committed || !snapshot) return;
-        const votingSnap = snapshot.child("voting");
+      }).then(result => {
+        if (!result?.committed || !result.snapshot) return result;
+        const votingSnap = result.snapshot.child("voting");
         const status = votingSnap?.child("status")?.val();
-        if (status !== "in_progress") return;
+        if (status !== "in_progress") return result;
         const startedAt = votingSnap?.child("startedAt")?.val();
         const endsAt = votingSnap?.child("endsAt")?.val();
         if (startedAt && endsAt == null) {
-          roomRef.child("voting/endsAt").set(startedAt + 30000);
+          return roomRef.child("voting/endsAt").set(startedAt + 30000).then(() => result);
         }
+        return result;
       });
     },
     startVoting: function (roomCode, playersSnapshot) {
       const ref = window.db.ref("rooms/" + roomCode);
-      const mappedPlayers = (playersSnapshot || []).map(p => ({
-        uid: p.uid || p.id,
-        name: p.name
-      }));
-      const snapshotPromise = playersSnapshot ? Promise.resolve(mappedPlayers) : Promise.all([ref.child("playerRoles").get(), ref.child("players").get()]).then(_ref6 => {
-        let [rolesSnap, playersSnap] = _ref6;
-        const roles = rolesSnap.val() || {};
-        const players = playersSnap.val() || {};
-        return Object.keys(roles).map(uid => ({
-          uid,
-          name: players?.[uid]?.name || uid
-        }));
-      });
-      snapshotPromise.then(snapshotPlayers => {
-        ref.get().then(snap => {
-          if (!snap.exists()) return;
-          const data = snap.val() || {};
-          if (data.voting?.status === "in_progress") return;
-          const snapshotOrder = (snapshotPlayers || []).map(p => p.uid);
-          const snapshotNames = (snapshotPlayers || []).reduce((acc, p) => {
-            if (p?.uid) acc[p.uid] = p.name;
+      const snapshotUids = new Set((playersSnapshot || []).map(p => p?.uid || p?.id).filter(Boolean));
+      ref.transaction(room => {
+        if (!room) return room;
+        if (room.game?.phase !== "playing") return room;
+        const roles = room.playerRoles || {};
+        const players = room.players || {};
+        const alivePlayers = getActivePlayers(roles, players);
+        const aliveUids = alivePlayers.map(p => p.uid);
+        if (!aliveUids.length) return room;
+        const votingState = room.voting || {};
+        const votingStatus = votingState.status || "idle";
+        if (votingStatus !== "idle") {
+          const filteredStartedBy = aliveUids.reduce((acc, id) => {
+            if (votingState.startedBy?.[id]) acc[id] = true;
             return acc;
           }, {});
-          const aliveAtStart = snapshotOrder.reduce((acc, uid) => {
-            acc[uid] = true;
-            return acc;
-          }, {});
-          ref.update({
-            phase: "voting",
-            game: {
-              ...(data.game || {}),
-              phase: "voting"
-            },
-            votingStarted: true,
-            votes: null,
-            voteResult: null,
-            voteRequests: null,
-            voteStartRequests: null,
+          return {
+            ...room,
             voting: {
-              status: "in_progress",
-              round: data.round || 1,
-              startedAt: window.firebase.database.ServerValue.TIMESTAMP,
-              startedBy: null,
-              endsAt: null,
-              roster: snapshotPlayers || [],
-              votes: {},
-              result: null,
-              snapshot: {
-                order: snapshotOrder,
-                names: snapshotNames,
-                aliveAtStart
-              },
-              snapshotPlayers: snapshotPlayers || []
+              ...votingState,
+              status: votingStatus,
+              startedBy: filteredStartedBy
             }
-          }).then(() => {
-            ref.child("voting/startedAt").get().then(snap => {
-              const startedAt = snap.val();
-              if (!startedAt) return;
-              ref.child("voting/endsAt").set(startedAt + 30000);
-            });
-          });
-        });
+          };
+        }
+        const startedBy = aliveUids.reduce((acc, id) => {
+          if (votingState.startedBy?.[id] || snapshotUids.has(id)) acc[id] = true;
+          return acc;
+        }, {});
+        const required = Math.floor(aliveUids.length / 2) + 1;
+        if (Object.keys(startedBy).length < required) {
+          return {
+            ...room,
+            voting: {
+              ...votingState,
+              status: "idle",
+              startedBy
+            }
+          };
+        }
+        const now = getServerNow();
+        const baseRound = typeof votingState.round === "number" ? votingState.round : typeof room.round === "number" ? room.round : 0;
+        const nextRound = baseRound + 1;
+        return {
+          ...room,
+          phase: "voting",
+          game: {
+            ...(room.game || {}),
+            phase: "voting"
+          },
+          voting: {
+            status: "in_progress",
+            round: nextRound,
+            startedAt: now,
+            endsAt: now + 30000,
+            startedBy,
+            expectedVoters: aliveUids.reduce((acc, id) => {
+              acc[id] = true;
+              return acc;
+            }, {}),
+            votes: {},
+            result: null,
+            continueAcks: {}
+          },
+          votes: null,
+          voteResult: null
+        };
       });
     },
     guessLocation: function (roomCode, spyUid, guess) {
@@ -1042,6 +1169,7 @@
         const roles = data.playerRoles || {};
         const spyRole = roles[spyUid];
         if (!spyRole) return;
+        const blockLegacyVotingUpdates = !!data?.voting?.status;
         let guessesLeft = spyRole.guessesLeft || 0;
         if (guessesLeft <= 0) return;
         let correctAnswer = null;
@@ -1076,10 +1204,10 @@
         const preserveVotes = data.voting?.votes;
         if (guessValue === correctAnswer) {
           const guessWord = gameType === "category" ? "rolü" : "konumu";
-          getSpyNamesForMessage(roomCode, data).then(_ref7 => {
+          getSpyNamesForMessage(roomCode, data).then(_ref1 => {
             let {
               spyNames
-            } = _ref7;
+            } = _ref1;
             const spyIntro = formatSpyIntro$1(spyNames);
             const message = `${spyIntro} ${guessWord} ${guessValue} olarak doğru tahmin etti ve oyunu kazandı!`;
             const winUpdate = {
@@ -1092,16 +1220,20 @@
                 finalGuess,
                 roundId: data.roundId || null
               },
-              votingStarted: false,
-              votes: null,
-              voting: {
-                ...(data.voting || {}),
-                votes: null
-              },
-              voteResult: null,
-              voteRequests: null,
               guess: null
             };
+            if (data.voting) {
+              winUpdate.voting = {
+                ...(data.voting || {}),
+                votes: null
+              };
+            }
+            if (!blockLegacyVotingUpdates) {
+              winUpdate.votingStarted = false;
+              winUpdate.votes = null;
+              winUpdate.voteResult = null;
+              winUpdate.voteRequests = null;
+            }
             appendFinalSpyInfo(winUpdate, data);
             ref.update(winUpdate).then(() => finalizeGameOver(roomCode, data, {
               winner: "spies",
@@ -1125,12 +1257,14 @@
               finalGuess,
               roundId: data.roundId || null
             };
-            updates.votingStarted = false;
-            updates.votes = null;
             updates["voting/votes"] = null;
-            updates.voteResult = null;
-            updates.voteRequests = null;
             updates.guess = null;
+            if (!blockLegacyVotingUpdates) {
+              updates.votingStarted = false;
+              updates.votes = null;
+              updates.voteResult = null;
+              updates.voteRequests = null;
+            }
           } else {
             updates.lastGuess = {
               spy: spyUid,
@@ -1140,7 +1274,7 @@
               finalGuess,
               roundId: data.roundId || null
             };
-            if (typeof preserveVotingStarted !== "undefined") {
+            if (!blockLegacyVotingUpdates && typeof preserveVotingStarted !== "undefined") {
               updates.votingStarted = preserveVotingStarted;
             }
             if (typeof preserveVotes !== "undefined") {
@@ -1154,10 +1288,10 @@
             const guessWord = gameType === "category" ? "rolü" : "konumu";
             const actualWord = gameType === "category" ? "rol" : "konum";
             appendFinalSpyInfo(updates, data);
-            getSpyNamesForMessage(roomCode, data).then(_ref8 => {
+            getSpyNamesForMessage(roomCode, data).then(_ref10 => {
               let {
                 spyNames
-              } = _ref8;
+              } = _ref10;
               const spyIntro = formatSpyIntro$1(spyNames);
               const message = `${spyIntro} ${guessWord} ${guessValue} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
               ref.update(updates).then(() => finalizeGameOver(roomCode, data, {
@@ -1173,213 +1307,430 @@
         }
       });
     },
+    castVote: function (roomCode, voterUid, targetUid) {
+      if (!roomCode || !voterUid || !targetUid) return;
+      if (voterUid === targetUid) return;
+      const ref = window.db.ref("rooms/" + roomCode);
+      const finalizeVoting = this.finalizeVoting.bind(this);
+      return ref.transaction(room => {
+        if (!room) return room;
+        const votingState = room.voting || {};
+        if (votingState.status !== "in_progress") return room;
+        const {
+          expectedVoters,
+          expectedSet
+        } = resolveExpectedVoters(room);
+        if (!expectedVoters.length) return room;
+        if (!expectedSet.has(voterUid) || !expectedSet.has(targetUid)) {
+          return room;
+        }
+        const votes = {
+          ...(votingState.votes || {})
+        };
+        votes[voterUid] = targetUid;
+        const nextExpectedVoters = votingState.expectedVoters && Object.keys(votingState.expectedVoters || {}).length ? votingState.expectedVoters : buildExpectedVotersMap(expectedVoters);
+        return {
+          ...room,
+          voting: {
+            ...votingState,
+            expectedVoters: nextExpectedVoters,
+            votes
+          }
+        };
+      }).then(result => {
+        if (!result.committed) return;
+        const roomData = result.snapshot?.val();
+        const votingState = roomData?.voting;
+        if (!votingState || votingState.status !== "in_progress") return;
+        const resolved = resolveExpectedVoters(roomData);
+        let expectedVoters = resolved.expectedVoters;
+        let expectedSet = resolved.expectedSet;
+        if (expectedVoters.length === 0) {
+          const alive = getAlivePlayersFromState(roomData?.players, roomData?.playerRoles);
+          expectedVoters = alive;
+          expectedSet = new Set(alive);
+        }
+        const expectedCount = expectedVoters.length;
+        if (!expectedCount) return;
+        const votes = votingState.votes || {};
+        const validVotes = Object.entries(votes).reduce((acc, _ref11) => {
+          let [voter, target] = _ref11;
+          if (expectedSet.has(voter) && expectedSet.has(target)) {
+            acc[voter] = target;
+          }
+          return acc;
+        }, {});
+        if (Object.keys(validVotes).length === expectedCount) {
+          finalizeVoting(roomCode, "all_voted");
+        }
+      });
+    },
     submitVote: function (roomCode, voter, target) {
       if (target === voter) {
         alert("Kendine oy veremezsin.");
         return;
       }
-      const ref = window.db.ref("rooms/" + roomCode);
-      ref.get().then(snap => {
-        if (!snap.exists()) return;
-        const data = snap.val();
-        const votingState = data.voting || {};
-        if (votingState.status !== "in_progress") return;
-        const alivePlayers = getActivePlayers(data.playerRoles, data.players);
-        const aliveUids = new Set(alivePlayers.map(p => p.uid));
-        if (!aliveUids.has(voter)) return;
-        if (!aliveUids.has(target)) return;
-        const updates = {
-          [`voting/votes/${voter}`]: target
-        };
-        ref.update(updates).then(() => {
-          const existingVotes = votingState.votes || {};
-          const nextVotes = {
-            ...existingVotes,
-            [voter]: target
-          };
-          const allVoted = alivePlayers.every(p => nextVotes[p.uid]);
-          if (allVoted) {
-            this.finalizeVoting(roomCode);
-          }
-        });
-      });
+      this.castVote(roomCode, voter, target);
     },
-    finalizeVoting: function (roomCode) {
+    finalizeVoting: function (roomCode, reason) {
+      console.log("[finalizeVoting] called", {
+        reason,
+        roomId: roomCode
+      });
       const ref = window.db.ref("rooms/" + roomCode);
-      const serverNow = getServerNow();
       return ref.transaction(room => {
         if (!room) return room;
         const votingState = room.voting || {};
-        if (votingState.status !== "in_progress") return room;
-        const roles = room.playerRoles || {};
-        const players = room.players || {};
-        const alivePlayers = getActivePlayers(roles, players);
-        const aliveUids = alivePlayers.map(p => p.uid);
-        if (!aliveUids.length) return room;
-        const votesMap = votingState.votes || {};
-        const voteEntries = Object.entries(votesMap).filter(_ref9 => {
-          let [voter, target] = _ref9;
-          return aliveUids.includes(voter) && aliveUids.includes(target);
-        });
-        const allAliveVoted = aliveUids.every(uid => votesMap[uid]);
-        const endsAt = votingState.endsAt;
-        const canFinalizeByTime = typeof endsAt === "number" && serverNow >= endsAt;
-        if (!allAliveVoted && !canFinalizeByTime) {
-          return room;
+        const {
+          expectedVoters,
+          expectedSet
+        } = resolveExpectedVoters(room);
+        let derivedExpectedVoters = expectedVoters;
+        let derivedExpectedSet = expectedSet;
+        if (derivedExpectedVoters.length === 0) {
+          const alive = getAlivePlayersFromState(room?.players, room?.playerRoles);
+          derivedExpectedVoters = alive;
+          derivedExpectedSet = new Set(alive);
         }
-        const counts = {};
-        voteEntries.forEach(_ref0 => {
-          let [, t] = _ref0;
-          if (aliveUids.includes(t)) {
-            counts[t] = (counts[t] || 0) + 1;
+        const expectedVoterCount = derivedExpectedVoters.length;
+        const normalizedExpectedVotersMap = votingState.expectedVoters && Object.keys(votingState.expectedVoters || {}).length ? votingState.expectedVoters : buildExpectedVotersMap(derivedExpectedVoters);
+        const endsAt = typeof votingState.endsAt === "number" ? votingState.endsAt : null;
+        const votesMap = votingState.votes || {};
+        const validVotes = Object.entries(votesMap).reduce((acc, _ref12) => {
+          let [voter, target] = _ref12;
+          if (derivedExpectedSet.has(voter) && derivedExpectedSet.has(target)) {
+            acc[voter] = target;
           }
+          return acc;
+        }, {});
+        const votesCount = Object.keys(validVotes).length;
+        const serverNow = getServerNow();
+        const canFinalizeByCount = expectedVoterCount > 0 && votesCount === expectedVoterCount;
+        const canFinalizeByTime = reason === "time_up" ? endsAt === null || serverNow >= endsAt : endsAt !== null && serverNow >= endsAt;
+        console.log("[finalizeVoting] precheck", {
+          status: votingState.status,
+          endsAt,
+          votesCount,
+          expectedCount: expectedVoterCount
         });
-        const hasVotes = Object.keys(counts).length > 0;
-        const max = hasVotes ? Math.max(...Object.values(counts)) : 0;
-        const top = hasVotes ? Object.keys(counts).filter(p => counts[p] === max) : [];
-        const isTie = !hasVotes || top.length !== 1;
-        const snapshotPlayers = votingState.snapshotPlayers || votingState.roster || [];
-        const snapshot = votingState.snapshot;
-        const getName = uid => {
-          if (snapshot?.names && snapshot.names[uid]) return snapshot.names[uid];
-          const playerName = room.players?.[uid]?.name;
-          if (playerName) return playerName;
-          const snap = snapshotPlayers.find(p => p.uid === uid);
-          return snap?.name || uid;
-        };
+        if (votingState.status !== "in_progress") return room;
+        if (reason === "all_voted" && votesCount !== expectedVoterCount) return room;
+        if (!canFinalizeByCount && !canFinalizeByTime) return room;
+        const counts = {};
+        Object.values(validVotes).forEach(target => {
+          counts[target] = (counts[target] || 0) + 1;
+        });
+        const tallyTargets = Object.keys(counts).filter(id => derivedExpectedSet.has(id));
+        let eliminatedUid = null;
+        let eliminatedRole = null;
+        let eliminatedName = null;
+        let isTie = true;
+        if (tallyTargets.length > 0) {
+          const maxVotes = Math.max(...tallyTargets.map(id => counts[id]));
+          const top = tallyTargets.filter(id => counts[id] === maxVotes);
+          if (top.length === 1) {
+            eliminatedUid = top[0];
+            eliminatedRole = (room.playerRoles || {})[eliminatedUid] || null;
+            const playerEntry = (room.players || {})[eliminatedUid] || {};
+            eliminatedName = playerEntry?.name || room.voting?.snapshot?.names?.[eliminatedUid] || eliminatedUid;
+            isTie = false;
+          }
+        }
         const finalizedAt = window.firebase.database.ServerValue.TIMESTAMP;
         const votingRound = votingState.round ?? room.round ?? null;
-        const nextRoom = {
-          ...room
-        };
-        const baseResult = {
+        let nextPlayers = room.players || {};
+        let nextEliminated = room.eliminated || {};
+        if (!isTie && eliminatedUid) {
+          const playerEntry = nextPlayers[eliminatedUid] || {};
+          nextPlayers = {
+            ...nextPlayers,
+            [eliminatedUid]: {
+              ...playerEntry,
+              status: "eliminated",
+              eliminatedAt: finalizedAt
+            }
+          };
+          nextEliminated = {
+            ...nextEliminated,
+            [eliminatedUid]: {
+              name: playerEntry?.name || eliminatedUid,
+              isCreator: !!playerEntry.isCreator,
+              eliminatedAt: finalizedAt
+            }
+          };
+        }
+
+        // Daha güvenli: canlıları direkt players status'ünden say (role sync hatalarından etkilenmez)
+        const aliveUids = getAliveUids(nextPlayers);
+        const remainingSpies = getSpyUids$1(room.spies).filter(id => aliveUids.includes(id));
+        const spyAlive = remainingSpies.length;
+        const aliveCount = aliveUids.length;
+        const innocentAlive = Math.max(aliveCount - spyAlive, 0);
+        let nextStatus = room.status;
+        let nextWinner = room.winner;
+        let nextGamePhase = "results";
+        const finalUpdates = {};
+
+        // 🎯 KAZANMA KOŞULLARI (DOĞRU HALİ)
+        if (spyAlive === 0) {
+          nextStatus = "finished";
+          nextWinner = "innocent";
+          appendFinalSpyInfo(finalUpdates, room);
+          nextGamePhase = "ended";
+        } else if (innocentAlive <= 1) {
+          nextStatus = "finished";
+          nextWinner = "spy";
+          finalUpdates.spyParityWin = true;
+          nextGamePhase = "ended";
+        } else {
+          nextStatus = room.status;
+          nextWinner = null;
+          nextGamePhase = "results";
+        }
+
+        // Harmless sanity scenarios around vote resolution (counts derived from getAliveUids/getSpyUids)
+        console.assert(!(spyAlive === 2 && innocentAlive === 1 && !isTie && eliminatedUid && !eliminatedRole?.isSpy) || nextWinner === "spy", "2 spies + 2 innocents, innocent eliminated -> spies should win");
+        console.assert(!(spyAlive === 1 && innocentAlive === 1 && !isTie && eliminatedUid && !eliminatedRole?.isSpy) || nextWinner === "spy", "1 spy + 2 innocents, innocent eliminated -> spies should win");
+        console.assert(!(spyAlive === 1 && innocentAlive === 2 && !isTie && eliminatedUid && eliminatedRole?.isSpy) || nextStatus !== "finished", "2 spies + 2 innocents, spy eliminated -> game should continue");
+        console.assert(spyAlive !== 0 || nextWinner === "innocent" && nextStatus === "finished", "Any state with 0 spies -> innocents should win");
+        const resultPayload = {
           ...(votingState.result || {}),
           round: votingRound,
           finalizedAt,
-          tie: isTie
-        };
-        nextRoom.voting = {
-          ...votingState,
-          status: "resolved",
-          startedBy: null,
-          votes: {},
-          result: baseResult
-        };
-        nextRoom.votingStarted = false;
-        nextRoom.voteResult = null;
-        nextRoom.votes = null;
-        nextRoom.voteRequests = null;
-        nextRoom.voteStartRequests = null;
-        nextRoom.game = {
-          ...(room.game || {}),
-          phase: "playing"
-        };
-        nextRoom.phase = "clue";
-        if (isTie) {
-          nextRoom.guess = null;
-          return nextRoom;
-        }
-        const eliminatedUid = top[0];
-        const votedRole = roles && roles[eliminatedUid];
-        const isSpy = votedRole ? votedRole.isSpy : false;
-        const remainingPlayers = aliveUids.filter(uid => uid !== eliminatedUid);
-        const remainingSpies = getSpyUids$1(room.spies).filter(id => remainingPlayers.includes(id));
-        const eliminatedName = getName(eliminatedUid);
-        nextRoom.voting.result = {
-          ...nextRoom.voting.result,
-          eliminatedUid,
-          eliminatedName,
-          isSpy,
-          tie: false,
-          eliminatedAt: finalizedAt,
+          tie: isTie,
+          votes: validVotes,
+          aliveCount,
+          spyAlive,
+          innocentAlive,
           roundId: room.roundId || null
         };
-        const playerEntry = players[eliminatedUid] || {};
-        nextRoom.players = {
-          ...players,
-          [eliminatedUid]: {
-            ...playerEntry,
-            status: "eliminated",
-            eliminatedAt: finalizedAt
+
+        // Public message: oyun bitmediyse rol ifşası yok
+        if (!isTie && eliminatedUid) {
+          const publicName = eliminatedName || eliminatedUid;
+          if (nextStatus === "finished") {
+            const normalizedWinner = normalizeWinnerValue(nextWinner);
+            if (normalizedWinner === "innocents") {
+              resultPayload.publicMessage = `Sahtekar ${publicName} elendi! Oyunu masumlar kazandı!`;
+              resultPayload.revealSpies = true;
+            } else {
+              resultPayload.publicMessage = `${publicName} elendi! Sahtekarlar sayıca üstünlük sağladı ve oyunu kazandı!`;
+              resultPayload.revealSpies = true;
+            }
+          } else {
+            resultPayload.publicMessage = `${publicName} elendi! Fakat oyun henüz bitmiş değil...`;
+            resultPayload.revealSpies = false;
           }
-        };
-        nextRoom.eliminated = {
-          ...(room.eliminated || {}),
-          [eliminatedUid]: {
-            name: eliminatedName,
-            isCreator: !!playerEntry.isCreator,
-            eliminatedAt: finalizedAt
+        }
+        if (reason) resultPayload.reason = reason;
+        if (!isTie && eliminatedUid) {
+          resultPayload.eliminatedUid = eliminatedUid;
+          resultPayload.eliminatedName = eliminatedName;
+          resultPayload.eliminatedRole = eliminatedRole;
+          resultPayload.isSpy = !!(eliminatedRole && eliminatedRole.isSpy);
+          resultPayload.eliminatedAt = finalizedAt;
+          resultPayload.roundId = room.roundId || null;
+          if (eliminatedRole && eliminatedRole.role !== undefined) {
+            resultPayload.role = eliminatedRole.role;
           }
-        };
-        if (isSpy) {
-          const role = votedRole && votedRole.role !== undefined ? votedRole.role : null;
-          const location = votedRole && votedRole.location !== undefined ? votedRole.location : null;
-          nextRoom.voting.result.role = role;
-          nextRoom.voting.result.location = location;
-          nextRoom.voting.result.remainingSpies = remainingSpies;
-          nextRoom.voting.result.lastSpy = remainingSpies.length === 0;
+          if (eliminatedRole && eliminatedRole.location !== undefined) {
+            resultPayload.location = eliminatedRole.location;
+          }
+          resultPayload.remainingSpies = remainingSpies;
+          resultPayload.lastSpy = remainingSpies.length === 0;
         }
-        const aliveCount = remainingPlayers.length;
-        const spyAlive = remainingSpies.length;
-        let gamePhase = "playing";
-        if (spyAlive === 0) {
-          nextRoom.status = "finished";
-          nextRoom.winner = "innocent";
-          appendFinalSpyInfo(nextRoom, room);
-          gamePhase = "ended";
-        } else if (aliveCount === 2 && spyAlive === 1) {
-          nextRoom.status = "finished";
-          nextRoom.winner = "spy";
-          nextRoom.spyParityWin = true;
-          gamePhase = "ended";
-        }
-        nextRoom.game = {
-          ...(nextRoom.game || {}),
-          phase: gamePhase
+        const nextRoom = {
+          ...room,
+          ...finalUpdates,
+          players: nextPlayers,
+          eliminated: nextEliminated,
+          voting: {
+            ...votingState,
+            status: "resolved",
+            startedBy: null,
+            votes: null,
+            expectedVoters: normalizedExpectedVotersMap,
+            continueAcks: {},
+            result: resultPayload
+          },
+          votingStarted: false,
+          voteResult: null,
+          votes: null,
+          voteRequests: null,
+          voteStartRequests: null,
+          game: {
+            ...(room.game || {}),
+            phase: nextGamePhase
+          },
+          phase: nextGamePhase,
+          guess: null
         };
-        nextRoom.phase = gamePhase === "ended" ? "ended" : "clue";
-        nextRoom.guess = null;
+        if (nextStatus !== undefined) nextRoom.status = nextStatus;
+        const resolvedWinner = typeof nextWinner === "string" ? nextWinner : typeof room.winner === "string" && room.status === "finished" ? room.winner : null;
+        if (resolvedWinner) nextRoom.winner = resolvedWinner;else delete nextRoom.winner;
         return nextRoom;
       }).then(result => {
-        if (!result.committed) return;
+        if (!result?.committed) return;
         const roomData = result.snapshot?.val();
+        if (!roomData) return;
         const votingResult = roomData?.voting?.result;
-        if (roomData?.status === "finished" && votingResult?.eliminatedUid) {
-          const eliminatedName = votingResult.eliminatedName || votingResult.eliminatedUid;
-          const winner = roomData.winner === "innocent" ? "innocents" : roomData.winner;
-          getSpyNamesForMessage(roomCode, roomData).then(_ref1 => {
-            let {
-              spyNames
-            } = _ref1;
-            const spyIntro = formatSpyIntro$1(spyNames);
-            const message = winner === "innocents" ? `${spyIntro} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!` : `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`;
-            finalizeGameOver(roomCode, roomData, {
-              winner,
-              reason: "vote",
-              eliminatedUid: votingResult.eliminatedUid,
-              eliminatedName,
-              message
-            });
+        const votingStatus = roomData?.voting?.status;
+        const finalizedAt = votingResult?.finalizedAt;
+        const phase = roomData?.phase;
+        const gamePhase = roomData?.game?.phase;
+        const isEnded = roomData?.status === "finished" || phase === "ended" || gamePhase === "ended";
+        console.log("[finalizeVoting] transaction result", {
+          committed: result.committed,
+          roomId: roomCode,
+          votingStatus: votingStatus ?? null,
+          finalizedAtPresent: !!finalizedAt,
+          phase: phase ?? null,
+          gamePhase: gamePhase ?? null
+        });
+        const warnings = [];
+        if (!votingStatus) warnings.push("Missing rooms/{room}/voting/status");
+        if (finalizedAt === undefined || finalizedAt === null) {
+          warnings.push("Missing voting.result.finalizedAt");
+        }
+        if (!isEnded && !phase && !gamePhase) {
+          warnings.push("Missing phase and game.phase");
+        }
+        if (warnings.length) {
+          console.warn("[finalizeVoting] transaction diagnostics", {
+            roomId: roomCode,
+            warnings
           });
         }
+
+        // ✅ Sadece oyun bittiyse ve elimizde elimine edilen varsa gameOver'u finalize et
+        if (roomData?.status !== "finished") return;
+        if (!votingResult?.eliminatedUid) return;
+        const eliminatedName = votingResult.eliminatedName || votingResult.eliminatedUid;
+        const winner = normalizeWinnerValue(roomData.winner === "innocent" ? "innocents" : roomData.winner === "spy" ? "spies" : roomData.winner);
+        return getSpyNamesForMessage(roomCode, roomData).then(_ref13 => {
+          let {
+            spyNames
+          } = _ref13;
+          const spyIntro = formatSpyIntro$1(spyNames);
+          const message = winner === "innocents" ? `Sahtekar ${eliminatedName} elendi! Oyunu masumlar kazandı!` : `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`;
+          return finalizeGameOver(roomCode, roomData, {
+            winner,
+            reason: "vote",
+            eliminatedUid: votingResult.eliminatedUid,
+            eliminatedName,
+            message
+          });
+        });
+      }).catch(err => {
+        console.error("[finalizeVoting] error", err);
+      });
+    },
+    restartVotingAfterTie: function (roomCode) {
+      if (!roomCode) return Promise.resolve(null);
+      const votingRef = window.db.ref(`rooms/${roomCode}/voting`);
+      return votingRef.transaction(voting => {
+        if (!voting) return voting;
+        const isResolvedTie = voting.status === "resolved" && voting.result && typeof voting.result === "object" && voting.result.tie === true;
+        if (!isResolvedTie) return voting;
+        if (voting.status === "in_progress") return voting;
+        const now = getServerNow();
+        const endsAt = now + 30000;
+        const expectedVoters = voting.expectedVoters && typeof voting.expectedVoters === "object" ? voting.expectedVoters : voting.snapshot?.expectedVoters && typeof voting.snapshot.expectedVoters === "object" ? voting.snapshot.expectedVoters : undefined;
+        const nextVoting = {
+          ...voting,
+          status: "in_progress",
+          startedAt: now,
+          endsAt,
+          startedBy: null,
+          continueAcks: {},
+          votes: {},
+          result: null
+        };
+        if (expectedVoters) {
+          nextVoting.expectedVoters = expectedVoters;
+        }
+        return nextVoting;
+      }).catch(err => {
+        console.error("[restartVotingAfterTie] error", err);
+      });
+    },
+    continueAfterResults: async function (roomCode, uid) {
+      const userUid = uid || (await this.getUid());
+      if (!roomCode || !userUid) return;
+      const ref = window.db.ref("rooms/" + roomCode);
+      return ref.transaction(room => {
+        if (!room) return room;
+        const blockLegacyVotingUpdates = !!room?.voting?.status;
+        const phase = room.game?.phase || room.phase;
+        if (phase !== "results") return room;
+        const roles = room.playerRoles || {};
+        const players = room.players || {};
+        const playerStatus = typeof players[userUid]?.status === "string" ? players[userUid].status : "alive";
+        if (playerStatus !== "alive") return room;
+        const alivePlayers = getActivePlayers(roles, players);
+        const aliveUids = alivePlayers.map(p => p.uid);
+        if (!aliveUids.includes(userUid)) return room;
+        const continueAcks = {
+          ...(room.voting?.continueAcks || {})
+        };
+        continueAcks[userUid] = true;
+        const allAcked = aliveUids.length > 0 && aliveUids.every(id => continueAcks[id]);
+        const nextRoom = {
+          ...room,
+          voting: {
+            ...(room.voting || {}),
+            status: room.voting?.status || "resolved",
+            continueAcks
+          }
+        };
+        if (allAcked) {
+          nextRoom.voting = {
+            ...nextRoom.voting,
+            status: "idle",
+            startedBy: {},
+            expectedVoters: null,
+            votes: null,
+            result: null,
+            continueAcks: null
+          };
+          if (!blockLegacyVotingUpdates) {
+            nextRoom.votingStarted = false;
+            nextRoom.voteRequests = null;
+            nextRoom.voteStartRequests = null;
+            nextRoom.votes = null;
+            nextRoom.voteResult = null;
+          }
+          nextRoom.phase = "clue";
+          nextRoom.game = {
+            ...(room.game || {}),
+            phase: "playing"
+          };
+        }
+        return nextRoom;
       });
     },
     resetVotingState: function (roomCode) {
       const ref = window.db.ref("rooms/" + roomCode);
       return ref.transaction(room => {
         if (!room) return room;
+        const blockLegacyVotingUpdates = !!room?.voting?.status;
         if (room.voting?.status === "in_progress") return room;
         const hasResult = room.voting?.result?.finalizedAt || room.voteResult;
         if (!hasResult) return room;
         const nextRoom = {
           ...room
         };
-        nextRoom.votes = null;
-        nextRoom.voteRequests = null;
-        nextRoom.voteStartRequests = null;
-        nextRoom.votingStarted = false;
-        nextRoom.voteResult = null;
-        nextRoom.voting = null;
+        if (!blockLegacyVotingUpdates) {
+          nextRoom.votes = null;
+          nextRoom.voteRequests = null;
+          nextRoom.voteStartRequests = null;
+          nextRoom.votingStarted = false;
+          nextRoom.voteResult = null;
+        }
+        nextRoom.voting = {
+          status: "idle",
+          startedBy: {}
+        };
         nextRoom.phase = "clue";
         nextRoom.game = {
           ...(room.game || {}),
@@ -1397,21 +1748,28 @@
         const guessState = data.guess;
         if (!guessState || !guessState.endsAt) return;
         if (getServerNow() < guessState.endsAt) return;
+        const aliveUids = getAlivePlayersFromState(data?.players, data?.playerRoles);
+        const aliveCount = aliveUids.length;
+        const spyAlive = getSpyUids$1(data?.spies).filter(id => aliveUids.includes(id)).length;
         const updates = {
           guess: null
         };
         const votingResult = data.voting?.result;
-        if (votingResult && votingResult.eliminatedUid) {
+        const canInnocentsWin = votingResult && votingResult.eliminatedUid && aliveCount === 2 && spyAlive === 1;
+        if (canInnocentsWin) {
           updates.status = "finished";
           updates.winner = "innocent";
           appendFinalSpyInfo(updates, data);
+        } else {
+          ref.update(updates);
+          return;
         }
         const updatePromise = ref.update(updates);
         if (updates.status === "finished") {
-          updatePromise.then(() => getSpyNamesForMessage(roomCode, data).then(_ref10 => {
+          updatePromise.then(() => getSpyNamesForMessage(roomCode, data).then(_ref14 => {
             let {
               spyNames
-            } = _ref10;
+            } = _ref14;
             const spyIntro = formatSpyIntro$1(spyNames);
             return finalizeGameOver(roomCode, data, {
               winner: "innocents",
@@ -1429,18 +1787,22 @@
       ref.get().then(snap => {
         if (!snap.exists()) return;
         const data = snap.val();
+        if (data?.voting || data?.game?.phase === "voting" || data?.game?.phase === "results") {
+          return;
+        }
+        if (isVotingStateMachineActive(data)) return;
         if (data.voting?.status !== "in_progress") return;
         const alivePlayers = getActivePlayers(data.playerRoles, data.players);
         const players = alivePlayers.map(p => p.uid);
         const votes = data.voting?.votes || data.votes || {};
-        const voteEntries = Object.entries(votes).filter(_ref11 => {
-          let [voter, target] = _ref11;
+        const voteEntries = Object.entries(votes).filter(_ref15 => {
+          let [voter, target] = _ref15;
           return players.includes(voter) && players.includes(target);
         });
         if (voteEntries.length < players.length) return;
         const counts = {};
-        voteEntries.forEach(_ref12 => {
-          let [, t] = _ref12;
+        voteEntries.forEach(_ref16 => {
+          let [, t] = _ref16;
           counts[t] = (counts[t] || 0) + 1;
         });
         console.log("[tallyVotes] Vote counts:", counts);
@@ -1516,6 +1878,10 @@
       ref.get().then(snap => {
         if (!snap.exists()) return;
         const data = snap.val();
+        const room = data;
+        if (room?.voting || room?.game?.phase !== "playing") return;
+        if (room.voting?.status || room.game?.phase === "results" || room.game?.phase === "voting") return;
+        if (isVotingStateMachineActive(data)) return;
         const vote = data.voteResult;
         const tasks = [];
         const votedUid = vote && vote.voted;
@@ -1545,10 +1911,10 @@
               winner: "innocent"
             }, latestData);
             const eliminatedName = playerInfo?.name || votedUid;
-            ref.update(updates).then(() => getSpyNamesForMessage(roomCode, latestData).then(_ref13 => {
+            ref.update(updates).then(() => getSpyNamesForMessage(roomCode, latestData).then(_ref17 => {
               let {
                 spyNames
-              } = _ref13;
+              } = _ref17;
               const spyIntro = formatSpyIntro$1(spyNames);
               return finalizeGameOver(roomCode, latestData, {
                 winner: "innocents",
@@ -1579,23 +1945,19 @@
     },
     checkSpyWin: function (roomCode, latestData) {
       const isVotingOrResultsPhase = data => Boolean(data?.voting?.status || data?.game?.phase === "results" || data?.game?.phase === "voting");
-      const shouldSkipSpyCheck = data => Boolean(isVotingOrResultsPhase(data) || data?.status === "finished");
       const shouldExitEarly = data => {
-        if (!data) return false;
-        if (shouldSkipSpyCheck(data)) return true;
+        if (!data) return true;
+        if (data?.status === "finished") return true;
+        if (isVotingOrResultsPhase(data)) return true;
         const activePlayers = getActivePlayers(data.playerRoles, data.players);
         const activeUids = activePlayers.map(p => p.uid);
         const activeSpies = getSpyUids$1(data.spies).filter(s => activeUids.includes(s));
         const innocentAlive = activePlayers.length - activeSpies.length;
-        return innocentAlive > 1;
+        return innocentAlive > 1; // sadece 1 veya daha az masum kalınca parity kontrolü
       };
-      if (shouldExitEarly(room) || shouldExitEarly(latestData)) {
-        return Promise.resolve(false);
-      }
       const ref = window.db.ref("rooms/" + roomCode);
       const dataPromise = latestData ? Promise.resolve(latestData) : ref.get().then(snap => snap.exists() ? snap.val() : null);
       return dataPromise.then(data => {
-        if (!data) return false;
         if (shouldExitEarly(data)) return false;
         const activePlayers = getActivePlayers(data.playerRoles, data.players);
         const activeUids = activePlayers.map(p => p.uid);
@@ -1607,15 +1969,14 @@
             status: "finished",
             winner: "innocents"
           }, data);
-          return ref.update(updates).then(() => getSpyNamesForMessage(roomCode, data)).then(_ref14 => {
+          return ref.update(updates).then(() => getSpyNamesForMessage(roomCode, data)).then(_ref18 => {
             let {
               spyNames
-            } = _ref14;
-            const spyIntro = formatSpyIntro$1(spyNames);
+            } = _ref18;
             return finalizeGameOver(roomCode, data, {
               winner: "innocents",
               reason: "parity",
-              message: `${spyIntro} arasından son sahtekar elendi ve oyunu masumlar kazandı!`
+              message: `${formatSpyIntro$1(spyNames)} arasından son sahtekar elendi ve oyunu masumlar kazandı!`
             });
           }).then(() => true);
         }
@@ -1625,15 +1986,14 @@
             winner: "spy",
             spyParityWin: true
           }, data);
-          return ref.update(updates).then(() => getSpyNamesForMessage(roomCode, data)).then(_ref15 => {
+          return ref.update(updates).then(() => getSpyNamesForMessage(roomCode, data)).then(_ref19 => {
             let {
               spyNames
-            } = _ref15;
-            const spyIntro = formatSpyIntro$1(spyNames);
+            } = _ref19;
             return finalizeGameOver(roomCode, data, {
               winner: "spies",
               reason: "parity",
-              message: `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`
+              message: `${formatSpyIntro$1(spyNames)} sayıca üstünlük sağladı ve oyunu kazandı!`
             });
           }).then(() => true);
         }
@@ -1645,6 +2005,7 @@
       ref.get().then(snap => {
         if (!snap.exists()) return;
         const data = snap.val();
+        if (isVotingStateMachineActive(data)) return;
         const nextRound = (data.round || 1) + 1;
         ref.update({
           round: nextRound,
@@ -1668,18 +2029,40 @@
   window.gameLogic = gameLogic;
 
   console.log('main.js yüklendi');
+
+  // Rollup edilen çıktılarda global bir temizleyici beklenebiliyor; henüz tanımlı
+  // değilse oylama akışının tamamen durmasına yol açan ReferenceError'ları
+  // engellemek için güvenli bir varsayılan oluşturuyoruz.
+  if (typeof window.cleanupListener !== "function") {
+    window.cleanupListener = () => {};
+  }
   const MIN_PLAYERS = 3;
   const DEFAULT_PLAYER_COUNT = 20; // Eski güvenlik kurallarıyla uyum için oyuncu sayısını varsayılanla gönder
 
   function resolveGamePhase(roomData) {
     return roomData?.game?.phase || roomData?.phase;
   }
-  function isAlivePlayer(player) {
-    const status = typeof player?.status === "string" ? player.status : "alive";
-    return status === "alive";
+  function isCurrentPlayerEligible(roomData) {
+    const isEliminated = roomData?.eliminated && roomData.eliminated[currentUid];
+    const playerEntry = roomData?.players?.[currentUid];
+    return !isEliminated && isPlayerAlive(playerEntry);
   }
   function resolveVotes(roomData) {
     return roomData?.voting?.votes || roomData?.votes || {};
+  }
+  function getExpectedVoterIds(expectedVotersMap) {
+    if (!expectedVotersMap || typeof expectedVotersMap !== "object") return [];
+    return Object.keys(expectedVotersMap);
+  }
+  function buildExpectedVoterList(expectedVotersMap, snapshot) {
+    const ids = getExpectedVoterIds(expectedVotersMap);
+    if (!ids.length) return [];
+    if (snapshot?.order?.length) {
+      const ordered = snapshot.order.filter(uid => expectedVotersMap?.[uid]);
+      const remaining = ids.filter(uid => !ordered.includes(uid));
+      return [...ordered, ...remaining];
+    }
+    return ids;
   }
   function getSpyUids(spies) {
     if (Array.isArray(spies)) return spies;
@@ -1722,25 +2105,19 @@
     } else {
       actions?.classList.add("hidden");
     }
+    const leaveBtn = document.createElement("button");
+    leaveBtn.classList.add("overlay-btn");
+    leaveBtn.textContent = "Odadan Çık";
+    leaveBtn.addEventListener("click", () => {
+      handleRoomGone("elimination exit", {
+        redirectToHome: true,
+        noticeText: null,
+        requireElimination: true
+      });
+    });
+    overlay.appendChild(leaveBtn);
     overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
     actions?.classList.add("hidden");
-  }
-
-  // Kullanıcının anonim şekilde doğrulandığından emin ol
-  if (window.auth && !window.auth.currentUser) {
-    window.auth.signInAnonymously().catch(err => {
-      console.error("Anonim giriş hatası:", err);
-    });
-  }
-  // Sayfa yenilendiğinde oyun bilgilerini koru, yeni oturumda sıfırla
-  try {
-    const nav = performance.getEntriesByType("navigation")[0];
-    const isReload = nav ? nav.type === "reload" : performance.navigation.type === 1;
-    if (!isReload) {
-      clearStoragePreservePromo();
-    }
-  } catch (err) {
-    console.warn("Gezinme performans kontrolü başarısız oldu:", err);
   }
   let currentRoomCode = localStorage.getItem("roomCode") || null;
   let currentPlayerName = localStorage.getItem("playerName") || null;
@@ -1754,64 +2131,167 @@
   let selectedVoteName = null;
   let voteCountdownInterval = null;
   let guessCountdownInterval = null;
+  let roomValueCallback = null;
+  let roomValueUnsubscribe = null;
+  let lastTieRestartAt = 0;
+  const authReadyPromise = window.authReady || Promise.resolve();
+  let gameLogicRoomUnsub = null;
+  let gameLogicPlayersUnsub = null;
+  function showConnectionNotice(message) {
+    let tone = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "info";
+    const banner = document.getElementById("connectionBanner");
+    if (!banner) return;
+    banner.textContent = message;
+    banner.classList.remove("hidden", "warning", "info");
+    if (tone === "warning") {
+      banner.classList.add("warning");
+    } else {
+      banner.classList.add("info");
+    }
+  }
+  function clearConnectionNotice(messageToKeep) {
+    const banner = document.getElementById("connectionBanner");
+    if (!banner) return;
+    banner.textContent = "";
+    banner.classList.add("hidden");
+    banner.classList.remove("warning", "info");
+  }
+  function clearRoomValueListener() {
+    if (roomValueUnsubscribe) {
+      roomValueUnsubscribe();
+    }
+    roomValueCallback = null;
+    roomValueUnsubscribe = null;
+  }
+  async function safeCheckRoomExists(roomRef) {
+    try {
+      const snapshot = await roomRef.get();
+      return {
+        exists: snapshot.exists(),
+        snapshot
+      };
+    } catch (error) {
+      console.error("[ROOM GET FAILED - NON-BLOCKING]", error);
+      return {
+        exists: true,
+        error
+      };
+    }
+  }
+  async function handleConfirmedRoomMissing(expectedRoomCode) {
+    let options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    const roomCode = expectedRoomCode || currentRoomCode;
+    if (expectedRoomCode && expectedRoomCode !== currentRoomCode) {
+      return;
+    }
+    if (!options.confirmedByGet && roomCode) {
+      const {
+        exists
+      } = await safeCheckRoomExists(window.db.ref(`rooms/${roomCode}`));
+      if (exists) return;
+    }
+    handleRoomGone("confirmed missing");
+  }
   if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
-    window.auth.onAuthStateChanged(async user => {
-      currentUid = user ? user.uid : null;
-      if (user) {
+    showConnectionNotice("Oturum doğrulanıyor...");
+    authReadyPromise.catch(err => {
+      console.error("Auth persistence hazırlanamadı", err);
+      showConnectionNotice("Bağlantı sorunu yaşandı, yeniden deniyoruz...", "warning");
+    }).finally(() => {
+      window.auth.onAuthStateChanged(async user => {
+        currentUid = user ? user.uid : null;
+        if (!user) {
+          showConnectionNotice("Oturum açılamadı. Lütfen tekrar deneyin.", "warning");
+          showSetupJoin();
+          return;
+        }
         currentRoomCode = localStorage.getItem("roomCode") || null;
         currentPlayerName = localStorage.getItem("playerName") || null;
         isCreator = localStorage.getItem("isCreator") === "true";
         if (currentRoomCode && currentPlayerName) {
           const roomRef = window.db.ref("rooms/" + currentRoomCode);
-          roomRef.get().then(roomSnap => {
-            if (!roomSnap.exists()) {
-              clearStoragePreservePromo();
-              currentRoomCode = null;
-              currentPlayerName = null;
-              isCreator = false;
-              showSetupJoin();
+          showConnectionNotice("Odaya bağlanılıyor...");
+          try {
+            const snapshot = await roomRef.get();
+            if (!snapshot.exists()) {
+              await handleConfirmedRoomMissing(currentRoomCode);
               return;
             }
-            const roomData = roomSnap.val();
+            const roomData = snapshot.val();
             const uid = user.uid;
-            if (roomData?.eliminated && roomData.eliminated[uid] && roomData.status !== "finished") {
-              wasEliminated = true;
-              showRoomUI(currentRoomCode, currentPlayerName, isCreator);
-              showEliminationOverlay(currentRoomCode);
-              listenPlayersAndRoom(currentRoomCode);
-              gameLogic.listenRoom(currentRoomCode);
-              return;
-            }
-            const playerRef = window.db.ref(`rooms/${currentRoomCode}/players/${uid}`);
-            if (typeof currentPlayerName === "string" && currentPlayerName.trim() !== "") {
-              playerRef.set({
-                name: currentPlayerName,
-                isCreator
-              });
-            } else {
-              console.error("Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı.");
+            const players = roomData?.players || {};
+            let resolvedUid = uid;
+            if (!players[uid] && currentPlayerName) {
+              const previousUid = Object.keys(players).find(key => players[key]?.name === currentPlayerName);
+              if (previousUid) {
+                showConnectionNotice("Yeniden bağlanılıyor...");
+                const previousPlayer = players[previousUid] || {};
+                const updates = {};
+                const normalizedPlayer = {
+                  ...previousPlayer,
+                  name: currentPlayerName,
+                  isCreator
+                };
+                updates[`rooms/${currentRoomCode}/players/${uid}`] = normalizedPlayer;
+                updates[`rooms/${currentRoomCode}/players/${previousUid}`] = null;
+                if (roomData.playerRoles?.[previousUid]) {
+                  updates[`rooms/${currentRoomCode}/playerRoles/${uid}`] = roomData.playerRoles[previousUid];
+                  updates[`rooms/${currentRoomCode}/playerRoles/${previousUid}`] = null;
+                }
+                try {
+                  await window.db.ref().update(updates);
+                  resolvedUid = uid;
+                } catch (moveErr) {
+                  console.warn("Eski oyuncu kaydı taşınamadı", moveErr);
+                  showConnectionNotice("Yeniden bağlanılamadı, lütfen tekrar katılmayı deneyin.", "warning");
+                  showSetupJoin();
+                  return;
+                }
+              } else {
+                showConnectionNotice("Oyuncu kaydın bulunamadı, lütfen yeniden katıl.", "warning");
+                showSetupJoin();
+                return;
+              }
             }
             showRoomUI(currentRoomCode, currentPlayerName, isCreator);
             listenPlayersAndRoom(currentRoomCode);
-            gameLogic.listenRoom(currentRoomCode);
-            window.db.ref("rooms/" + currentRoomCode).once("value", snapshot => {
-              const roomData = snapshot.val();
-              if (roomData && roomData.status === "started" && roomData.playerRoles && roomData.playerRoles[currentUid]) {
-                document.getElementById("leaveRoomBtn")?.classList.add("hidden");
-                document.getElementById("backToHomeBtn")?.classList.remove("hidden");
-                const myData = roomData.playerRoles[currentUid];
-                document.getElementById("roomInfo").classList.add("hidden");
-                document.getElementById("playerRoleInfo").classList.remove("hidden");
-                updateRoleDisplay(myData, roomData.settings);
-              }
-            });
-          });
+            if (typeof gameLogicRoomUnsub === "function") {
+              gameLogicRoomUnsub();
+            }
+            gameLogicRoomUnsub = gameLogic.listenRoom(currentRoomCode);
+            clearConnectionNotice();
+            if (roomData?.eliminated && roomData.eliminated[resolvedUid] && roomData.status !== "finished") {
+              wasEliminated = true;
+              showEliminationOverlay(currentRoomCode);
+              return;
+            }
+            const playerRef = window.db.ref(`rooms/${currentRoomCode}/players/${resolvedUid}`);
+            if (typeof currentPlayerName === "string" && currentPlayerName.trim() !== "") {
+              playerRef.update({
+                name: currentPlayerName,
+                isCreator
+              }).catch(err => console.error("Oyuncu kaydı güncellenemedi", err));
+            } else {
+              console.error("Geçersiz veya boş oyuncu adı, veritabanı güncellemesi atlandı.");
+            }
+            if (roomData && roomData.status === "started" && roomData.playerRoles && roomData.playerRoles[resolvedUid]) {
+              document.getElementById("leaveRoomBtn")?.classList.add("hidden");
+              document.getElementById("backToHomeBtn")?.classList.remove("hidden");
+              const myData = roomData.playerRoles[resolvedUid];
+              document.getElementById("roomInfo").classList.add("hidden");
+              document.getElementById("playerRoleInfo").classList.remove("hidden");
+              updateRoleDisplay(myData, roomData.settings);
+            }
+          } catch (error) {
+            console.error("Oda bilgisi alınamadı", error);
+            showConnectionNotice("Odaya bağlanırken sorun oluştu, lütfen tekrar deneyin.", "warning");
+            showSetupJoin();
+          }
         } else {
+          clearConnectionNotice();
           showSetupJoin();
         }
-      } else {
-        showSetupJoin();
-      }
+      });
     });
   } else {
     console.warn("Firebase Auth yüklenmedi, temel arayüz başlatılıyor");
@@ -1830,6 +2310,8 @@
   let lastRoundId = null;
   let lastRoundNumber = null;
   let endRoundTriggeredForRound = null;
+  let hasRequestedStart = false;
+  let latestRoomData = null;
   function isCurrentRoundPayload(roomData, payload) {
     if (!payload) return true;
     const roomRoundId = roomData?.roundId;
@@ -1884,30 +2366,37 @@
       return;
     }
   }
+  function normalizeVotingResult(rawResult) {
+    if (!rawResult) return null;
+    if (rawResult.tie) {
+      return {
+        tie: true,
+        roundId: rawResult.roundId
+      };
+    }
+    const eliminatedUid = rawResult.eliminatedUid || rawResult.voted;
+    if (!eliminatedUid) return null;
+    return {
+      tie: false,
+      voted: eliminatedUid,
+      eliminatedUid,
+      eliminatedName: rawResult.eliminatedName,
+      isSpy: !!rawResult.isSpy,
+      role: rawResult.role,
+      location: rawResult.location,
+      remainingSpies: rawResult.remainingSpies,
+      lastSpy: rawResult.lastSpy,
+      roundId: rawResult.roundId
+    };
+  }
   function getResolvedVoteResult(roomData) {
     const votingResult = roomData.voting?.result;
-    if (!isCurrentRoundPayload(roomData, votingResult)) return null;
-    if (votingResult) {
-      if (votingResult.tie) return {
-        tie: true
-      };
-      if (votingResult.eliminatedUid) {
-        return {
-          tie: false,
-          voted: votingResult.eliminatedUid,
-          eliminatedUid: votingResult.eliminatedUid,
-          eliminatedName: votingResult.eliminatedName,
-          isSpy: !!votingResult.isSpy,
-          role: votingResult.role,
-          location: votingResult.location,
-          remainingSpies: votingResult.remainingSpies,
-          lastSpy: votingResult.lastSpy,
-          roundId: votingResult.roundId
-        };
-      }
+    if (isCurrentRoundPayload(roomData, votingResult)) {
+      const normalizedVotingResult = normalizeVotingResult(votingResult);
+      if (normalizedVotingResult) return normalizedVotingResult;
     }
     if (!isCurrentRoundPayload(roomData, roomData.voteResult)) return null;
-    return roomData.voteResult || null;
+    return normalizeVotingResult(roomData.voteResult) || null;
   }
   function getRoundKey(roomData) {
     if (!roomData) return "default";
@@ -1917,6 +2406,10 @@
   }
   function triggerEndRoundIfNeeded(roomData, resolvedResult) {
     if (!roomData || !resolvedResult || resolvedResult.tie) return false;
+    const gamePhase = resolveGamePhase(roomData);
+    if (roomData?.voting?.status === "in_progress" || gamePhase === "voting" || gamePhase === "results") {
+      return false;
+    }
     const roundKey = getRoundKey(roomData);
     const alreadyTriggered = endRoundTriggeredForRound === roundKey;
     if (alreadyTriggered) return true;
@@ -1948,7 +2441,6 @@
     if (alivePlayersCount > 2) {
       return {
         message: `Oylama sonucunda ${safeName} elendi. Elenen kişi masumdu — oyun devam ediyor.`,
-        gameEnded: false,
         gameEnded: false,
         impostorVictory: false
       };
@@ -1997,7 +2489,7 @@
     const votedName = resolveEliminatedName(resolvedResult, roomData, votedUid, playerUidMap[votedUid]?.name);
     const remaining = Object.entries(roomData.players || {}).filter(_ref2 => {
       let [uid, p] = _ref2;
-      return uid !== votedUid && isAlivePlayer(p);
+      return uid !== votedUid && isPlayerAlive(p);
     }).map(_ref3 => {
       let [uid] = _ref3;
       return uid;
@@ -2021,14 +2513,19 @@
     };
   }
   function renderVoteResultOverlay(roomData, resolvedResult, outcomeContext) {
-    const resolvedResultToRender = resolvedResult || getResolvedVoteResult(roomData);
+    const resolvedResultToRender = resolvedResult || getResolvedVoteResult(roomData) || (roomData?.voting?.status === "resolved" ? normalizeVotingResult(roomData?.voting?.result) : null);
+    const allowResolvedStatusFallback = roomData?.voting?.status === "resolved" && roomData?.voting?.result;
     if (!resolvedResultToRender || resolvedResultToRender.tie) return false;
-    if (!isCurrentRoundPayload(roomData, resolvedResultToRender)) return false;
+    if (!isCurrentRoundPayload(roomData, resolvedResultToRender) && !allowResolvedStatusFallback) {
+      return false;
+    }
     const context = outcomeContext || buildVoteOutcomeContext(roomData, resolvedResultToRender);
     if (!context) return false;
     const renderKey = JSON.stringify({
       result: resolvedResultToRender,
-      context
+      context,
+      continueAcks: roomData?.voting?.continueAcks || null,
+      phase: resolveGamePhase(roomData)
     });
     if (renderKey === lastVoteResult) return true;
     lastVoteResult = renderKey;
@@ -2062,19 +2559,33 @@
       console.error("resultOverlay element not found");
       return;
     }
-    const isEliminatedPlayer = currentUid === votedUid;
+    const currentPhase = resolveGamePhase(roomData);
+    const normalizedResultForOverlay = normalizeVotingResult(resolvedResult) || normalizeVotingResult(roomData?.voting?.result) || normalizeVotingResult(roomData?.voteResult);
+    const eliminatedUidFromResult = votedUid || normalizedResultForOverlay?.eliminatedUid || normalizedResultForOverlay?.voted;
+    const alivePlayers = getActivePlayers(roomData.playerRoles, roomData.players);
+    const aliveUids = alivePlayers.map(p => p.uid);
+    const filteredAliveUids = eliminatedUidFromResult ? aliveUids.filter(uid => uid !== eliminatedUidFromResult) : aliveUids;
+    const isAliveCurrentPlayer = filteredAliveUids.includes(currentUid);
+    const continueAcks = roomData?.voting?.continueAcks || {};
+    const ackCount = filteredAliveUids.filter(uid => continueAcks[uid]).length;
+    const hasAcked = !!continueAcks[currentUid];
+    const isEliminatedPlayer = currentUid === eliminatedUidFromResult || !isAliveCurrentPlayer;
+    const isResultsPhase = currentPhase === "results";
+    const waitingText = filteredAliveUids.length > 0 ? `Devam için onay bekleniyor (${ackCount}/${filteredAliveUids.length})` : null;
     const cls = outcome.impostorVictory ? "impostor-animation" : "innocent-animation";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
     overlay.innerHTML = "";
     const actionsEl = document.getElementById("gameActions");
     const spyInfo = getSpyInfo(roomData);
-    const resolvedMessage = resolveGameOverMessage(roomData, outcome.message, spyInfo);
+    const resolvedMessage = isResultsPhase && !isAliveCurrentPlayer ? "Elendin! Oyun devam ediyor." : resolveGameOverMessage(roomData, outcome.message, spyInfo);
     msgDiv.textContent = resolvedMessage;
-    appendSpyNamesLine(msgDiv, roomData, {
-      spyInfo,
-      primaryMessage: resolvedMessage
-    });
+    if (!(isResultsPhase && !isAliveCurrentPlayer)) {
+      appendSpyNamesLine(msgDiv, roomData, {
+        spyInfo,
+        primaryMessage: resolvedMessage
+      });
+    }
     if (outcome.gameEnded) {
       actionsEl?.classList.add("hidden");
     } else {
@@ -2083,7 +2594,7 @@
     overlay.appendChild(msgDiv);
     overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
     overlay.classList.add(cls);
-    const shouldShowEliminationOverlay = isEliminatedPlayer && !outcome.gameEnded && alivePlayersCount > 2 && !outcome.impostorVictory;
+    const shouldShowEliminationOverlay = currentPhase !== "results" && isEliminatedPlayer && !outcome.gameEnded && alivePlayersCount > 2 && !outcome.impostorVictory;
     if (shouldShowEliminationOverlay) {
       showEliminationOverlay(currentRoomCode);
       return;
@@ -2094,7 +2605,7 @@
         restartBtn = document.createElement("button");
         restartBtn.id = "restartBtn";
         restartBtn.classList.add("overlay-btn");
-        restartBtn.textContent = "Yeniden oyna";
+        restartBtn.textContent = "Oyunu yeniden başlat";
         overlay.appendChild(restartBtn);
       }
       const exitBtn = document.createElement("button");
@@ -2108,22 +2619,48 @@
       };
       if (restartBtn) {
         restartBtn.addEventListener("click", () => {
-          hideOverlay();
-          gameEnded = false;
-          parityHandled = false;
-          lastVoteResult = null;
-          lastGuessEvent = null;
-          restartBtn.disabled = true;
-          gameLogic.restartGame(currentRoomCode);
+          handleRestart(restartBtn, hideOverlay);
         });
       }
       exitBtn.addEventListener("click", () => {
         hideOverlay();
-        gameLogic.leaveRoom(currentRoomCode).finally(() => {
-          showSetupJoin();
+        Promise.resolve(gameLogic.leaveRoom(currentRoomCode)).catch(error => {
+          console.error("[gameEnded overlay] leaveRoom failed", error);
+        }).finally(() => {
+          handleRoomGone("manual exit");
         });
       });
-    } else {
+    } else if (isResultsPhase) {
+      if (waitingText) {
+        const info = document.createElement("div");
+        info.className = "result-subtext";
+        info.textContent = waitingText;
+        overlay.appendChild(info);
+      }
+      if (isCreator) {
+        const restartBtn = document.createElement("button");
+        restartBtn.id = "restartBtn";
+        restartBtn.classList.add("overlay-btn");
+        restartBtn.textContent = "Oyunu yeniden başlat";
+        overlay.appendChild(restartBtn);
+        restartBtn.addEventListener("click", () => {
+          handleRestart(restartBtn);
+        });
+      }
+      const shouldShowContinueButton = isAliveCurrentPlayer && eliminatedUidFromResult !== currentUid;
+      if (shouldShowContinueButton) {
+        const btn = document.createElement("button");
+        btn.id = "continueBtn";
+        btn.classList.add("overlay-btn");
+        btn.textContent = hasAcked ? "Onay gönderildi" : "Devam et";
+        btn.disabled = hasAcked;
+        overlay.appendChild(btn);
+        btn.addEventListener("click", () => {
+          btn.disabled = true;
+          btn.textContent = "Onay gönderildi";
+          gameLogic.continueAfterResults(currentRoomCode, currentUid);
+        });
+      }
       const exitBtn = document.createElement("button");
       exitBtn.id = "exitBtn";
       exitBtn.classList.add("overlay-btn");
@@ -2132,26 +2669,27 @@
       exitBtn.addEventListener("click", () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
-        gameLogic.leaveRoom(currentRoomCode).finally(() => {
-          showSetupJoin();
+        Promise.resolve(gameLogic.leaveRoom(currentRoomCode)).catch(error => {
+          console.error("[results overlay] leaveRoom failed", error);
+        }).finally(() => {
+          handleRoomGone("manual exit");
         });
       });
-      if (!isEliminatedPlayer) {
-        const btn = document.createElement("button");
-        btn.id = "continueBtn";
-        btn.classList.add("overlay-btn");
-        btn.textContent = "Oyuna Devam Et";
-        overlay.appendChild(btn);
-        btn.addEventListener("click", () => {
-          overlay.classList.add("hidden");
-          overlay.classList.remove("impostor-animation", "innocent-animation");
-          if (currentRoomCode && currentUid && window.db) {
-            window.db.ref(`rooms/${currentRoomCode}/ui/${currentUid}`).update({
-              screen: "playing"
-            }).catch(err => console.error("Kullanıcı ekran durumu güncellenemedi:", err));
-          }
-        });
-      }
+    } else if (!isEliminatedPlayer) {
+      const btn = document.createElement("button");
+      btn.id = "continueBtn";
+      btn.classList.add("overlay-btn");
+      btn.textContent = "Oyuna Devam Et";
+      overlay.appendChild(btn);
+      btn.addEventListener("click", () => {
+        overlay.classList.add("hidden");
+        overlay.classList.remove("impostor-animation", "innocent-animation");
+        if (currentRoomCode && currentUid && window.db) {
+          window.db.ref(`rooms/${currentRoomCode}/ui/${currentUid}`).update({
+            screen: "playing"
+          }).catch(err => console.error("Kullanıcı ekran durumu güncellenemedi:", err));
+        }
+      });
     }
   }
   function resolveAnswerValue(value, gameType) {
@@ -2298,7 +2836,10 @@
   function getSpyNames(roomState, players) {
     const state = roomState || {};
     const playerMap = players || state.players || {};
-    const spiesSource = state.spies ?? state.spyUids ?? (Array.isArray(state.spiesSnapshot?.spies) ? state.spiesSnapshot.spies : null);
+    if (Array.isArray(state.spiesSnapshot?.spies)) {
+      return buildSpyNames(state.spiesSnapshot.spies, playerMap);
+    }
+    const spiesSource = state.spies ?? state.spyUids;
     if (Array.isArray(spiesSource)) {
       return buildSpyNames(spiesSource, playerMap);
     }
@@ -2377,19 +2918,15 @@
     };
     if (restartBtn) {
       restartBtn.addEventListener("click", () => {
-        hideOverlay();
-        gameEnded = false;
-        parityHandled = false;
-        lastVoteResult = null;
-        lastGuessEvent = null;
-        restartBtn.disabled = true;
-        gameLogic.restartGame(currentRoomCode);
+        handleRestart(restartBtn, hideOverlay);
       });
     }
     exitBtn.addEventListener("click", () => {
       hideOverlay();
-      gameLogic.leaveRoom(currentRoomCode).finally(() => {
-        showSetupJoin();
+      Promise.resolve(gameLogic.leaveRoom(currentRoomCode)).catch(error => {
+        console.error("[spyWin overlay] leaveRoom failed", error);
+      }).finally(() => {
+        handleRoomGone("manual exit");
       });
     });
   }
@@ -2440,19 +2977,15 @@
     };
     if (restartBtn) {
       restartBtn.addEventListener("click", () => {
-        hideOverlay();
-        gameEnded = false;
-        parityHandled = false;
-        lastVoteResult = null;
-        lastGuessEvent = null;
-        restartBtn.disabled = true;
-        gameLogic.restartGame(currentRoomCode);
+        handleRestart(restartBtn, hideOverlay);
       });
     }
     exitBtn.addEventListener("click", () => {
       hideOverlay();
-      gameLogic.leaveRoom(currentRoomCode).finally(() => {
-        showSetupJoin();
+      Promise.resolve(gameLogic.leaveRoom(currentRoomCode)).catch(error => {
+        console.error("[spyFail overlay] leaveRoom failed", error);
+      }).finally(() => {
+        handleRoomGone("manual exit");
       });
     });
   }
@@ -2464,7 +2997,7 @@
     const listEl = document.getElementById("playerList");
     const countEl = document.getElementById("playerCountDisplay");
     if (!listEl || !countEl) return;
-    const aliveEntries = Object.values(playersObj || {}).filter(isAlivePlayer);
+    const aliveEntries = Object.values(playersObj || {}).filter(isPlayerAlive);
     const validPlayers = aliveEntries.map(p => p?.name || "").filter(p => p && p.trim() !== "");
     listEl.innerHTML = validPlayers.map(p => `<li>${escapeHtml(p)}</li>`).join("");
     countEl.textContent = validPlayers.length;
@@ -2485,7 +3018,7 @@
   function buildVoteCandidates(source) {
     return Object.entries(source || {}).filter(_ref5 => {
       let [uid, player] = _ref5;
-      return uid !== currentUid && isAlivePlayer(player);
+      return uid !== currentUid && isPlayerAlive(player);
     }).map(_ref6 => {
       let [uid, p] = _ref6;
       return {
@@ -2514,15 +3047,39 @@
   function lockVoteCandidates(roomData) {
     if (voteCandidatesSnapshot) return;
     const snapshot = roomData?.voting?.snapshot;
+    const expectedVotersMap = roomData?.voting?.expectedVoters;
+    const expectedVoters = buildExpectedVoterList(expectedVotersMap, snapshot);
+    const hasExpectedVoters = expectedVoters.length > 0;
+    const forceExpectedTargets = roomData?.voting?.status === "in_progress" || resolveGamePhase(roomData) === "voting";
     const playerEntries = roomData?.players || playerUidMap || {};
+    const snapshotPlayers = roomData?.voting?.snapshotPlayers || [];
+    const snapshotPlayerMap = snapshotPlayers.reduce((acc, p) => {
+      if (p?.uid) acc[p.uid] = p;
+      return acc;
+    }, {});
+    const buildCandidateFromUid = uid => {
+      if (!uid || uid === currentUid) return null;
+      const playerEntry = playerEntries[uid];
+      if (playerEntry && !isPlayerAlive(playerEntry)) return null;
+      const name = snapshot?.names?.[uid] || snapshotPlayerMap[uid]?.name || playerEntry?.name || playerUidMap[uid]?.name || uid;
+      return {
+        uid,
+        name
+      };
+    };
+    if (hasExpectedVoters || forceExpectedTargets) {
+      voteCandidatesSnapshot = expectedVoters.map(uid => buildCandidateFromUid(uid)).filter(Boolean);
+      renderVoteOptions(voteCandidatesSnapshot);
+      return;
+    }
     if (snapshot?.order?.length) {
       voteCandidatesSnapshot = snapshot.order.map(uid => ({
         uid,
-        name: snapshot.names?.[uid] || roomData?.players?.[uid]?.name || playerUidMap[uid]?.name || uid
+        name: snapshot.names?.[uid] || snapshotPlayerMap[uid]?.name || roomData?.players?.[uid]?.name || playerUidMap[uid]?.name || uid
       })).filter(p => {
         if (!p.uid || p.uid === currentUid) return false;
         const playerEntry = playerEntries[p.uid];
-        return !playerEntry || isAlivePlayer(playerEntry);
+        return !playerEntry || isPlayerAlive(playerEntry);
       });
       renderVoteOptions(voteCandidatesSnapshot);
       return;
@@ -2616,13 +3173,70 @@
       overlay.innerHTML = "";
     }
   }
+  function handleRestart(restartBtn, hideOverlay) {
+    if (restartBtn) {
+      restartBtn.disabled = true;
+    }
+    if (typeof hideOverlay === "function") {
+      hideOverlay();
+    }
+    resetLocalRoundState();
+    gameLogic.restartGame(currentRoomCode);
+  }
+  function handleRoomGone(reason) {
+    let options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    const {
+      noticeText = "Oda kapatıldı veya silindi.",
+      noticeTone = "warning",
+      redirectToHome = false,
+      requireElimination = false
+    } = options;
+    const isEliminationFlow = wasEliminated || latestRoomData?.eliminated && latestRoomData.eliminated[currentUid];
+    if (requireElimination && !isEliminationFlow) {
+      return;
+    }
+    clearRoomValueListener();
+    if (typeof gameLogicRoomUnsub === "function") {
+      gameLogicRoomUnsub();
+    }
+    if (typeof gameLogicPlayersUnsub === "function") {
+      gameLogicPlayersUnsub();
+    }
+    gameLogicRoomUnsub = null;
+    gameLogicPlayersUnsub = null;
+    clearInterval(voteCountdownInterval);
+    voteCountdownInterval = null;
+    clearInterval(guessCountdownInterval);
+    guessCountdownInterval = null;
+    if (votingCleanupTimeout) {
+      clearTimeout(votingCleanupTimeout);
+      votingCleanupTimeout = null;
+    }
+    resetLocalRoundState();
+    clearStoragePreservePromo();
+    currentRoomCode = null;
+    currentPlayerName = null;
+    isCreator = false;
+    latestRoomData = null;
+    if (noticeText) {
+      showConnectionNotice(noticeText, noticeTone);
+    }
+    if (redirectToHome) {
+      window.location.replace("./index.html");
+      return;
+    }
+    showSetupJoin();
+  }
 
   /** ------------------------
    *  ODA & OYUNCULARI DİNLE
    * ------------------------ */
   function listenPlayersAndRoom(roomCode) {
+    if (typeof gameLogicPlayersUnsub === "function") {
+      gameLogicPlayersUnsub();
+    }
     // Oyuncu listesi
-    gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
+    gameLogicPlayersUnsub = gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
       // İsim dizisini kullanarak UI'da oyuncu listesini ve oyuncu sayısını güncelle
       updatePlayerList(playersObj);
 
@@ -2630,433 +3244,483 @@
       playerUidMap = playersObj || {};
 
       // Geçerli oyuncuların (isimler) filtrelenmiş bir dizisini tut
-      currentPlayers = Object.values(playersObj || {}).filter(isAlivePlayer).map(p => p?.name).filter(p => p && p.trim() !== "");
+      currentPlayers = Object.values(playersObj || {}).filter(isPlayerAlive).map(p => p?.name).filter(p => p && p.trim() !== "");
       const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
       renderVoteOptions(candidates);
       updateSelectedVoteName();
     });
-
-    // Oda silinirse herkesi at (oyun bitmediyse)
-    window.db.ref("rooms/" + roomCode).on("value", snapshot => {
-      if (!snapshot.exists() && !gameEnded) {
-        clearStoragePreservePromo();
-        location.reload();
-      }
-    });
-
-    // Oyun başlama durumunu canlı dinle
-    window.db.ref("rooms/" + roomCode).on("value", snapshot => {
-      const resultEl = document.getElementById("voteResults");
-      const outcomeEl = document.getElementById("voteOutcome");
-      const roomData = snapshot.val();
-      const prevStatus = lastRoomStatus;
-      lastRoomStatus = roomData ? roomData.status : null;
-      const currentRoundId = roomData?.roundId || null;
-      const currentRoundNumber = roomData?.round ?? null;
-      const roundIdChanged = currentRoundId !== null && lastRoundId !== null && currentRoundId !== lastRoundId;
-      const roundNumberChanged = currentRoundNumber !== null && lastRoundNumber !== null && currentRoundNumber !== lastRoundNumber;
-      const roundChanged = roundIdChanged || roundNumberChanged;
-      const roundResetNeeded = roomData?.status === "waiting" && (currentRoundId === null && lastRoundId !== null || currentRoundNumber === null && lastRoundNumber !== null);
-      if (roundChanged || roundResetNeeded) {
-        resetLocalRoundState();
-      }
-      lastRoundId = currentRoundId;
-      lastRoundNumber = currentRoundNumber;
-      const currentVotingResult = isCurrentRoundPayload(roomData, roomData?.voting?.result) ? roomData?.voting?.result : null;
-      const currentVoteResult = isCurrentRoundPayload(roomData, roomData?.voteResult) ? roomData?.voteResult : null;
-      const currentGuessState = isCurrentRoundPayload(roomData, roomData?.guess) ? roomData?.guess : null;
-      const currentLastGuess = isCurrentRoundPayload(roomData, roomData?.lastGuess) ? roomData?.lastGuess : null;
-      const roundSafeGameOver = getGameOverInfo(roomData);
-      const resolvedVoteResult = getResolvedVoteResult(roomData);
-      const voteOutcomeContext = buildVoteOutcomeContext(roomData, resolvedVoteResult);
-      const voteEndsGame = !!voteOutcomeContext && (voteOutcomeContext.outcome?.gameEnded || voteOutcomeContext.outcome?.impostorVictory);
-      const isEliminatedPlayer = roomData?.eliminated && roomData.eliminated[currentUid] || roomData?.players?.[currentUid]?.status === "eliminated";
-      const isGameFinished = roomData?.status === "finished" || roomData?.spyParityWin;
-      const shouldShowEliminationOverlay = isEliminatedPlayer && !isGameFinished && !voteEndsGame;
-      if (shouldShowEliminationOverlay) {
-        wasEliminated = true;
-        showEliminationOverlay(roomCode);
+    clearRoomValueListener();
+    const roomRef = window.db.ref("rooms/" + roomCode);
+    const roomErrorCallback = error => {
+      console.error("[ROOM LISTEN FAILED - NON-BLOCKING]", error);
+      showConnectionNotice("Odaya erişilemiyor, yeniden bağlanılıyor...", "warning");
+    };
+    roomValueCallback = async snapshot => {
+      if (!snapshot.exists() || snapshot.val() === null) {
+        handleRoomGone("room snapshot missing");
         return;
-      } else if (isEliminatedPlayer) {
-        wasEliminated = true;
-      } else if (wasEliminated && prevStatus === "finished" && (roomData?.status === "waiting" || roomData?.status === "started") && (!roomData?.eliminated || !roomData.eliminated[currentUid])) {
-        wasEliminated = false;
-        if (currentPlayerName) {
-          window.db.ref(`rooms/${roomCode}/players/${currentUid}`).set({
-            name: currentPlayerName,
-            isCreator
-          });
-        }
-        const overlay = document.getElementById("resultOverlay");
-        if (overlay) {
-          overlay.classList.add("hidden");
-          overlay.classList.remove("impostor-animation", "innocent-animation");
-          overlay.innerHTML = "";
-        }
-        const roleMessageEl = document.getElementById("roleMessage");
-        const poolInfo = document.getElementById("poolInfo");
-        const poolSummary = document.getElementById("poolSummary");
-        const poolListEl = document.getElementById("poolList");
-        const roleHintBlock = document.getElementById("roleHintBlock");
-        const roleHintText = document.getElementById("roleHintText");
-        if (roleMessageEl) roleMessageEl.innerHTML = "";
-        if (poolSummary) poolSummary.textContent = "";
-        if (poolListEl) poolListEl.textContent = "";
-        if (roleHintText) roleHintText.textContent = "";
-        roleHintBlock?.classList.add("hidden");
-        poolInfo?.classList.add("hidden");
-        if (roomData.status === "started" && roomData.playerRoles && roomData.playerRoles[currentUid]) {
-          updateRoleDisplay(roomData.playerRoles[currentUid], roomData.settings);
-        }
       }
-      if (roomData && roomData.status === "started" && prevStatus !== "started") {
-        const overlay = document.getElementById("resultOverlay");
-        if (overlay) {
-          overlay.classList.add("hidden");
-          overlay.classList.remove("impostor-animation", "innocent-animation");
+      clearConnectionNotice();
+      try {
+        const resultEl = document.getElementById("voteResults");
+        const outcomeEl = document.getElementById("voteOutcome");
+        const roomData = snapshot.val();
+        latestRoomData = roomData;
+        const prevStatus = lastRoomStatus;
+        lastRoomStatus = roomData ? roomData.status : null;
+        const currentRoundId = roomData?.roundId || null;
+        const currentRoundNumber = roomData?.round ?? null;
+        const roundIdChanged = currentRoundId !== null && lastRoundId !== null && currentRoundId !== lastRoundId;
+        const roundNumberChanged = currentRoundNumber !== null && lastRoundNumber !== null && currentRoundNumber !== lastRoundNumber;
+        const roundChanged = roundIdChanged || roundNumberChanged;
+        const roundResetNeeded = roomData?.status === "waiting" && (currentRoundId === null && lastRoundId !== null || currentRoundNumber === null && lastRoundNumber !== null);
+        if (roundChanged || roundResetNeeded) {
+          resetLocalRoundState();
         }
-        gameEnded = false;
-        lastVoteResult = null;
-        lastGuessEvent = null;
-      parityHandled = false;
-    }
-    if (roomData && roomData.players) {
-      playerUidMap = roomData.players;
-      currentPlayers = Object.values(playerUidMap).filter(isAlivePlayer).map(p => p.name).filter(p => p && p.trim() !== "");
-      updatePlayerList(playerUidMap);
-      const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
-      renderVoteOptions(candidates);
-      updateSelectedVoteName();
-    }
-      const leaveBtn = document.getElementById("leaveRoomBtn");
-      const exitBtn = document.getElementById("backToHomeBtn");
-      if (roomData && (roomData.spyParityWin || roomData.status === "finished" && roomData.winner === "spy")) {
-        const resolvedSpyVoteResult = getResolvedVoteResult(roomData);
-        const resolvedSpyVoteFallback = !resolvedSpyVoteResult && roomData?.voting?.status === "resolved" && roomData?.voting?.result ? normalizeVotingResult(roomData.voting.result) : null;
-        const activeVoteResult = resolvedSpyVoteResult || resolvedSpyVoteFallback || null;
-
-        if (activeVoteResult && !activeVoteResult.tie) {
-          const voteOutcomeContext = buildVoteOutcomeContext(roomData, activeVoteResult);
+        lastRoundId = currentRoundId;
+        lastRoundNumber = currentRoundNumber;
+        const currentVotingResult = isCurrentRoundPayload(roomData, roomData?.voting?.result) ? roomData?.voting?.result : null;
+        const currentVoteResult = isCurrentRoundPayload(roomData, roomData?.voteResult) ? roomData?.voteResult : null;
+        const currentGuessState = isCurrentRoundPayload(roomData, roomData?.guess) ? roomData?.guess : null;
+        const currentLastGuess = isCurrentRoundPayload(roomData, roomData?.lastGuess) ? roomData?.lastGuess : null;
+        const roundSafeGameOver = getGameOverInfo(roomData);
+        const resolvedVoteResult = getResolvedVoteResult(roomData);
+        const votingResultFallback = !resolvedVoteResult && roomData?.voting?.status === "resolved" && roomData?.voting?.result ? normalizeVotingResult(roomData.voting.result) : null;
+        const activeVoteResult = resolvedVoteResult || votingResultFallback;
+        const resolvedResultForOutcome = activeVoteResult || resolvedVoteResult || (roomData?.voting?.status === "resolved" ? normalizeVotingResult(roomData?.voting?.result) : null);
+        const voteOutcomeContext = buildVoteOutcomeContext(roomData, activeVoteResult);
+        const resolvedOutcomeContext = voteOutcomeContext || (resolvedResultForOutcome ? buildVoteOutcomeContext(roomData, resolvedResultForOutcome) : null);
+        const voteEndsGame = !!voteOutcomeContext && (voteOutcomeContext.outcome?.gameEnded || voteOutcomeContext.outcome?.impostorVictory);
+        const canCurrentPlayerVote = isCurrentPlayerEligible(roomData);
+        const isEliminatedPlayer = roomData?.eliminated && roomData.eliminated[currentUid] || roomData?.players?.[currentUid]?.status === "eliminated";
+        const isGameFinished = roomData?.status === "finished" || roomData?.spyParityWin;
+        const isPlayerAliveForActions = isCurrentPlayerEligible(roomData);
+        const shouldShowEliminationOverlay = isEliminatedPlayer && !isGameFinished && !voteEndsGame;
+        if (shouldShowEliminationOverlay) {
+          wasEliminated = true;
+          showEliminationOverlay(roomCode);
+          return;
+        } else if (isEliminatedPlayer) {
+          wasEliminated = true;
+        } else if (wasEliminated && prevStatus === "finished" && (roomData?.status === "waiting" || roomData?.status === "started") && (!roomData?.eliminated || !roomData.eliminated[currentUid])) {
+          wasEliminated = false;
+          if (currentPlayerName) {
+            window.db.ref(`rooms/${roomCode}/players/${currentUid}`).update({
+              name: currentPlayerName,
+              isCreator
+            });
+          }
+          const overlay = document.getElementById("resultOverlay");
+          if (overlay) {
+            overlay.classList.add("hidden");
+            overlay.classList.remove("impostor-animation", "innocent-animation");
+            overlay.innerHTML = "";
+          }
+          const roleMessageEl = document.getElementById("roleMessage");
+          const poolInfo = document.getElementById("poolInfo");
+          const poolSummary = document.getElementById("poolSummary");
+          const poolListEl = document.getElementById("poolList");
+          const roleHintBlock = document.getElementById("roleHintBlock");
+          const roleHintText = document.getElementById("roleHintText");
+          if (roleMessageEl) roleMessageEl.innerHTML = "";
+          if (poolSummary) poolSummary.textContent = "";
+          if (poolListEl) poolListEl.textContent = "";
+          if (roleHintText) roleHintText.textContent = "";
+          roleHintBlock?.classList.add("hidden");
+          poolInfo?.classList.add("hidden");
+          if (roomData.status === "started" && roomData.playerRoles && roomData.playerRoles[currentUid]) {
+            updateRoleDisplay(roomData.playerRoles[currentUid], roomData.settings);
+          }
+        }
+        if (roomData && roomData.status === "started" && prevStatus !== "started") {
+          const overlay = document.getElementById("resultOverlay");
+          if (overlay) {
+            overlay.classList.add("hidden");
+            overlay.classList.remove("impostor-animation", "innocent-animation");
+          }
+          gameEnded = false;
+          lastVoteResult = null;
+          lastGuessEvent = null;
+          parityHandled = false;
+        }
+        if (roomData && roomData.players) {
+          playerUidMap = roomData.players;
+          currentPlayers = Object.values(playerUidMap).filter(isPlayerAlive).map(p => p.name).filter(p => p && p.trim() !== "");
+          updatePlayerList(playerUidMap);
+          const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
+          renderVoteOptions(candidates);
+          updateSelectedVoteName();
+        }
+        const leaveBtn = document.getElementById("leaveRoomBtn");
+        const exitBtn = document.getElementById("backToHomeBtn");
+        if (roomData && (roomData.spyParityWin || roomData.status === "finished" && roomData.winner === "spy")) {
+          const resolvedSpyVoteResult = getResolvedVoteResult(roomData);
+          const resolvedSpyVoteFallback = !resolvedSpyVoteResult && roomData?.voting?.status === "resolved" && roomData?.voting?.result ? normalizeVotingResult(roomData.voting.result) : null;
+          const activeVoteResult = resolvedSpyVoteResult || resolvedSpyVoteFallback || null;
+          if (activeVoteResult && !activeVoteResult.tie) {
+            const voteOutcomeContext = buildVoteOutcomeContext(roomData, activeVoteResult);
+            const handledByVote = renderVoteResultOverlay(roomData, activeVoteResult, voteOutcomeContext);
+            if (handledByVote) return;
+          }
+          const finalGuess = normalizeFinalGuess(roundSafeGameOver?.finalGuess || currentLastGuess?.finalGuess || null, roomData);
+          const actualAnswer = getActualAnswer(roomData);
+          const gameType = roomData.settings?.gameType;
+          if (!parityHandled) {
+            parityHandled = true;
+            showSpyWinOverlay(roomData, finalGuess, gameType, actualAnswer);
+          }
+          if (isCreator) {
+            window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
+          }
+          return;
+        }
+        if (roomData && roomData.status === "finished" && roomData.winner === "innocent") {
           const handledByVote = renderVoteResultOverlay(roomData, activeVoteResult, voteOutcomeContext);
           if (handledByVote) return;
+          const finalGuess = normalizeFinalGuess(roundSafeGameOver?.finalGuess || currentLastGuess?.finalGuess || null, roomData);
+          const actualAnswer = getActualAnswer(roomData);
+          const gameType = roomData.settings?.gameType;
+          if (!parityHandled) {
+            parityHandled = true;
+            showSpyFailOverlay(roomData, finalGuess, gameType, actualAnswer);
+          }
+          return;
         }
-
-        const finalGuess = normalizeFinalGuess(roundSafeGameOver?.finalGuess || currentLastGuess?.finalGuess || null, roomData);
-        const actualAnswer = getActualAnswer(roomData);
-        const gameType = roomData.settings?.gameType;
-        if (!parityHandled) {
-          showSpyWinOverlay(roomData, finalGuess, gameType, actualAnswer);
+        if (!roomData || roomData.status !== "started") {
+          document.getElementById("gameActions").classList.add("hidden");
+          leaveBtn?.classList.remove("hidden");
+          exitBtn?.classList.remove("hidden");
+          lastGuessOptionsKey = null;
+          lastGuessSelection = null;
+          return;
         }
-        window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
-        return;
-      }
-      if (roomData && roomData.status === "finished" && roomData.winner === "innocent") {
-        const handledByVote = renderVoteResultOverlay(roomData, resolvedVoteResult, voteOutcomeContext);
-        if (handledByVote) return;
-        const finalGuess = normalizeFinalGuess(roundSafeGameOver?.finalGuess || currentLastGuess?.finalGuess || null, roomData);
-        const actualAnswer = getActualAnswer(roomData);
-        const gameType = roomData.settings?.gameType;
-        showSpyFailOverlay(roomData, finalGuess, gameType, actualAnswer);
-        return;
-      }
-      if (!roomData || roomData.status !== "started") {
-        document.getElementById("gameActions").classList.add("hidden");
-        leaveBtn?.classList.remove("hidden");
+        leaveBtn?.classList.add("hidden");
         exitBtn?.classList.remove("hidden");
-        lastGuessOptionsKey = null;
-        lastGuessSelection = null;
-        return;
-      }
-      leaveBtn?.classList.add("hidden");
-      exitBtn?.classList.remove("hidden");
-      if (roomData.playerRoles && roomData.playerRoles[currentUid]) {
-        const myData = roomData.playerRoles[currentUid];
-        document.getElementById("roomInfo").classList.add("hidden");
-        document.getElementById("playerRoleInfo").classList.remove("hidden");
-        document.getElementById("gameActions").classList.remove("hidden");
-        if (roomData.status === "started" && prevStatus !== "started") {
-          setTimeout(() => window.scrollTo(0, 0), 0);
-        }
-        updateRoleDisplay(myData, roomData.settings);
-        if (myData && myData.role) {
-          const guessesLeft = myData.guessesLeft ?? 0;
-          const roleDisplay = myData.role?.name ?? myData.role;
-          const isSpy = roleDisplay && typeof roleDisplay === "string" && roleDisplay.includes("Sahtekar");
-          if (isSpy && guessesLeft > 0) {
-            const guessSection = document.getElementById("guessSection");
-            guessSection.classList.remove("hidden");
-            const guessSelect = document.getElementById("guessSelect");
-            const locations = myData.allLocations || [];
-            const displayLocations = locations.map(loc => loc && typeof loc === "object" ? loc.name : loc).filter(loc => loc !== undefined && loc !== null && loc !== "");
-            const locationsKey = JSON.stringify(displayLocations);
-            const previousSelection = guessSelect.value || lastGuessSelection;
-            if (locationsKey !== lastGuessOptionsKey) {
-              guessSelect.innerHTML = displayLocations.map(loc => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`).join("");
-              lastGuessOptionsKey = locationsKey;
+        if (roomData.playerRoles && roomData.playerRoles[currentUid]) {
+          const myData = roomData.playerRoles[currentUid];
+          document.getElementById("roomInfo").classList.add("hidden");
+          document.getElementById("playerRoleInfo").classList.remove("hidden");
+          document.getElementById("gameActions").classList.remove("hidden");
+          if (roomData.status === "started" && prevStatus !== "started") {
+            setTimeout(() => window.scrollTo(0, 0), 0);
+          }
+          updateRoleDisplay(myData, roomData.settings);
+          if (myData && myData.role) {
+            const guessesLeft = myData.guessesLeft ?? 0;
+            const roleDisplay = myData.role?.name ?? myData.role;
+            const isSpy = roleDisplay && typeof roleDisplay === "string" && roleDisplay.includes("Sahtekar");
+            if (isSpy && guessesLeft > 0) {
+              const guessSection = document.getElementById("guessSection");
+              guessSection.classList.remove("hidden");
+              const guessSelect = document.getElementById("guessSelect");
+              const locations = myData.allLocations || [];
+              const displayLocations = locations.map(loc => loc && typeof loc === "object" ? loc.name : loc).filter(loc => loc !== undefined && loc !== null && loc !== "");
+              const locationsKey = JSON.stringify(displayLocations);
+              const previousSelection = guessSelect.value || lastGuessSelection;
+              if (locationsKey !== lastGuessOptionsKey) {
+                guessSelect.innerHTML = displayLocations.map(loc => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`).join("");
+                lastGuessOptionsKey = locationsKey;
+              }
+              const selectionToRestore = displayLocations.includes(previousSelection) ? previousSelection : guessSelect.value;
+              if (selectionToRestore) {
+                guessSelect.value = selectionToRestore;
+              }
+              if (!guessSelect.value && guessSelect.options.length > 0) {
+                guessSelect.value = guessSelect.options[0].value;
+              }
+              lastGuessSelection = guessSelect.value || null;
+            } else {
+              document.getElementById("guessSection").classList.add("hidden");
+              lastGuessOptionsKey = null;
+              lastGuessSelection = null;
             }
-            const selectionToRestore = displayLocations.includes(previousSelection) ? previousSelection : guessSelect.value;
-            if (selectionToRestore) {
-              guessSelect.value = selectionToRestore;
-            }
-            if (!guessSelect.value && guessSelect.options.length > 0) {
-              guessSelect.value = guessSelect.options[0].value;
-            }
-            lastGuessSelection = guessSelect.value || null;
           } else {
             document.getElementById("guessSection").classList.add("hidden");
             lastGuessOptionsKey = null;
             lastGuessSelection = null;
           }
-        } else {
-          document.getElementById("guessSection").classList.add("hidden");
-          lastGuessOptionsKey = null;
-          lastGuessSelection = null;
-        }
-        const votingInstructionEl = document.getElementById("votingInstruction");
-        if (votingInstructionEl) {
-          votingInstructionEl.textContent = "Her tur en az 1 tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
-        }
+          const votingInstructionEl = document.getElementById("votingInstruction");
+          if (votingInstructionEl) {
+            votingInstructionEl.textContent = "Her tur en az 1 tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
+          }
 
-        // Oylama durumu
-        const currentPhase = resolveGamePhase(roomData);
-        const isVotingPhase = currentPhase === "voting" || roomData.votingStarted === true || roomData.voting?.status === "in_progress";
-        if (roomData.voting?.status === "in_progress" || roomData.votingStarted) {
-          lockVoteCandidates(roomData);
-        } else {
-          unlockVoteCandidates();
-          resetVoteSelection();
-        }
-        const votingStateKey = JSON.stringify({
-          votingStarted: roomData.votingStarted,
-          votingStatus: roomData.voting?.status,
-          votes: roomData.voting?.votes
-        });
-        if (votingStateKey !== lastVotingState) {
-          const votingSection = document.getElementById("votingSection");
-          const hasVoted = roomData.voting?.votes && roomData.voting.votes[currentUid];
-          const hasResult = currentVotingResult?.finalizedAt || currentVoteResult;
-          const shouldShowVoting = roomData.voting?.status === "in_progress" && !hasVoted && !hasResult;
-          if (votingSection) {
-            votingSection.classList.toggle("hidden", !shouldShowVoting);
+          // Oylama durumu
+          const currentPhase = resolveGamePhase(roomData);
+          const overlayEl = document.getElementById("resultOverlay");
+          const shouldHideResultOverlay = overlayEl && currentPhase !== "results" && roomData.status === "started" && !roundSafeGameOver;
+          if (shouldHideResultOverlay) {
+            overlayEl.classList.add("hidden");
+            overlayEl.classList.remove("impostor-animation", "innocent-animation");
           }
-          const submitVoteBtn = document.getElementById("submitVoteBtn");
-          if (submitVoteBtn) submitVoteBtn.disabled = !!hasVoted || !selectedVoteUid;
-          const votePendingMsg = document.getElementById("votePendingMsg");
-          if (votePendingMsg) {
-            votePendingMsg.classList.toggle("hidden", !(hasVoted && !hasResult));
+          const isVotingPhase = currentPhase === "voting" || roomData.votingStarted === true || roomData.voting?.status === "in_progress";
+          if (roomData.voting?.status === "in_progress" || roomData.votingStarted) {
+            lockVoteCandidates(roomData);
+          } else {
+            unlockVoteCandidates();
+            resetVoteSelection();
           }
-          if (roomData.voting?.status !== "in_progress" || hasVoted) {
-            const confirmArea = document.getElementById("voteConfirmArea");
-            confirmArea?.classList.add("hidden");
-          }
-          lastVotingState = votingStateKey;
-        }
-        updateSelectedVoteName();
-        const voteCountdownEl = document.getElementById("voteCountdown");
-        const votingEndsAt = roomData.voting?.endsAt;
-        const votingFinalized = currentVotingResult?.finalizedAt || currentVoteResult;
-        const isVotingCountdownActive = roomData.voting?.status === "in_progress" && !votingFinalized;
-        const stopVoteCountdown = function () {
-          let hide = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
-          clearInterval(voteCountdownInterval);
-          voteCountdownInterval = null;
-          if (hide) {
-            voteCountdownEl?.classList.add("hidden");
-          }
-        };
-        if (isVotingCountdownActive) {
-          const updateCountdown = () => {
-            const remaining = (votingEndsAt ?? 0) - (getServerNow() || Date.now());
-            const remainingMs = Math.max(0, remaining);
-            if (voteCountdownEl) {
-              const seconds = Math.ceil(remainingMs / 1000);
-              const padded = String(Math.max(0, seconds)).padStart(2, "0");
-              voteCountdownEl.textContent = `Oylama bitiyor: 00:${padded}`;
-              voteCountdownEl.classList.toggle("hidden", false);
+          const votingStateKey = JSON.stringify({
+            votingStarted: roomData.votingStarted,
+            votingStatus: roomData.voting?.status,
+            votes: roomData.voting?.votes
+          });
+          if (votingStateKey !== lastVotingState) {
+            const votingSection = document.getElementById("votingSection");
+            const hasVoted = roomData.voting?.votes && roomData.voting.votes[currentUid];
+            const hasResult = currentVotingResult?.finalizedAt || currentVoteResult;
+            const shouldShowVoting = roomData.voting?.status === "in_progress" && canCurrentPlayerVote && !hasVoted && !hasResult;
+            if (votingSection) {
+              votingSection.classList.toggle("hidden", !shouldShowVoting);
             }
-            if (remaining <= 0) {
+            const submitVoteBtn = document.getElementById("submitVoteBtn");
+            if (submitVoteBtn) submitVoteBtn.disabled = !!hasVoted || !selectedVoteUid;
+            const votePendingMsg = document.getElementById("votePendingMsg");
+            if (votePendingMsg) {
+              votePendingMsg.classList.toggle("hidden", !(hasVoted && !hasResult));
+            }
+            if (roomData.voting?.status !== "in_progress" || hasVoted) {
+              const confirmArea = document.getElementById("voteConfirmArea");
+              confirmArea?.classList.add("hidden");
+            }
+            lastVotingState = votingStateKey;
+          }
+          updateSelectedVoteName();
+          const voteCountdownEl = document.getElementById("voteCountdown");
+          const votingEndsAt = roomData.voting?.endsAt;
+          const votingFinalized = currentVotingResult?.finalizedAt || currentVoteResult;
+          const isVotingCountdownActive = roomData.voting?.status === "in_progress" && !votingFinalized;
+          const stopVoteCountdown = function () {
+            let hide = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
+            clearInterval(voteCountdownInterval);
+            voteCountdownInterval = null;
+            if (hide) {
+              voteCountdownEl?.classList.add("hidden");
+            }
+          };
+          if (isVotingCountdownActive) {
+            const updateCountdown = () => {
+              const remaining = (votingEndsAt ?? 0) - (getServerNow() || Date.now());
+              const remainingMs = Math.max(0, remaining);
               if (voteCountdownEl) {
-                voteCountdownEl.textContent = "Oylama bitiyor: 00:00";
+                const seconds = Math.ceil(remainingMs / 1000);
+                const padded = String(Math.max(0, seconds)).padStart(2, "0");
+                voteCountdownEl.textContent = `Oylama bitiyor: 00:${padded}`;
                 voteCountdownEl.classList.toggle("hidden", false);
               }
-              stopVoteCountdown(false);
-              gameLogic.finalizeVoting(currentRoomCode, "time_up");
-              return false;
-            }
-            return true;
-          };
-          stopVoteCountdown(false);
-          const shouldContinue = updateCountdown();
-          if (shouldContinue) {
-            voteCountdownInterval = setInterval(() => {
-              const stillActive = updateCountdown();
-              if (!stillActive) {
+              if (remaining <= 0) {
+                if (voteCountdownEl) {
+                  voteCountdownEl.textContent = "Oylama bitiyor: 00:00";
+                  voteCountdownEl.classList.toggle("hidden", false);
+                }
                 stopVoteCountdown(false);
+                gameLogic.finalizeVoting(currentRoomCode, "time_up");
+                return false;
               }
-            }, 1000);
-          }
-        } else {
-          stopVoteCountdown();
-        }
-        const guessState = currentGuessState;
-        const shouldShowGuessCountdown = guessState?.spyUid === currentUid && guessState.endsAt && !currentLastGuess && roomData.status !== "finished";
-        if (shouldShowGuessCountdown && voteCountdownEl) {
-          const updateGuessCountdown = () => {
-            const remainingMs = Math.max(0, guessState.endsAt - Date.now());
-            const seconds = Math.ceil(remainingMs / 1000);
-            const padded = String(Math.max(0, seconds)).padStart(2, "0");
-            voteCountdownEl.textContent = `Tahmin süresi: 00:${padded}`;
-            voteCountdownEl.classList.toggle("hidden", false);
-            if (remainingMs <= 0) {
-              clearInterval(guessCountdownInterval);
-              guessCountdownInterval = null;
-              gameLogic.finalizeGuessTimeout(currentRoomCode);
-            }
-          };
-          clearInterval(guessCountdownInterval);
-          updateGuessCountdown();
-          guessCountdownInterval = setInterval(updateGuessCountdown, 1000);
-        } else {
-          clearInterval(guessCountdownInterval);
-          guessCountdownInterval = null;
-        }
-        const startBtn = document.getElementById("startVotingBtn");
-        const waitingEl = document.getElementById("waitingVoteStart");
-        const voteRequests = roomData.voteStartRequests || {};
-        const votingStatus = roomData.voting?.status;
-        const alivePlayers = getActivePlayers(roomData.playerRoles, roomData.players).map(p => ({
-          ...p,
-          name: p.name || playerUidMap[p.uid]?.name || p.uid
-        }));
-        const aliveUids = alivePlayers.map(p => p.uid);
-        const playersCount = alivePlayers.length;
-        const filteredRequests = aliveUids.reduce((acc, uid) => {
-          if (voteRequests[uid]) acc[uid] = true;
-          return acc;
-        }, {});
-        const requestCount = Object.keys(filteredRequests).length;
-        const hasRequested = !!filteredRequests[currentUid];
-        const threshold = Math.floor(playersCount / 2) + 1;
-        const isWaiting = votingStatus !== "in_progress" && !roomData.votingStarted && hasRequested && requestCount < threshold;
-        if (startBtn) {
-          startBtn.classList.toggle("hidden", isVotingPhase || isWaiting);
-          startBtn.disabled = isWaiting;
-        }
-        if (waitingEl) {
-          waitingEl.classList.toggle("hidden", !isWaiting);
-          if (isWaiting) {
-            waitingEl.textContent = `Oylama isteği gönderildi (${requestCount}/${threshold}). Aktif oyuncuların onayı bekleniyor...`;
-          }
-        }
-        if (votingInstructionEl) {
-          if (!roomData.votingStarted && !hasRequested) {
-            votingInstructionEl.classList.remove("hidden");
-            votingInstructionEl.textContent = "Her tur tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
-          } else {
-            votingInstructionEl.classList.add("hidden");
-          }
-        }
-        const liveVoteCounts = document.getElementById("liveVoteCounts");
-        const voteCountList = document.getElementById("voteCountList");
-        const hasActiveVoting = roomData.voting?.status === "in_progress";
-        const votingHasResult = currentVotingResult?.finalizedAt || currentVoteResult;
-        if (!hasActiveVoting || votingHasResult) {
-          liveVoteCounts?.classList.add("hidden");
-          if (voteCountList) voteCountList.innerHTML = "";
-        } else {
-          liveVoteCounts?.classList.remove("hidden");
-          const tally = {};
-          const alivePlayerList = getActivePlayers(roomData.playerRoles, roomData.players);
-          const aliveUids = new Set(alivePlayerList.map(p => p.uid));
-          Object.entries(roomData.voting?.votes || {}).forEach(_ref7 => {
-            let [voter, uid] = _ref7;
-            if (!aliveUids.has(voter) || !aliveUids.has(uid)) return;
-            tally[uid] = (tally[uid] || 0) + 1;
-          });
-          const snapshot = roomData.voting?.snapshot;
-          const playerMap = snapshot?.names ? snapshot.order.map(uid => ({
-            uid,
-            name: snapshot.names[uid] || playerUidMap[uid]?.name || uid
-          })) : (roomData.voting?.snapshotPlayers || []).map(p => ({
-            uid: p.uid,
-            name: p.name
-          })).filter(p => p.uid) || [];
-          const filteredSnapshotPlayers = playerMap.filter(p => aliveUids.has(p.uid));
-          const fallbackPlayers = !filteredSnapshotPlayers.length ? Object.entries(roomData.players || playerUidMap || {}).filter(_ref8 => {
-            let [, p] = _ref8;
-            return isAlivePlayer(p);
-          }).map(_ref9 => {
-            let [uid, p] = _ref9;
-            return {
-              uid,
-              name: p?.name || uid
+              return true;
             };
-          }) : filteredSnapshotPlayers;
-          const ranked = fallbackPlayers.map(p => ({
-            uid: p.uid,
-            name: p.name,
-            count: tally[p.uid] || 0
-          }));
-          ranked.sort((a, b) => b.count - a.count);
-          if (voteCountList) {
-            voteCountList.innerHTML = ranked.map((p, i) => `<li>${i + 1}) ${escapeHtml(p.name)} – ${p.count}</li>`).join("");
-          }
-        }
-        const hasElimination = resolvedVoteResult && !resolvedVoteResult.tie && (resolvedVoteResult.voted || resolvedVoteResult.eliminatedUid);
-        const endRoundTriggered = triggerEndRoundIfNeeded(roomData, resolvedVoteResult);
-        if (resolvedVoteResult) {
-          if (resolvedVoteResult.tie) {
-            resultEl.classList.remove("hidden");
-            outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
-            document.getElementById("nextRoundBtn").classList.add("hidden");
+            stopVoteCountdown(false);
+            const shouldContinue = updateCountdown();
+            if (shouldContinue) {
+              voteCountdownInterval = setInterval(() => {
+                const stillActive = updateCountdown();
+                if (!stillActive) {
+                  stopVoteCountdown(false);
+                }
+              }, 1000);
+            }
           } else {
-            renderVoteResultOverlay(roomData, resolvedVoteResult, voteOutcomeContext);
+            stopVoteCountdown();
+          }
+          const guessState = currentGuessState;
+          const shouldShowGuessCountdown = guessState?.spyUid === currentUid && guessState.endsAt && !currentLastGuess && roomData.status !== "finished";
+          if (shouldShowGuessCountdown && voteCountdownEl) {
+            const updateGuessCountdown = () => {
+              const remainingMs = Math.max(0, guessState.endsAt - Date.now());
+              const seconds = Math.ceil(remainingMs / 1000);
+              const padded = String(Math.max(0, seconds)).padStart(2, "0");
+              voteCountdownEl.textContent = `Tahmin süresi: 00:${padded}`;
+              voteCountdownEl.classList.toggle("hidden", false);
+              if (remainingMs <= 0) {
+                clearInterval(guessCountdownInterval);
+                guessCountdownInterval = null;
+                gameLogic.finalizeGuessTimeout(currentRoomCode);
+              }
+            };
+            clearInterval(guessCountdownInterval);
+            updateGuessCountdown();
+            guessCountdownInterval = setInterval(updateGuessCountdown, 1000);
+          } else {
+            clearInterval(guessCountdownInterval);
+            guessCountdownInterval = null;
+          }
+          const startBtn = document.getElementById("startVotingBtn");
+          const waitingEl = document.getElementById("waitingVoteStart");
+          const votingStatus = roomData.voting?.status || "idle";
+          const startedBy = roomData.voting?.startedBy || {};
+          const alivePlayers = getActivePlayers(roomData.playerRoles, roomData.players).map(p => ({
+            ...p,
+            name: p.name || playerUidMap[p.uid]?.name || p.uid
+          }));
+          const aliveUids = alivePlayers.map(p => p.uid);
+          const startedCount = aliveUids.filter(uid => startedBy[uid]).length;
+          const aliveCount = aliveUids.length;
+          const threshold = Math.floor(aliveCount / 2) + 1;
+          const isCurrentAlive = aliveUids.includes(currentUid);
+          const hasStartedByCurrent = !!startedBy[currentUid];
+          if (hasStartedByCurrent) {
+            hasRequestedStart = true;
+          } else if (hasRequestedStart && votingStatus === "idle" && startedCount === 0) {
+            hasRequestedStart = false;
+          }
+          const hasJoinedStart = hasStartedByCurrent || hasRequestedStart;
+          const waitingForMajority = canCurrentPlayerVote && isCurrentAlive && votingStatus !== "in_progress" && startedCount < threshold;
+          if (startBtn) {
+            const shouldHideStart = votingStatus === "in_progress" || !canCurrentPlayerVote || !isCurrentAlive;
+            startBtn.classList.toggle("hidden", shouldHideStart);
+            startBtn.disabled = shouldHideStart || hasJoinedStart;
+            startBtn.textContent = hasJoinedStart ? "Katıldınız" : "Oylamayı Başlat";
+          }
+          if (waitingEl) {
+            const shouldShowWaiting = waitingForMajority;
+            waitingEl.classList.toggle("hidden", !shouldShowWaiting || votingStatus === "in_progress");
+            if (shouldShowWaiting && votingStatus !== "in_progress") {
+              const prefix = hasJoinedStart ? "Oylamaya katıldınız. Oylamanın başlaması için diğer oyuncular bekleniyor... (Çoğunluk sağlandığında oylama başlar!)" : "Oylamanın başlaması için çoğunluk bekleniyor...";
+              waitingEl.textContent = `${prefix} Başlatma isteği: ${startedCount} / ${aliveCount} (Gerekli: ${threshold})`;
+            }
+          }
+          if (votingInstructionEl) {
+            if (!canCurrentPlayerVote || hasJoinedStart || votingStatus === "in_progress") {
+              votingInstructionEl.classList.add("hidden");
+            } else {
+              votingInstructionEl.classList.remove("hidden");
+              votingInstructionEl.textContent = "Her tur tek kelimelik ipucu verin. Hazır olduğunuzda oylamayı başlatabilirsiniz.";
+            }
+          }
+          const liveVoteCounts = document.getElementById("liveVoteCounts");
+          const voteCountList = document.getElementById("voteCountList");
+          const hasActiveVoting = roomData.voting?.status === "in_progress";
+          const votingHasResult = currentVotingResult?.finalizedAt || currentVoteResult;
+          if (!hasActiveVoting || votingHasResult) {
+            liveVoteCounts?.classList.add("hidden");
+            if (voteCountList) voteCountList.innerHTML = "";
+          } else {
+            liveVoteCounts?.classList.remove("hidden");
+            const tally = {};
+            const alivePlayerList = getActivePlayers(roomData.playerRoles, roomData.players);
+            const aliveUids = new Set(alivePlayerList.map(p => p.uid));
+            Object.entries(roomData.voting?.votes || {}).forEach(_ref7 => {
+              let [voter, uid] = _ref7;
+              if (!aliveUids.has(voter) || !aliveUids.has(uid)) return;
+              tally[uid] = (tally[uid] || 0) + 1;
+            });
+            const snapshot = roomData.voting?.snapshot;
+            const playerMap = snapshot?.names ? snapshot.order.map(uid => ({
+              uid,
+              name: snapshot.names[uid] || playerUidMap[uid]?.name || uid
+            })) : (roomData.voting?.snapshotPlayers || []).map(p => ({
+              uid: p.uid,
+              name: p.name
+            })).filter(p => p.uid) || [];
+            const filteredSnapshotPlayers = playerMap.filter(p => aliveUids.has(p.uid));
+            const fallbackPlayers = !filteredSnapshotPlayers.length ? Object.entries(roomData.players || playerUidMap || {}).filter(_ref8 => {
+              let [, p] = _ref8;
+              return isPlayerAlive(p);
+            }).map(_ref9 => {
+              let [uid, p] = _ref9;
+              return {
+                uid,
+                name: p?.name || uid
+              };
+            }) : filteredSnapshotPlayers;
+            const ranked = fallbackPlayers.map(p => ({
+              uid: p.uid,
+              name: p.name,
+              count: tally[p.uid] || 0
+            }));
+            ranked.sort((a, b) => b.count - a.count);
+            if (voteCountList) {
+              voteCountList.innerHTML = ranked.map((p, i) => `<li>${i + 1}) ${escapeHtml(p.name)} – ${p.count}</li>`).join("");
+            }
+          }
+          const hasElimination = activeVoteResult && !activeVoteResult.tie && (activeVoteResult.voted || activeVoteResult.eliminatedUid);
+          const endRoundTriggered = triggerEndRoundIfNeeded(roomData, activeVoteResult);
+          const nextRoundBtn = document.getElementById("nextRoundBtn");
+          const shouldShowNextRound = isPlayerAliveForActions && (roomData?.voting?.status === "resolved" || currentPhase === "results");
+          nextRoundBtn?.classList.toggle("hidden", !shouldShowNextRound);
+          const shouldShowVoteOutcome = roomData?.voting?.status === "resolved" || currentPhase === "results";
+          const fallbackOutcomeMessage = resolvedOutcomeContext?.outcome?.message;
+          if (activeVoteResult) {
+            if (activeVoteResult.tie) {
+              resultEl.classList.remove("hidden");
+              outcomeEl.textContent = "Oylar eşit! Oylama yeniden başlayacak.";
+              document.getElementById("nextRoundBtn").classList.add("hidden");
+              if (isCreator) {
+                const now = getServerNow();
+                if (!lastTieRestartAt || now - lastTieRestartAt > 2000) {
+                  lastTieRestartAt = now;
+                  gameLogic.restartVotingAfterTie(roomCode);
+                }
+              }
+            } else {
+              renderVoteResultOverlay(roomData, activeVoteResult, voteOutcomeContext);
+              resultEl.classList.add("hidden");
+            }
+          } else if (shouldShowVoteOutcome) {
+            resultEl.classList.remove("hidden");
+            if (outcomeEl) {
+              outcomeEl.textContent = fallbackOutcomeMessage || "Oylama sonucu hazırlanıyor...";
+            }
+          } else {
             resultEl.classList.add("hidden");
+            lastVoteResult = null;
           }
-        } else {
-          resultEl.classList.add("hidden");
-          lastVoteResult = null;
-        }
-        if (currentLastGuess) {
-          const guessKey = JSON.stringify(currentLastGuess);
-          if (guessKey !== lastGuessEvent) {
-            lastGuessEvent = guessKey;
-            const guessWord = roomData.settings?.gameType === "category" ? "rolü" : "konumu";
-            const isSpyGuess = currentLastGuess.spy === currentUid;
-            const msg = isSpyGuess ? `Yanlış tahmin ettin! ${guessWord} ${currentLastGuess.guess}. Kalan tahmin hakkı: ${currentLastGuess.guessesLeft}` : `Sahtekar ${guessWord} ${currentLastGuess.guess} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${currentLastGuess.guessesLeft}`;
-            alert(msg);
+          if (currentLastGuess) {
+            const guessKey = JSON.stringify(currentLastGuess);
+            if (guessKey !== lastGuessEvent) {
+              lastGuessEvent = guessKey;
+              const guessWord = roomData.settings?.gameType === "category" ? "rolü" : "konumu";
+              const isSpyGuess = currentLastGuess.spy === currentUid;
+              const msg = isSpyGuess ? `Yanlış tahmin ettin! ${guessWord} ${currentLastGuess.guess}. Kalan tahmin hakkı: ${currentLastGuess.guessesLeft}` : `Sahtekar ${guessWord} ${currentLastGuess.guess} tahmin etti ama yanıldı. Kalan tahmin hakkı: ${currentLastGuess.guessesLeft}`;
+              alert(msg);
+            }
+          } else {
+            lastGuessEvent = null;
           }
-        } else {
-          lastGuessEvent = null;
+          const votingResult = currentVotingResult;
+          const votingVotes = resolveVotes(roomData) || {};
+          const expectedVoters = getExpectedVoterIds(roomData?.voting?.expectedVoters);
+          const expectedVoterSet = new Set(expectedVoters);
+          const expectedVoterCount = expectedVoters.length;
+          const voteCount = expectedVoters.reduce((count, voterUid) => {
+            const target = votingVotes[voterUid];
+            return count + (expectedVoterSet.has(target) ? 1 : 0);
+          }, 0);
+          const currentServerNow = getServerNow() || Date.now();
+          const shouldFinalizeByCount = roomData.voting?.status === "in_progress" && expectedVoterCount > 0 && voteCount === expectedVoterCount && !votingResult?.finalizedAt;
+          const shouldFinalizeByTimeout = roomData.voting?.status === "in_progress" && typeof roomData.voting.endsAt === "number" && currentServerNow >= roomData.voting.endsAt && !votingResult?.finalizedAt;
+          if (shouldFinalizeByCount) {
+            gameLogic.finalizeVoting(currentRoomCode, "all_voted");
+          } else if (shouldFinalizeByTimeout) {
+            gameLogic.finalizeVoting(currentRoomCode, "time_up");
+          }
+          const finalizedAt = votingResult?.finalizedAt;
+          const shouldScheduleCleanup = finalizedAt && roomData.voting?.status !== "in_progress" && roomData.status === "started" && currentPhase !== "results" && !currentGuessState && (!hasElimination || endRoundTriggered);
+          if (shouldScheduleCleanup && finalizedAt !== lastVotingFinalizedAt) {
+            lastVotingFinalizedAt = finalizedAt;
+            if (votingCleanupTimeout) clearTimeout(votingCleanupTimeout);
+            votingCleanupTimeout = setTimeout(() => {
+              gameLogic.resetVotingState(currentRoomCode);
+            }, 4000);
+          } else if (!finalizedAt) {
+            lastVotingFinalizedAt = null;
+          }
         }
-        const votingResult = currentVotingResult;
-        const aliveList = getActivePlayers(roomData.playerRoles, roomData.players);
-        const allAlivePlayers = aliveList.map(p => p.uid);
-        const voteCount = Object.entries(resolveVotes(roomData)).filter(_ref0 => {
-          let [voter, target] = _ref0;
-          return allAlivePlayers.includes(voter) && allAlivePlayers.includes(target);
-        }).length;
-        const currentServerNow = getServerNow() || Date.now();
-        const shouldFinalizeByCount = isCreator && roomData.voting?.status === "in_progress" && allAlivePlayers.length > 0 && voteCount === allAlivePlayers.length && !votingResult?.finalizedAt;
-        const shouldFinalizeByTimeout = isCreator && roomData.voting?.status === "in_progress" && typeof roomData.voting.endsAt === "number" && currentServerNow >= roomData.voting.endsAt && !votingResult?.finalizedAt;
-        if (shouldFinalizeByCount) {
-          gameLogic.finalizeVoting(currentRoomCode, "all_voted");
-        } else if (shouldFinalizeByTimeout) {
-          gameLogic.finalizeVoting(currentRoomCode, "time_up");
-        }
-        const finalizedAt = votingResult?.finalizedAt;
-        const shouldScheduleCleanup = finalizedAt && roomData.voting?.status !== "in_progress" && roomData.status === "started" && !currentGuessState && (!hasElimination || endRoundTriggered);
-        if (shouldScheduleCleanup && finalizedAt !== lastVotingFinalizedAt) {
-          lastVotingFinalizedAt = finalizedAt;
-          if (votingCleanupTimeout) clearTimeout(votingCleanupTimeout);
-          votingCleanupTimeout = setTimeout(() => {
-            gameLogic.resetVotingState(currentRoomCode);
-          }, 4000);
-        } else if (!finalizedAt) {
-          lastVotingFinalizedAt = null;
-        }
+      } catch (err) {
+        console.error("[ROOM LISTENER CRASH]", err);
       }
-    });
+    };
+    roomRef.on("value", roomValueCallback, roomErrorCallback);
+    roomValueUnsubscribe = () => roomRef.off("value", roomValueCallback);
   }
 
   /** ------------------------
@@ -3084,6 +3748,9 @@
     document.getElementById("playerRoleInfo").classList.add("hidden");
     document.getElementById("gameActions").classList.add("hidden");
   }
+
+  // Export for use in other modules (e.g., cleanup when a room disappears)
+  window.showSetupJoin = showSetupJoin;
 
   /** ------------------------
    *  EVENT LISTENERS
@@ -3184,7 +3851,10 @@
         localStorage.setItem("isCreator", "true");
         showRoomUI(roomCode, creatorName, true);
         listenPlayersAndRoom(roomCode);
-        gameLogic.listenRoom(roomCode);
+        if (typeof gameLogicRoomUnsub === "function") {
+          gameLogicRoomUnsub();
+        }
+        gameLogicRoomUnsub = gameLogic.listenRoom(roomCode);
       } catch (err) {
         alert(err.message || err);
       } finally {
@@ -3221,7 +3891,10 @@
         localStorage.setItem("isCreator", "false");
         showRoomUI(joinCode, joinName, false);
         listenPlayersAndRoom(joinCode);
-        gameLogic.listenRoom(joinCode);
+        if (typeof gameLogicRoomUnsub === "function") {
+          gameLogicRoomUnsub();
+        }
+        gameLogicRoomUnsub = gameLogic.listenRoom(joinCode);
       } catch (err) {
         alert(err.message);
         return;
@@ -3233,14 +3906,12 @@
     joinRoomBtn.addEventListener("pointerdown", handleJoinRoom);
     document.getElementById("leaveRoomBtn").addEventListener("click", () => {
       const action = isCreator ? gameLogic.deleteRoom(currentRoomCode) : gameLogic.leaveRoom(currentRoomCode);
-      Promise.resolve(action)
-        .catch(error => {
-          console.error("[leaveRoomBtn] room action failed", error);
-        })
-        .finally(() => {
-          clearStoragePreservePromo();
-          window.location.replace("./index.html");
-        });
+      Promise.resolve(action).catch(error => {
+        console.error("[leaveRoomBtn] room action failed", error);
+      }).finally(() => {
+        handleRoomGone("manual exit");
+        window.location.replace("./index.html");
+      });
     });
     document.getElementById("startGameBtn").addEventListener("click", async e => {
       if (!currentRoomCode) {
@@ -3263,8 +3934,22 @@
         btn.disabled = false;
       }
     });
-    document.getElementById("startVotingBtn").addEventListener("click", () => {
-      gameLogic.startVote(currentRoomCode, currentUid);
+    document.getElementById("startVotingBtn").addEventListener("click", e => {
+      const btn = e.currentTarget;
+      hasRequestedStart = true;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Katıldınız";
+      }
+      const startVotePromise = gameLogic.startVote(currentRoomCode, currentUid);
+      Promise.resolve(startVotePromise).catch(error => {
+        console.error("[startVotingBtn] startVote error", error);
+        hasRequestedStart = false;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Oylamayı Başlat";
+        }
+      });
     });
     const voteList = document.getElementById("voteList");
     if (voteList) {
@@ -3322,7 +4007,16 @@
 
     // Sonraki tur
     document.getElementById("nextRoundBtn").addEventListener("click", () => {
-      gameLogic.nextRound(currentRoomCode);
+      const roomData = latestRoomData;
+      const currentPhase = resolveGamePhase(roomData);
+      const isAliveForNextRound = roomData ? isCurrentPlayerEligible(roomData) : true;
+      if (currentPhase === "results" && isAliveForNextRound) {
+        gameLogic.continueAfterResults(currentRoomCode, currentUid);
+      } else if (isCreator && roomData && !isAliveForNextRound) {
+        gameLogic.restartGame(currentRoomCode);
+      } else {
+        gameLogic.nextRound(currentRoomCode);
+      }
     });
 
     // Rol bilgisini kopyalama
@@ -3336,21 +4030,13 @@
       const roomCode = localStorage.getItem("roomCode");
       const playerName = localStorage.getItem("playerName");
       const isCreator = localStorage.getItem("isCreator") === "true";
-      const action = roomCode
-        ? isCreator
-          ? gameLogic.deleteRoom(roomCode)
-          : playerName
-          ? gameLogic.leaveRoom(roomCode)
-          : Promise.resolve()
-        : Promise.resolve();
-      Promise.resolve(action)
-        .catch((error) => {
-          console.error("[backToHomeBtn] room action failed", error);
-        })
-        .finally(() => {
-          clearStoragePreservePromo();
-          window.location.replace("./index.html");
-        });
+      const action = roomCode ? isCreator ? gameLogic.deleteRoom(roomCode) : playerName ? gameLogic.leaveRoom(roomCode) : Promise.resolve() : Promise.resolve();
+      Promise.resolve(action).catch(error => {
+        console.error("[backToHomeBtn] room action failed", error);
+      }).finally(() => {
+        handleRoomGone("manual exit");
+        window.location.replace("./index.html");
+      });
     });
   }
   document.addEventListener("DOMContentLoaded", initUI);
