@@ -2332,21 +2332,24 @@ else {
   },
 
   checkSpyWin: function (roomCode, latestData) {
-    if (
-      room.voting?.status ||
-      room.game?.phase === "results" ||
-      room.game?.phase === "voting"
-    )
-      return Promise.resolve(false);
-
-    const shouldSkipSpyCheck = (data) =>
+    const isVotingOrResultsPhase = (data) =>
       Boolean(
         data?.voting?.status ||
           data?.game?.phase === "results" ||
-          data?.status === "finished"
+          data?.game?.phase === "voting"
       );
 
-    if (shouldSkipSpyCheck(latestData)) {
+    const shouldSkipSpyCheck = (data) =>
+      Boolean(isVotingOrResultsPhase(data) || data?.status === "finished");
+
+    const shouldExitEarly = (data) => {
+      if (!data) return false;
+      if (shouldSkipSpyCheck(data)) return true;
+      const activePlayers = getActivePlayers(data.playerRoles, data.players);
+      return activePlayers.length > 2;
+    };
+
+    if (shouldExitEarly(room) || shouldExitEarly(latestData)) {
       return Promise.resolve(false);
     }
 
@@ -2357,14 +2360,15 @@ else {
 
     return dataPromise.then((data) => {
       if (!data) return false;
-      if (shouldSkipSpyCheck(data)) return false;
+      if (shouldExitEarly(data)) return false;
       const activePlayers = getActivePlayers(data.playerRoles, data.players);
       const activeUids = activePlayers.map((p) => p.uid);
       const activeSpies = getSpyUids(data.spies).filter((s) =>
         activeUids.includes(s)
       );
-      const innocentCount = activeUids.length - activeSpies.length;
-      if (innocentCount <= 1) {
+      const aliveCount = activeUids.length;
+      const spyAlive = activeSpies.length;
+      if (aliveCount === 2 && spyAlive === 1) {
         const updates = appendFinalSpyInfo(
           { status: "finished", winner: "spy", spyParityWin: true },
           data
