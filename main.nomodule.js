@@ -2123,21 +2123,35 @@
           showSetupJoin();
         });
       });
-    } else if (!isEliminatedPlayer) {
-      const btn = document.createElement("button");
-      btn.id = "continueBtn";
-      btn.classList.add("overlay-btn");
-      btn.textContent = "Oyuna Devam Et";
-      overlay.appendChild(btn);
-      btn.addEventListener("click", () => {
+    } else {
+      const exitBtn = document.createElement("button");
+      exitBtn.id = "exitBtn";
+      exitBtn.classList.add("overlay-btn");
+      exitBtn.textContent = "Odadan ayrıl";
+      overlay.appendChild(exitBtn);
+      exitBtn.addEventListener("click", () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
-        if (currentRoomCode && currentUid && window.db) {
-          window.db.ref(`rooms/${currentRoomCode}/ui/${currentUid}`).update({
-            screen: "playing"
-          }).catch(err => console.error("Kullanıcı ekran durumu güncellenemedi:", err));
-        }
+        gameLogic.leaveRoom(currentRoomCode).finally(() => {
+          showSetupJoin();
+        });
       });
+      if (!isEliminatedPlayer) {
+        const btn = document.createElement("button");
+        btn.id = "continueBtn";
+        btn.classList.add("overlay-btn");
+        btn.textContent = "Oyuna Devam Et";
+        overlay.appendChild(btn);
+        btn.addEventListener("click", () => {
+          overlay.classList.add("hidden");
+          overlay.classList.remove("impostor-animation", "innocent-animation");
+          if (currentRoomCode && currentUid && window.db) {
+            window.db.ref(`rooms/${currentRoomCode}/ui/${currentUid}`).update({
+              screen: "playing"
+            }).catch(err => console.error("Kullanıcı ekran durumu güncellenemedi:", err));
+          }
+        });
+      }
     }
   }
   function resolveAnswerValue(value, gameType) {
