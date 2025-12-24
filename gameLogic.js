@@ -1765,11 +1765,12 @@ export const gameLogic = {
         };
       }
 
-      const alivePlayers = getActivePlayers(room.playerRoles || {}, nextPlayers);
-      const aliveUids = alivePlayers.map((p) => p.uid);
-      const remainingSpies = getSpyUids(room.spies).filter((id) =>
-        aliveUids.includes(id)
-      );
+// Daha güvenli: canlıları direkt players status'ünden say (role sync hatalarından etkilenmez)
+const aliveUids = getAliveUids(nextPlayers);
+
+const remainingSpies = getSpyUids(room.spies).filter((id) =>
+  aliveUids.includes(id)
+);
 
       const aliveCount = aliveUids.length;
       const spyAlive = remainingSpies.length;
