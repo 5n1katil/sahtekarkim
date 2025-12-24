@@ -2257,6 +2257,13 @@ else {
     ref.get().then((snap) => {
       if (!snap.exists()) return;
       const data = snap.val();
+      const room = data;
+      if (
+        room.voting?.status ||
+        room.game?.phase === "results" ||
+        room.game?.phase === "voting"
+      )
+        return;
       if (isVotingStateMachineActive(data)) return;
       const vote = data.voteResult;
       const tasks = [];
