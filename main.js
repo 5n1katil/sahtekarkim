@@ -1054,6 +1054,102 @@ function updateRoleDisplay(myData, settings) {
     });
   }
 
+  function showSpyFailOverlay(roomData, finalGuess, gameType, actualAnswer) {
+    const overlay = document.getElementById("resultOverlay");
+    if (!overlay) {
+      console.error("resultOverlay element not found");
+      return;
+    }
+
+    const spyInfo = getSpyInfo(roomData);
+    gameEnded = true;
+    overlay.innerHTML = "";
+
+    const msgDiv = document.createElement("div");
+    msgDiv.className = "result-message";
+
+    const guessWord = gameType === "category" ? "rolü" : "konumu";
+    const actualWord = gameType === "category" ? "rol" : "konum";
+    const guessedValue =
+      finalGuess?.guessedRole || finalGuess?.guessedLocation || finalGuess?.guess;
+    const resolvedActualAnswer = resolveAnswerValue(
+      actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation,
+      gameType
+    );
+    const spyIntro = formatSpyIntro(spyInfo);
+    const guessDetail = guessedValue
+      ? `${guessWord} ${escapeHtml(String(guessedValue))} olarak`
+      : `${guessWord} olarak`;
+
+    const fallbackMessage = resolvedActualAnswer
+      ? `${spyIntro} ${guessDetail} yanlış tahmin etti. Doğru ${actualWord} ${escapeHtml(
+          resolvedActualAnswer
+        )} idi ve oyunu masumlar kazandı!`
+      : `${spyIntro} ${guessDetail} yanlış tahmin etti ve oyunu masumlar kazandı!`;
+
+    msgDiv.textContent = resolveGameOverMessage(
+      roomData,
+      fallbackMessage,
+      spyInfo
+    );
+
+    appendSpyNamesLine(msgDiv, roomData, {
+      spyInfo,
+      primaryMessage: msgDiv.textContent,
+    });
+
+    const detailLines = buildGuessDetails(
+      finalGuess,
+      resolvedActualAnswer,
+      gameType
+    );
+    appendGuessDetails(msgDiv, detailLines);
+
+    overlay.appendChild(msgDiv);
+
+    let restartBtn;
+    if (isCreator) {
+      restartBtn = document.createElement("button");
+      restartBtn.id = "restartBtn";
+      restartBtn.classList.add("overlay-btn");
+      restartBtn.textContent = "Yeniden oyna";
+      overlay.appendChild(restartBtn);
+    }
+
+    const exitBtn = document.createElement("button");
+    exitBtn.id = "exitBtn";
+    exitBtn.classList.add("overlay-btn");
+    exitBtn.textContent = "Odadan ayrıl";
+    overlay.appendChild(exitBtn);
+
+    overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
+    overlay.classList.add("innocent-animation");
+
+    const hideOverlay = () => {
+      overlay.classList.add("hidden");
+      overlay.classList.remove("impostor-animation", "innocent-animation");
+    };
+
+    if (restartBtn) {
+      restartBtn.addEventListener("click", () => {
+        hideOverlay();
+        gameEnded = false;
+        parityHandled = false;
+        lastVoteResult = null;
+        lastGuessEvent = null;
+        restartBtn.disabled = true;
+        gameLogic.restartGame(currentRoomCode);
+      });
+    }
+
+    exitBtn.addEventListener("click", () => {
+      hideOverlay();
+      gameLogic.leaveRoom(currentRoomCode).finally(() => {
+        showSetupJoin();
+      });
+    });
+  }
+
   /** ------------------------
    *  ODA OLUŞTUR
    * ------------------------ */
@@ -1328,10 +1424,11 @@ function updateRoleDisplay(myData, settings) {
 
     // Oyun başlama durumunu canlı dinle
     window.db.ref("rooms/" + roomCode).on("value", (snapshot) => {
-      const resultEl = document.getElementById("voteResults");
-      const outcomeEl = document.getElementById("voteOutcome");
-      const roomData = snapshot.val();
-      latestRoomData = roomData;
+      try {
+        const resultEl = document.getElementById("voteResults");
+        const outcomeEl = document.getElementById("voteOutcome");
+        const roomData = snapshot.val();
+        latestRoomData = roomData;
       const prevStatus = lastRoomStatus;
       lastRoomStatus = roomData ? roomData.status : null;
       const currentRoundId = roomData?.roundId || null;
@@ -1974,6 +2071,9 @@ function updateRoleDisplay(myData, settings) {
           lastVotingFinalizedAt = null;
         }
       }
+    } catch (err) {
+      console.error("[ROOM LISTENER CRASH]", err);
+    }
     });
   }
 
