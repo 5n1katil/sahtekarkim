@@ -121,6 +121,8 @@ let roomMissingCounter = 0;
 let lastTieRestartAt = 0;
 const authReadyPromise = window.authReady || Promise.resolve();
 let reconnectNotice = null;
+let gameLogicRoomUnsub = null;
+let gameLogicPlayersUnsub = null;
 
 function showConnectionNotice(message, tone = "info") {
   const banner = document.getElementById("connectionBanner");
@@ -175,17 +177,7 @@ async function handleConfirmedRoomMissing(expectedRoomCode, options = {}) {
     if (exists) return;
   }
 
-  if (roomMissingTimeoutId) {
-    clearTimeout(roomMissingTimeoutId);
-    roomMissingTimeoutId = null;
-  }
-  clearRoomValueListener();
-  clearStoragePreservePromo();
-  currentRoomCode = null;
-  currentPlayerName = null;
-  isCreator = false;
-  showConnectionNotice("Oda bulunamadı veya silindi.", "warning");
-  showSetupJoin();
+  handleRoomGone("confirmed missing");
 }
 
 if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
@@ -279,7 +271,10 @@ if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
 
             showRoomUI(currentRoomCode, currentPlayerName, isCreator);
             listenPlayersAndRoom(currentRoomCode);
-            gameLogic.listenRoom(currentRoomCode);
+            if (typeof gameLogicRoomUnsub === "function") {
+              gameLogicRoomUnsub();
+            }
+            gameLogicRoomUnsub = gameLogic.listenRoom(currentRoomCode);
             clearConnectionNotice();
 
             if (
@@ -1530,12 +1525,51 @@ function updateRoleDisplay(myData, settings) {
     }
   }
 
+  function handleRoomGone(reason) {
+    if (roomMissingTimeoutId) {
+      clearTimeout(roomMissingTimeoutId);
+      roomMissingTimeoutId = null;
+    }
+    clearRoomValueListener();
+    if (typeof gameLogicRoomUnsub === "function") {
+      gameLogicRoomUnsub();
+    }
+    if (typeof gameLogicPlayersUnsub === "function") {
+      gameLogicPlayersUnsub();
+    }
+    gameLogicRoomUnsub = null;
+    gameLogicPlayersUnsub = null;
+
+    clearInterval(voteCountdownInterval);
+    voteCountdownInterval = null;
+    clearInterval(guessCountdownInterval);
+    guessCountdownInterval = null;
+    if (votingCleanupTimeout) {
+      clearTimeout(votingCleanupTimeout);
+      votingCleanupTimeout = null;
+    }
+
+    resetLocalRoundState();
+    clearStoragePreservePromo();
+    currentRoomCode = null;
+    currentPlayerName = null;
+    isCreator = false;
+    roomMissingCounter = 0;
+    latestRoomData = null;
+
+    showConnectionNotice("Oda kapatıldı veya silindi.", "warning");
+    showSetupJoin();
+  }
+
   /** ------------------------
    *  ODA & OYUNCULARI DİNLE
    * ------------------------ */
   function listenPlayersAndRoom(roomCode) {
+    if (typeof gameLogicPlayersUnsub === "function") {
+      gameLogicPlayersUnsub();
+    }
     // Oyuncu listesi
-    gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
+    gameLogicPlayersUnsub = gameLogic.listenPlayers(roomCode, (playerNames, playersObj) => {
       // İsim dizisini kullanarak UI'da oyuncu listesini ve oyuncu sayısını güncelle
       updatePlayerList(playersObj);
 
@@ -1573,19 +1607,7 @@ function updateRoleDisplay(myData, settings) {
 
     roomValueCallback = async (snapshot) => {
       if (!snapshot.exists() || snapshot.val() === null) {
-        roomRef.off("value", roomValueCallback);
-        localStorage.removeItem("roomCode");
-        localStorage.removeItem("playerName");
-        localStorage.removeItem("isCreator");
-
-        const setupEl = document.getElementById("setup");
-        const isSetupHidden = setupEl?.classList.contains("hidden");
-
-        if (isSetupHidden) {
-          window.location.replace("./index.html");
-        } else {
-          showSetupJoin();
-        }
+        handleRoomGone("room snapshot missing");
         return;
       }
 
@@ -2449,7 +2471,10 @@ function initUI() {
 
       showRoomUI(roomCode, creatorName, true);
       listenPlayersAndRoom(roomCode);
-      gameLogic.listenRoom(roomCode);
+      if (typeof gameLogicRoomUnsub === "function") {
+        gameLogicRoomUnsub();
+      }
+      gameLogicRoomUnsub = gameLogic.listenRoom(roomCode);
     } catch (err) {
       alert(err.message || err);
     } finally {
@@ -2498,7 +2523,10 @@ function initUI() {
 
       showRoomUI(joinCode, joinName, false);
       listenPlayersAndRoom(joinCode);
-      gameLogic.listenRoom(joinCode);
+      if (typeof gameLogicRoomUnsub === "function") {
+        gameLogicRoomUnsub();
+      }
+      gameLogicRoomUnsub = gameLogic.listenRoom(joinCode);
     } catch (err) {
       alert(err.message);
       return;
@@ -2520,7 +2548,7 @@ function initUI() {
         console.error("[leaveRoomBtn] room action failed", error);
       })
       .finally(() => {
-        clearStoragePreservePromo();
+        handleRoomGone("manual exit");
         window.location.replace("./index.html");
       });
   });
@@ -2664,7 +2692,7 @@ function initUI() {
         console.error("[backToHomeBtn] room action failed", error);
       })
       .finally(() => {
-        clearStoragePreservePromo();
+        handleRoomGone("manual exit");
         window.location.replace("./index.html");
       });
   });
