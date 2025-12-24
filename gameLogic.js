@@ -1151,31 +1151,12 @@ export const gameLogic = {
   /** Oyuncuları canlı dinle */
   listenPlayers: function (roomCode, callback) {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
-    const cleanupSession = () => {
-      ["roomCode", "playerName", "isCreator"].forEach((key) =>
-        localStorage.removeItem(key)
-      );
-    };
-
-    playersRef.on("value", async (snapshot) => {
+    const listener = async (snapshot) => {
       const roomRef = snapshot.ref.parent;
       const roomSnap = roomRef ? await roomRef.get() : null;
       const playersData = snapshot.val();
 
       if (!roomSnap?.exists() || playersData === null) {
-        playersRef.off("value");
-        cleanupSession();
-
-        const setupHidden = document
-          .getElementById("setup")
-          ?.classList.contains("hidden");
-
-        if (setupHidden) {
-          window.location.replace("./index.html");
-        } else {
-          window.showSetupJoin?.();
-        }
-
         return;
       }
 
@@ -1218,14 +1199,17 @@ export const gameLogic = {
         localStorage.clear();
         location.reload();
       }
-    });
+    };
+
+    playersRef.on("value", listener);
+    return () => playersRef.off("value", listener);
   },
 
   /** Oda ve oyun durumunu canlı dinle */
   listenRoom: function (roomCode) {
     const roomRef = window.db.ref("rooms/" + roomCode);
 
-    roomRef.on("value", async (snapshot) => {
+    const listener = async (snapshot) => {
       const roomData = snapshot.val();
       if (!roomData) return;
 
@@ -1278,7 +1262,10 @@ export const gameLogic = {
           }
         }
       }
-    });
+    };
+
+    roomRef.on("value", listener);
+    return () => roomRef.off("value", listener);
   },
 
   // Oylamayı başlatma isteği kaydet
