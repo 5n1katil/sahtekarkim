@@ -3300,16 +3300,21 @@
       const roomCode = localStorage.getItem("roomCode");
       const playerName = localStorage.getItem("playerName");
       const isCreator = localStorage.getItem("isCreator") === "true";
-      if (roomCode) {
-        const action = isCreator ? gameLogic.deleteRoom(roomCode) : playerName ? gameLogic.leaveRoom(roomCode) : Promise.resolve();
-        Promise.resolve(action).then(() => {
+      const action = roomCode
+        ? isCreator
+          ? gameLogic.deleteRoom(roomCode)
+          : playerName
+          ? gameLogic.leaveRoom(roomCode)
+          : Promise.resolve()
+        : Promise.resolve();
+      Promise.resolve(action)
+        .catch((error) => {
+          console.error("[backToHomeBtn] room action failed", error);
+        })
+        .finally(() => {
           clearStoragePreservePromo();
-          location.reload();
+          window.location.replace("./index.html");
         });
-      } else {
-        clearStoragePreservePromo();
-        location.reload();
-      }
     });
   }
   document.addEventListener("DOMContentLoaded", initUI);
