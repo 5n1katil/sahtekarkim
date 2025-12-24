@@ -2659,6 +2659,16 @@
       const leaveBtn = document.getElementById("leaveRoomBtn");
       const exitBtn = document.getElementById("backToHomeBtn");
       if (roomData && (roomData.spyParityWin || roomData.status === "finished" && roomData.winner === "spy")) {
+        const resolvedSpyVoteResult = getResolvedVoteResult(roomData);
+        const resolvedSpyVoteFallback = !resolvedSpyVoteResult && roomData?.voting?.status === "resolved" && roomData?.voting?.result ? normalizeVotingResult(roomData.voting.result) : null;
+        const activeVoteResult = resolvedSpyVoteResult || resolvedSpyVoteFallback || null;
+
+        if (activeVoteResult && !activeVoteResult.tie) {
+          const voteOutcomeContext = buildVoteOutcomeContext(roomData, activeVoteResult);
+          const handledByVote = renderVoteResultOverlay(roomData, activeVoteResult, voteOutcomeContext);
+          if (handledByVote) return;
+        }
+
         const finalGuess = normalizeFinalGuess(roundSafeGameOver?.finalGuess || currentLastGuess?.finalGuess || null, roomData);
         const actualAnswer = getActualAnswer(roomData);
         const gameType = roomData.settings?.gameType;
