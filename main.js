@@ -1058,12 +1058,11 @@ function updateRoleDisplay(myData, settings) {
   function getSpyNames(roomState, players) {
     const state = roomState || {};
     const playerMap = players || state.players || {};
-    const spiesSource =
-      state.spies ??
-      state.spyUids ??
-      (Array.isArray(state.spiesSnapshot?.spies)
-        ? state.spiesSnapshot.spies
-        : null);
+    if (Array.isArray(state.spiesSnapshot?.spies)) {
+      return buildSpyNames(state.spiesSnapshot.spies, playerMap);
+    }
+
+    const spiesSource = state.spies ?? state.spyUids;
 
     if (Array.isArray(spiesSource)) {
       return buildSpyNames(spiesSource, playerMap);
@@ -1089,7 +1088,6 @@ function updateRoleDisplay(myData, settings) {
       hasNames: spyNames.length > 0,
     };
   }
-
   function appendSpyNamesLine(msgDiv, roomData, options = {}) {
     const spyInfo = options.spyInfo || getSpyInfo(roomData);
     const primaryMessage = options.primaryMessage || msgDiv?.textContent || "";
