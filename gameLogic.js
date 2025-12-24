@@ -1649,11 +1649,14 @@ export const gameLogic = {
     this.castVote(roomCode, voter, target);
   },
 
-  finalizeVoting: function (roomCode, reason) {
-    console.log("[finalizeVoting] called", { reason, roomId: roomCode });
-    const ref = window.db.ref("rooms/" + roomCode);
-    return ref.transaction((room) => {
+finalizeVoting: function (roomCode, reason) {
+  console.log("[finalizeVoting] called", { reason, roomId: roomCode });
+  const ref = window.db.ref("rooms/" + roomCode);
+
+  return ref
+    .transaction((room) => {
       if (!room) return room;
+
       const votingState = room.voting || {};
 
       const { expectedVoters, expectedSet } = resolveExpectedVoters(room);
@@ -1667,6 +1670,7 @@ export const gameLogic = {
       }
 
       const expectedVoterCount = derivedExpectedVoters.length;
+
       const normalizedExpectedVotersMap =
         votingState.expectedVoters &&
         Object.keys(votingState.expectedVoters || {}).length
@@ -1675,22 +1679,22 @@ export const gameLogic = {
 
       const endsAt =
         typeof votingState.endsAt === "number" ? votingState.endsAt : null;
+
       const votesMap = votingState.votes || {};
 
-      const validVotes = Object.entries(votesMap).reduce(
-        (acc, [voter, target]) => {
-          if (derivedExpectedSet.has(voter) && derivedExpectedSet.has(target)) {
-            acc[voter] = target;
-          }
-          return acc;
-        },
-        {}
-      );
+      const validVotes = Object.entries(votesMap).reduce((acc, [voter, target]) => {
+        if (derivedExpectedSet.has(voter) && derivedExpectedSet.has(target)) {
+          acc[voter] = target;
+        }
+        return acc;
+      }, {});
 
       const votesCount = Object.keys(validVotes).length;
       const serverNow = getServerNow();
+
       const canFinalizeByCount =
         expectedVoterCount > 0 && votesCount === expectedVoterCount;
+
       const canFinalizeByTime =
         reason === "time_up"
           ? endsAt === null || serverNow >= endsAt
@@ -1705,37 +1709,34 @@ export const gameLogic = {
 
       if (votingState.status !== "in_progress") return room;
 
-      if (reason === "all_voted" && votesCount !== expectedVoterCount) {
-        return room;
-      }
-
-      if (!canFinalizeByCount && !canFinalizeByTime) {
-        return room;
-      }
+      if (reason === "all_voted" && votesCount !== expectedVoterCount) return room;
+      if (!canFinalizeByCount && !canFinalizeByTime) return room;
 
       const counts = {};
       Object.values(validVotes).forEach((target) => {
         counts[target] = (counts[target] || 0) + 1;
       });
 
-      const tallyTargets = Object.keys(counts).filter((id) =>
-        derivedExpectedSet.has(id)
-      );
+      const tallyTargets = Object.keys(counts).filter((id) => derivedExpectedSet.has(id));
+
       let eliminatedUid = null;
       let eliminatedRole = null;
       let eliminatedName = null;
       let isTie = true;
+
       if (tallyTargets.length > 0) {
         const maxVotes = Math.max(...tallyTargets.map((id) => counts[id]));
         const top = tallyTargets.filter((id) => counts[id] === maxVotes);
         if (top.length === 1) {
           eliminatedUid = top[0];
           eliminatedRole = (room.playerRoles || {})[eliminatedUid] || null;
+
           const playerEntry = (room.players || {})[eliminatedUid] || {};
           eliminatedName =
             playerEntry?.name ||
             room.voting?.snapshot?.names?.[eliminatedUid] ||
             eliminatedUid;
+
           isTie = false;
         }
       }
@@ -1745,6 +1746,7 @@ export const gameLogic = {
 
       let nextPlayers = room.players || {};
       let nextEliminated = room.eliminated || {};
+
       if (!isTie && eliminatedUid) {
         const playerEntry = nextPlayers[eliminatedUid] || {};
         nextPlayers = {
@@ -1755,6 +1757,7 @@ export const gameLogic = {
             eliminatedAt: finalizedAt,
           },
         };
+
         nextEliminated = {
           ...nextEliminated,
           [eliminatedUid]: {
@@ -1765,12 +1768,10 @@ export const gameLogic = {
         };
       }
 
-// Daha güvenli: canlıları direkt players status'ünden say (role sync hatalarından etkilenmez)
-const aliveUids = getAliveUids(nextPlayers);
+      // Daha güvenli: canlıları direkt players status'ünden say (role sync hatalarından etkilenmez)
+      const aliveUids = getAliveUids(nextPlayers);
 
-const remainingSpies = getSpyUids(room.spies).filter((id) =>
-  aliveUids.includes(id)
-);
+      const remainingSpies = getSpyUids(room.spies).filter((id) => aliveUids.includes(id));
 
       const aliveCount = aliveUids.length;
       const spyAlive = remainingSpies.length;
@@ -1803,45 +1804,42 @@ const remainingSpies = getSpyUids(room.spies).filter((id) =>
         roundId: room.roundId || null,
       };
 
-// Public message: oyun bitmediyse rol ifşası yok
-if (!isTie && eliminatedUid) {
-  const publicName = eliminatedName || eliminatedUid;
+      // Public message: oyun bitmediyse rol ifşası yok
+      if (!isTie && eliminatedUid) {
+        const publicName = eliminatedName || eliminatedUid;
 
-  if (nextStatus === "finished") {
-    // Oyun bittiyse final mesajları
-    const normalizedWinner = normalizeWinnerValue(nextWinner);
-    if (normalizedWinner === "innocents") {
-      // Oyun bittiği için burada ifşa edebiliriz
-      resultPayload.publicMessage = `Sahtekar ${publicName} elendi! Oyunu masumlar kazandı!`;
-      resultPayload.revealSpies = true;
-    } else {
-      resultPayload.publicMessage = `${publicName} elendi! Sahtekarlar sayıca üstünlük sağladı ve oyunu kazandı!`;
-      resultPayload.revealSpies = true;
-    }
-  } else {
-    // Oyun bitmediyse: rol söyleme!
-    resultPayload.publicMessage = `${publicName} elendi! Fakat oyun henüz bitmiş değil...`;
-    resultPayload.revealSpies = false;
-  }
-}
-      
-      if (reason) {
-        resultPayload.reason = reason;
+        if (nextStatus === "finished") {
+          const normalizedWinner = normalizeWinnerValue(nextWinner);
+          if (normalizedWinner === "innocents") {
+            resultPayload.publicMessage = `Sahtekar ${publicName} elendi! Oyunu masumlar kazandı!`;
+            resultPayload.revealSpies = true;
+          } else {
+            resultPayload.publicMessage = `${publicName} elendi! Sahtekarlar sayıca üstünlük sağladı ve oyunu kazandı!`;
+            resultPayload.revealSpies = true;
+          }
+        } else {
+          resultPayload.publicMessage = `${publicName} elendi! Fakat oyun henüz bitmiş değil...`;
+          resultPayload.revealSpies = false;
+        }
       }
+
+      if (reason) resultPayload.reason = reason;
 
       if (!isTie && eliminatedUid) {
         resultPayload.eliminatedUid = eliminatedUid;
         resultPayload.eliminatedName = eliminatedName;
         resultPayload.eliminatedRole = eliminatedRole;
-       resultPayload.isSpy = !!(eliminatedRole && eliminatedRole.isSpy);
+        resultPayload.isSpy = !!(eliminatedRole && eliminatedRole.isSpy);
         resultPayload.eliminatedAt = finalizedAt;
         resultPayload.roundId = room.roundId || null;
+
         if (eliminatedRole && eliminatedRole.role !== undefined) {
           resultPayload.role = eliminatedRole.role;
         }
         if (eliminatedRole && eliminatedRole.location !== undefined) {
           resultPayload.location = eliminatedRole.location;
         }
+
         resultPayload.remainingSpies = remainingSpies;
         resultPayload.lastSpy = remainingSpies.length === 0;
       }
@@ -1870,9 +1868,7 @@ if (!isTie && eliminatedUid) {
         guess: null,
       };
 
-      if (nextStatus !== undefined) {
-        nextRoom.status = nextStatus;
-      }
+      if (nextStatus !== undefined) nextRoom.status = nextStatus;
 
       const resolvedWinner =
         typeof nextWinner === "string"
@@ -1881,11 +1877,8 @@ if (!isTie && eliminatedUid) {
             ? room.winner
             : null;
 
-      if (resolvedWinner) {
-        nextRoom.winner = resolvedWinner;
-      } else {
-        delete nextRoom.winner;
-      }
+      if (resolvedWinner) nextRoom.winner = resolvedWinner;
+      else delete nextRoom.winner;
 
       return nextRoom;
     })
@@ -1902,9 +1895,7 @@ if (!isTie && eliminatedUid) {
       const gamePhase = roomData?.game?.phase;
 
       const isEnded =
-        roomData?.status === "finished" ||
-        phase === "ended" ||
-        gamePhase === "ended";
+        roomData?.status === "finished" || phase === "ended" || gamePhase === "ended";
 
       console.log("[finalizeVoting] transaction result", {
         committed: result.committed,
@@ -1924,20 +1915,15 @@ if (!isTie && eliminatedUid) {
         warnings.push("Missing phase and game.phase");
       }
       if (warnings.length) {
-        console.warn("[finalizeVoting] transaction diagnostics", {
-          roomId: roomCode,
-          warnings,
-        });
+        console.warn("[finalizeVoting] transaction diagnostics", { roomId: roomCode, warnings });
       }
 
       // ✅ Sadece oyun bittiyse ve elimizde elimine edilen varsa gameOver'u finalize et
       if (roomData?.status !== "finished") return;
       if (!votingResult?.eliminatedUid) return;
 
-      const eliminatedName =
-        votingResult.eliminatedName || votingResult.eliminatedUid;
+      const eliminatedName = votingResult.eliminatedName || votingResult.eliminatedUid;
 
-      // roomData.winner "innocent/spy" veya "innocents/spies" olabilir → normalize ediyoruz
       const winner = normalizeWinnerValue(
         roomData.winner === "innocent"
           ? "innocents"
@@ -1966,7 +1952,7 @@ if (!isTie && eliminatedUid) {
     .catch((err) => {
       console.error("[finalizeVoting] error", err);
     });
-  },
+},
 
   restartVotingAfterTie: function (roomCode) {
     if (!roomCode) return Promise.resolve(null);
