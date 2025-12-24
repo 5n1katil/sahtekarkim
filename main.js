@@ -97,6 +97,18 @@ function showEliminationOverlay(roomCode) {
     actions?.classList.add("hidden");
   }
 
+  const leaveBtn = document.createElement("button");
+  leaveBtn.classList.add("overlay-btn");
+  leaveBtn.textContent = "Odadan Çık";
+  leaveBtn.addEventListener("click", () => {
+    handleRoomGone("elimination exit", {
+      redirectToHome: true,
+      noticeText: null,
+      requireElimination: true,
+    });
+  });
+  overlay.appendChild(leaveBtn);
+
   overlay.classList.remove("hidden", "impostor-animation", "innocent-animation");
   actions?.classList.add("hidden");
 }
@@ -1525,7 +1537,22 @@ function updateRoleDisplay(myData, settings) {
     }
   }
 
-  function handleRoomGone(reason) {
+  function handleRoomGone(reason, options = {}) {
+    const {
+      noticeText = "Oda kapatıldı veya silindi.",
+      noticeTone = "warning",
+      redirectToHome = false,
+      requireElimination = false,
+    } = options;
+
+    const isEliminationFlow =
+      wasEliminated ||
+      (latestRoomData?.eliminated && latestRoomData.eliminated[currentUid]);
+
+    if (requireElimination && !isEliminationFlow) {
+      return;
+    }
+
     if (roomMissingTimeoutId) {
       clearTimeout(roomMissingTimeoutId);
       roomMissingTimeoutId = null;
@@ -1557,7 +1584,15 @@ function updateRoleDisplay(myData, settings) {
     roomMissingCounter = 0;
     latestRoomData = null;
 
-    showConnectionNotice("Oda kapatıldı veya silindi.", "warning");
+    if (noticeText) {
+      showConnectionNotice(noticeText, noticeTone);
+    }
+
+    if (redirectToHome) {
+      window.location.replace("./index.html");
+      return;
+    }
+
     showSetupJoin();
   }
 
