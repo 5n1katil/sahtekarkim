@@ -65,6 +65,46 @@ function getAlivePlayersFromState(players, roles) {
   return alive;
 }
 
+export function evaluateWinConditions(roomData) {
+  const players = roomData?.players || {};
+  const aliveUids = getAliveUids(players);
+  const aliveSpies = getSpyUidsFromRoom(roomData).filter((uid) =>
+    aliveUids.includes(uid)
+  ).length;
+  const aliveInnocents = Math.max(aliveUids.length - aliveSpies, 0);
+
+  if (aliveSpies === 0) {
+    return {
+      shouldEnd: true,
+      winner: "innocents",
+      reason: "all_spies_eliminated",
+      aliveSpies,
+      aliveInnocents,
+      aliveCount: aliveUids.length,
+    };
+  }
+
+  if ((aliveInnocents === 1 && aliveSpies >= 1) || aliveSpies > aliveInnocents) {
+    return {
+      shouldEnd: true,
+      winner: "spies",
+      reason: "parity",
+      aliveSpies,
+      aliveInnocents,
+      aliveCount: aliveUids.length,
+    };
+  }
+
+  return {
+    shouldEnd: false,
+    winner: null,
+    reason: null,
+    aliveSpies,
+    aliveInnocents,
+    aliveCount: aliveUids.length,
+  };
+}
+
 function buildExpectedVotersMap(uids) {
   return uids.reduce((acc, id) => {
     acc[id] = true;
@@ -1842,58 +1882,39 @@ finalizeVoting: function (roomCode, reason) {
         };
       }
 
-      // Daha güvenli: canlıları direkt players status'ünden say (role sync hatalarından etkilenmez)
       const aliveUids = getAliveUids(nextPlayers);
       const remainingSpies = getSpyUidsFromRoom(room).filter((id) =>
         aliveUids.includes(id)
       );
 
-      const spyAlive = remainingSpies.length;
-      const aliveCount = aliveUids.length;
-      const innocentAlive = Math.max(aliveCount - spyAlive, 0);
+      const evaluation = evaluateWinConditions({
+        ...room,
+        players: nextPlayers,
+        eliminated: nextEliminated,
+      });
 
-      let nextStatus = room.status;
-      let nextWinner = room.winner;
-      let nextGamePhase = "results";
       const finalUpdates = {};
+      let nextStatus = room.status;
+      let nextWinner = room.winner ?? null;
+      let nextGamePhase = evaluation.shouldEnd ? "ended" : "playing";
 
-      // 🎯 KAZANMA KOŞULLARI (DOĞRU HALİ)
-      if (spyAlive === 0) {
+      if (evaluation.shouldEnd) {
+        const winnerValue =
+          evaluation.winner === "spies"
+            ? "spy"
+            : evaluation.winner === "innocents"
+              ? "innocent"
+              : evaluation.winner;
         nextStatus = "finished";
-        nextWinner = "innocent";
+        nextWinner = winnerValue;
+        if (evaluation.winner === "spies") {
+          finalUpdates.spyParityWin = true;
+        }
         appendFinalSpyInfo(finalUpdates, room);
         nextGamePhase = "ended";
-      } else if (innocentAlive <= 1) {
-        nextStatus = "finished";
-        nextWinner = "spy";
-        finalUpdates.spyParityWin = true;
-        nextGamePhase = "ended";
       } else {
-        nextStatus = room.status;
         nextWinner = null;
-        nextGamePhase = "results";
       }
-
-      // Harmless sanity scenarios around vote resolution (counts derived from getAliveUids/getSpyUids)
-      console.assert(
-        !(spyAlive === 2 && innocentAlive === 1 && !isTie && eliminatedUid && !eliminatedRole?.isSpy) ||
-          nextWinner === "spy",
-        "2 spies + 2 innocents, innocent eliminated -> spies should win"
-      );
-      console.assert(
-        !(spyAlive === 1 && innocentAlive === 1 && !isTie && eliminatedUid && !eliminatedRole?.isSpy) ||
-          nextWinner === "spy",
-        "1 spy + 2 innocents, innocent eliminated -> spies should win"
-      );
-      console.assert(
-        !(spyAlive === 1 && innocentAlive === 2 && !isTie && eliminatedUid && eliminatedRole?.isSpy) ||
-          nextStatus !== "finished",
-        "2 spies + 2 innocents, spy eliminated -> game should continue"
-      );
-      console.assert(
-        spyAlive !== 0 || (nextWinner === "innocent" && nextStatus === "finished"),
-        "Any state with 0 spies -> innocents should win"
-      );
 
       const resultPayload = {
         ...(votingState.result || {}),
@@ -1901,9 +1922,9 @@ finalizeVoting: function (roomCode, reason) {
         finalizedAt,
         tie: isTie,
         votes: validVotes,
-        aliveCount,
-        spyAlive,
-        innocentAlive,
+        aliveCount: evaluation.aliveCount,
+        spyAlive: evaluation.aliveSpies,
+        innocentAlive: evaluation.aliveInnocents,
         roundId: room.roundId || null,
       };
 
@@ -1926,6 +1947,7 @@ finalizeVoting: function (roomCode, reason) {
         }
       }
 
+      if (evaluation.reason) resultPayload.winReason = evaluation.reason;
       if (reason) resultPayload.reason = reason;
 
       if (!isTie && eliminatedUid) {
@@ -1997,8 +2019,8 @@ finalizeVoting: function (roomCode, reason) {
       const phase = roomData?.phase;
       const gamePhase = roomData?.game?.phase;
 
-      const isEnded =
-        roomData?.status === "finished" || phase === "ended" || gamePhase === "ended";
+      const evaluation = evaluateWinConditions(roomData);
+      const isEnded = evaluation.shouldEnd;
 
       console.log("[finalizeVoting] transaction result", {
         committed: result.committed,
@@ -2021,19 +2043,12 @@ finalizeVoting: function (roomCode, reason) {
         console.warn("[finalizeVoting] transaction diagnostics", { roomId: roomCode, warnings });
       }
 
-      // ✅ Sadece oyun bittiyse ve elimizde elimine edilen varsa gameOver'u finalize et
-      if (roomData?.status !== "finished") return;
+      if (!evaluation.shouldEnd) return;
       if (!votingResult?.eliminatedUid) return;
 
       const eliminatedName = votingResult.eliminatedName || votingResult.eliminatedUid;
 
-      const winner = normalizeWinnerValue(
-        roomData.winner === "innocent"
-          ? "innocents"
-          : roomData.winner === "spy"
-            ? "spies"
-            : roomData.winner
-      );
+      const winner = normalizeWinnerValue(evaluation.winner);
 
       return getSpyNamesForMessage(roomCode, roomData).then(({ spyNames }) => {
         const spyIntro = formatSpyIntro(spyNames);
@@ -2336,10 +2351,32 @@ finalizeVoting: function (roomCode, reason) {
         }
       }
 
+      const nextPlayers = {
+        ...(data.players || {}),
+      };
+      const eliminatedPlayerEntry = nextPlayers[voted] || {};
+      nextPlayers[voted] = {
+        ...eliminatedPlayerEntry,
+        status: "eliminated",
+        eliminatedAt: getServerNow(),
+      };
+
       const updates = {
         voteResult,
         votingStarted: false,
+        players: nextPlayers,
       };
+
+      if (data.eliminated) {
+        updates.eliminated = {
+          ...data.eliminated,
+          [voted]: {
+            name: eliminatedName,
+            isCreator: !!eliminatedPlayerEntry.isCreator,
+            eliminatedAt: getServerNow(),
+          },
+        };
+      }
 
       if (votingResultUpdate) {
         updates.voting = {
@@ -2348,9 +2385,22 @@ finalizeVoting: function (roomCode, reason) {
         };
       }
 
-      if (isSpy && remainingSpies.length === 0) {
+      const evaluation = evaluateWinConditions({
+        ...data,
+        players: nextPlayers,
+        eliminated: updates.eliminated || data.eliminated,
+      });
+
+      if (evaluation.shouldEnd) {
         updates.status = "finished";
-        updates.winner = "innocent";
+        updates.winner =
+          evaluation.winner === "spies"
+            ? "spy"
+            : evaluation.winner === "innocents"
+              ? "innocent"
+              : evaluation.winner;
+        updates.phase = "ended";
+        updates.game = { ...(data.game || {}), phase: "ended" };
         appendFinalSpyInfo(updates, data);
       }
 
@@ -2450,13 +2500,7 @@ checkSpyWin: function (roomCode, latestData) {
     if (!data) return true;
     if (data?.status === "finished") return true;
     if (isVotingOrResultsPhase(data)) return true;
-    const activePlayers = getActivePlayers(data.playerRoles, data.players);
-    const activeUids = activePlayers.map((p) => p.uid);
-    const activeSpies = getSpyUidsFromRoom(data).filter((s) =>
-      activeUids.includes(s)
-    );
-    const innocentAlive = activePlayers.length - activeSpies.length;
-    return innocentAlive > 1; // sadece 1 veya daha az masum kalınca parity kontrolü
+    return false;
   };
 
   const ref = window.db.ref("rooms/" + roomCode);
@@ -2467,50 +2511,41 @@ checkSpyWin: function (roomCode, latestData) {
   return dataPromise.then((data) => {
     if (shouldExitEarly(data)) return false;
 
-    const activePlayers = getActivePlayers(data.playerRoles, data.players);
-    const activeUids = activePlayers.map((p) => p.uid);
-    const activeSpies = getSpyUidsFromRoom(data).filter((s) =>
-      activeUids.includes(s)
+    const evaluation = evaluateWinConditions(data);
+    if (!evaluation.shouldEnd) return false;
+
+    const winnerValue =
+      evaluation.winner === "spies"
+        ? "spy"
+        : evaluation.winner === "innocents"
+          ? "innocent"
+          : evaluation.winner;
+
+    const updates = appendFinalSpyInfo(
+      {
+        status: "finished",
+        winner: winnerValue,
+        spyParityWin: evaluation.winner === "spies",
+        game: { ...(data.game || {}), phase: "ended" },
+        phase: "ended",
+      },
+      data
     );
-    const spyAlive = activeSpies.length;
-    const innocentAlive = activePlayers.length - spyAlive;
 
-    if (spyAlive === 0) {
-      const updates = appendFinalSpyInfo(
-        { status: "finished", winner: "innocents" },
-        data
-      );
-      return ref
-        .update(updates)
-        .then(() => getSpyNamesForMessage(roomCode, data))
-        .then(({ spyNames }) =>
-          finalizeGameOver(roomCode, data, {
-            winner: "innocents",
-            reason: "parity",
-            message: `${formatSpyIntro(spyNames)} arasından son sahtekar elendi ve oyunu masumlar kazandı!`,
-          })
-        )
-        .then(() => true);
-    }
-
-    if (innocentAlive <= 1 && spyAlive > 0) {
-      const updates = appendFinalSpyInfo(
-        { status: "finished", winner: "spy", spyParityWin: true },
-        data
-      );
-      return ref
-        .update(updates)
-        .then(() => getSpyNamesForMessage(roomCode, data))
-        .then(({ spyNames }) =>
-          finalizeGameOver(roomCode, data, {
-            winner: "spies",
-            reason: "parity",
-            message: `${formatSpyIntro(spyNames)} sayıca üstünlük sağladı ve oyunu kazandı!`,
-          })
-        )
-        .then(() => true);
-    }
-    return false;
+    return ref
+      .update(updates)
+      .then(() => getSpyNamesForMessage(roomCode, data))
+      .then(({ spyNames }) =>
+        finalizeGameOver(roomCode, data, {
+          winner: evaluation.winner,
+          reason: evaluation.reason || "parity",
+          message:
+            evaluation.winner === "innocents"
+              ? `${formatSpyIntro(spyNames)} arasından son sahtekar elendi ve oyunu masumlar kazandı!`
+              : `${formatSpyIntro(spyNames)} sayıca üstünlük sağladı ve oyunu kazandı!`,
+        })
+      )
+      .then(() => true);
   });
   },
   nextRound: function (roomCode) {
