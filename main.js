@@ -4,6 +4,7 @@ import {
   getActivePlayers,
   hasInvalidChars,
   isPlayerAlive,
+  refGet,
   resolveRoleName,
 } from './utils.js';
 
@@ -172,7 +173,7 @@ function clearRoomValueListener() {
 
 async function safeCheckRoomExists(roomRef) {
   try {
-    const snapshot = await roomRef.get();
+    const snapshot = await refGet(roomRef);
     return { exists: snapshot.exists(), snapshot };
   } catch (error) {
     console.error("[ROOM GET FAILED - NON-BLOCKING]", error);
@@ -226,7 +227,7 @@ if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
           const roomRef = window.db.ref("rooms/" + currentRoomCode);
           showConnectionNotice("Odaya bağlanılıyor...");
           try {
-            const snapshot = await roomRef.get();
+            const snapshot = await refGet(roomRef);
             if (!snapshot.exists()) {
               await handleConfirmedRoomMissing(currentRoomCode);
               return;
