@@ -2029,7 +2029,7 @@ function updateRoleDisplay(myData, settings) {
         const overlayEl = document.getElementById("resultOverlay");
         const isEliminationOverlayActive =
           overlayEl?.dataset.overlayType === "elimination";
-        const votingStatus = roomData?.voting?.status;
+        const votingStatus = roomData?.voting?.status || "idle";
         const continuationPending = !!roomData?.voting?.continuationPending;
         const isResultsPhase = currentPhase === "results";
         const shouldHideResultOverlay =
@@ -2170,7 +2170,6 @@ function updateRoleDisplay(myData, settings) {
 
         const startBtn = document.getElementById("startVotingBtn");
         const waitingEl = document.getElementById("waitingVoteStart");
-        const votingStatus = roomData.voting?.status || "idle";
         const startedBy = roomData.voting?.startedBy || {};
         const alivePlayers = getActivePlayers(
           roomData.playerRoles,
