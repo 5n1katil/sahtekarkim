@@ -676,6 +676,23 @@
   export default firebaseCompat;
   export { firebaseCompat, firebaseInitPromise, loadFirebaseCompat };
 </script>
+<script>
+  // Uygulama yüklenmeden önce eski servis worker kayıtlarını temizle
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister().catch((err) => {
+            console.warn("Service worker kaldırılamadı", err);
+          });
+        });
+      })
+      .catch((err) => {
+        console.warn("Service worker kayıtları listelenemedi", err);
+      });
+  }
+</script>
 <script type="module" src="main.js"></script>
 
 <!-- Eski tarayıcılar: yalnızca klasik bundle ve Firebase compat CDN'leri -->
