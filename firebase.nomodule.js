@@ -87,6 +87,11 @@ try {
     })
     .catch((err) => {
       logInitFailure(err);
+      window.dispatchEvent(
+        new CustomEvent("firebase-init-failed", {
+          detail: err,
+        })
+      );
       throw err;
     });
 
@@ -96,7 +101,13 @@ try {
   });
 
   // 6) Expose auth readiness promise for consumers
-  window.authReady = authReady;
+  const sharedInitPromise = authReady.catch((err) => {
+    window.firebaseInitPromise = Promise.reject(err);
+    throw err;
+  });
+
+  window.authReady = sharedInitPromise;
+  window.firebaseInitPromise = sharedInitPromise;
 } catch (err) {
   logInitFailure(err);
   throw err;
