@@ -33,28 +33,6 @@ function resolveVotes(roomData) {
   return roomData?.voting?.votes || roomData?.votes || {};
 }
 
-function getExpectedVoterIds(expectedVotersMap) {
-  if (!expectedVotersMap || typeof expectedVotersMap !== "object") return [];
-  return Object.keys(expectedVotersMap);
-}
-
-function buildExpectedVoterList(expectedVotersMap, snapshot) {
-  const ids = getExpectedVoterIds(expectedVotersMap);
-  if (!ids.length) return [];
-  if (snapshot?.order?.length) {
-    const ordered = snapshot.order.filter((uid) => expectedVotersMap?.[uid]);
-    const remaining = ids.filter((uid) => !ordered.includes(uid));
-    return [...ordered, ...remaining];
-  }
-  return ids;
-}
-
-function getSpyUids(spies) {
-  if (Array.isArray(spies)) return spies;
-  if (spies && typeof spies === "object") return Object.keys(spies);
-  return [];
-}
-
 function clearStoragePreservePromo() {
   const promoDismissedFlag = localStorage.getItem("promoModalDismissed");
   localStorage.removeItem("roomCode");
