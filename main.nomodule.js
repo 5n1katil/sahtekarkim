@@ -2084,6 +2084,7 @@
     const actions = document.getElementById("gameActions");
     if (!overlay) return;
     overlay.innerHTML = "";
+    overlay.dataset.overlayType = "elimination";
     const message = document.createElement("div");
     message.className = "result-message";
     message.textContent = "Elendin! Oyun devam ediyor...";
@@ -2091,6 +2092,7 @@
     const closeOverlay = () => {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
+      delete overlay.dataset.overlayType;
       actions?.classList.add("hidden");
     };
     if (isCreator) {
@@ -2559,6 +2561,7 @@
       console.error("resultOverlay element not found");
       return;
     }
+    overlay.dataset.overlayType = "result";
     const currentPhase = resolveGamePhase(roomData);
     const normalizedResultForOverlay = normalizeVotingResult(resolvedResult) || normalizeVotingResult(roomData?.voting?.result) || normalizeVotingResult(roomData?.voteResult);
     const eliminatedUidFromResult = votedUid || normalizedResultForOverlay?.eliminatedUid || normalizedResultForOverlay?.voted;
@@ -2616,6 +2619,7 @@
       const hideOverlay = () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
+        delete overlay.dataset.overlayType;
       };
       if (restartBtn) {
         restartBtn.addEventListener("click", () => {
@@ -2669,6 +2673,7 @@
       exitBtn.addEventListener("click", () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
+        delete overlay.dataset.overlayType;
         Promise.resolve(gameLogic.leaveRoom(currentRoomCode)).catch(error => {
           console.error("[results overlay] leaveRoom failed", error);
         }).finally(() => {
@@ -2684,6 +2689,7 @@
       btn.addEventListener("click", () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
+        delete overlay.dataset.overlayType;
         if (currentRoomCode && currentUid && window.db) {
           window.db.ref(`rooms/${currentRoomCode}/ui/${currentUid}`).update({
             screen: "playing"
@@ -3171,6 +3177,7 @@
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
       overlay.innerHTML = "";
+      delete overlay.dataset.overlayType;
     }
   }
   function handleRestart(restartBtn, hideOverlay) {
@@ -3315,6 +3322,7 @@
             overlay.classList.add("hidden");
             overlay.classList.remove("impostor-animation", "innocent-animation");
             overlay.innerHTML = "";
+            delete overlay.dataset.overlayType;
           }
           const roleMessageEl = document.getElementById("roleMessage");
           const poolInfo = document.getElementById("poolInfo");
@@ -3337,6 +3345,7 @@
           if (overlay) {
             overlay.classList.add("hidden");
             overlay.classList.remove("impostor-animation", "innocent-animation");
+            delete overlay.dataset.overlayType;
           }
           gameEnded = false;
           lastVoteResult = null;
@@ -3450,7 +3459,8 @@
           // Oylama durumu
           const currentPhase = resolveGamePhase(roomData);
           const overlayEl = document.getElementById("resultOverlay");
-          const shouldHideResultOverlay = overlayEl && currentPhase !== "results" && roomData.status === "started" && !roundSafeGameOver;
+          const isEliminationOverlayActive = overlayEl?.dataset.overlayType === "elimination";
+          const shouldHideResultOverlay = overlayEl && currentPhase !== "results" && roomData.status === "started" && !roundSafeGameOver && !isEliminationOverlayActive;
           if (shouldHideResultOverlay) {
             overlayEl.classList.add("hidden");
             overlayEl.classList.remove("impostor-animation", "innocent-animation");
