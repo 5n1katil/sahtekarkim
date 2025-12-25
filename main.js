@@ -522,9 +522,20 @@ function updateRoleDisplay(myData, settings) {
     ).filter(Boolean);
     const impostorWinnersText = formatSpyWinnersText(normalizedSpyNames);
     if (eliminatedIsImpostor) {
+      const impostorsRemaining = Math.max(0, aliveImpostorsCount || 0);
+      const impostorsAfterElimination = impostorsRemaining;
+
+      if (impostorsAfterElimination <= 0) {
+        return {
+          message: `Oylama sonucunda Sahtekar ${safeName} elendi ve oyunu masumlar kazandı!`,
+          gameEnded: true,
+          impostorVictory: false,
+        };
+      }
+
       return {
-        message: `Oylama sonucunda Sahtekar ${safeName} elendi ve oyunu masumlar kazandı!`,
-        gameEnded: true,
+        message: `Sahtekar ${safeName} elendi! Fakat henüz oyun bitmiş değil...`,
+        gameEnded: false,
         impostorVictory: false,
       };
     }
