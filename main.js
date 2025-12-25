@@ -10,6 +10,26 @@ import {
 
 console.log('main.js yüklendi');
 
+// Bazı kullanıcıların tarayıcı önbelleğinde eski/bütünleşik bir service worker
+// kalmış olabilir. Bu worker JS dosyalarının yerine HTML yanıtı döndürerek
+// "Unexpected token '<'" hatasına yol açabiliyor. Uygulama başlarken mevcut
+// tüm servis worker kayıtlarını kaldırıyoruz ki istekler doğrudan ağdan
+// gelsin ve güncel içerik yüklensin.
+if (typeof navigator !== "undefined" && navigator.serviceWorker) {
+  navigator.serviceWorker
+    .getRegistrations()
+    .then((registrations) => {
+      registrations.forEach((registration) => {
+        registration.unregister().catch((err) => {
+          console.warn("Service worker kaldırılamadı", err);
+        });
+      });
+    })
+    .catch((err) => {
+      console.warn("Service worker kayıtları listelenemedi", err);
+    });
+}
+
 // Rollup edilen çıktılarda global bir temizleyici beklenebiliyor; henüz tanımlı
 // değilse oylama akışının tamamen durmasına yol açan ReferenceError'ları
 // engellemek için güvenli bir varsayılan oluşturuyoruz.
