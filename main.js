@@ -134,7 +134,36 @@ let roomValueUnsubscribe = null;
 let roomMissingTimeoutId = null;
 let roomMissingCounter = 0;
 let lastTieRestartAt = 0;
-const authReadyPromise = window.authReady || Promise.resolve();
+function waitForAuthReady() {
+  if (window.authReady) {
+    return Promise.resolve(window.authReady).then((p) => p);
+  }
+
+  if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    let pollId;
+    const timeoutId = setTimeout(() => {
+      clearInterval(pollId);
+      reject(new Error("authReady not initialized in time"));
+    }, 3000);
+
+    pollId = setInterval(() => {
+      if (window.authReady) {
+        clearTimeout(timeoutId);
+        clearInterval(pollId);
+        Promise.resolve(window.authReady).then(resolve).catch(reject);
+      }
+    }, 50);
+  }).catch((err) => {
+    console.warn("authReady beklenirken hata: ", err?.message || err);
+    return Promise.resolve();
+  });
+}
+
+const authReadyPromise = waitForAuthReady();
 let reconnectNotice = null;
 let gameLogicRoomUnsub = null;
 let gameLogicPlayersUnsub = null;
