@@ -756,7 +756,9 @@ function updateRoleDisplay(myData, settings) {
     const actionsEl = document.getElementById("gameActions");
     const spyInfo = getSpyInfo(roomData);
     const resolvedMessage =
-      isContinuationOverlayActive && !isAliveCurrentPlayer
+      isContinuationOverlayActive &&
+      !outcome.gameEnded &&
+      !isAliveCurrentPlayer
         ? "Elendin! Oyun devam ediyor."
         : resolveGameOverMessage(roomData, outcome.message, spyInfo);
     msgDiv.textContent = resolvedMessage;
@@ -1780,7 +1782,10 @@ function updateRoleDisplay(myData, settings) {
       const isPlayerAliveForActions = isCurrentPlayerEligible(roomData);
 
       const shouldShowEliminationOverlay =
-        isEliminatedPlayer && !isGameFinished && !voteEndsGame;
+        isEliminatedPlayer &&
+        !isGameFinished &&
+        !voteEndsGame &&
+        !roundSafeGameOver;
 
       if (shouldShowEliminationOverlay) {
         wasEliminated = true;
