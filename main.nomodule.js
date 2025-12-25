@@ -3353,7 +3353,10 @@
         }
         const leaveBtn = document.getElementById("leaveRoomBtn");
         const exitBtn = document.getElementById("backToHomeBtn");
-        if (roomData && (roomData.spyParityWin || roomData.status === "finished" && roomData.winner === "spy")) {
+        const resolvedPhase = resolveGamePhase(roomData);
+        const resolvedWinner = roomData?.winner;
+
+        if (roomData && resolvedPhase === "ended" && (resolvedWinner === "spy" || resolvedWinner === "spies")) {
           const resolvedSpyVoteResult = getResolvedVoteResult(roomData);
           const resolvedSpyVoteFallback = !resolvedSpyVoteResult && roomData?.voting?.status === "resolved" && roomData?.voting?.result ? normalizeVotingResult(roomData.voting.result) : null;
           const activeVoteResult = resolvedSpyVoteResult || resolvedSpyVoteFallback || null;
@@ -3374,7 +3377,7 @@
           }
           return;
         }
-        if (roomData && roomData.status === "finished" && roomData.winner === "innocent") {
+        if (roomData && resolvedPhase === "ended" && (resolvedWinner === "innocent" || resolvedWinner === "innocents")) {
           const handledByVote = renderVoteResultOverlay(roomData, activeVoteResult, voteOutcomeContext);
           if (handledByVote) return;
           const finalGuess = normalizeFinalGuess(roundSafeGameOver?.finalGuess || currentLastGuess?.finalGuess || null, roomData);
