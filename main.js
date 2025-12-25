@@ -496,6 +496,7 @@ function updateRoleDisplay(myData, settings) {
     ) {
       return false;
     }
+    if (roomData?.voting?.continuationPending) return false;
     const roundKey = getRoundKey(roomData);
     const alreadyTriggered = endRoundTriggeredForRound === roundKey;
     if (alreadyTriggered) return true;
@@ -762,7 +763,16 @@ function updateRoleDisplay(myData, settings) {
         ? "Elendin! Oyun devam ediyor."
         : resolveGameOverMessage(roomData, outcome.message, spyInfo);
     msgDiv.textContent = resolvedMessage;
-    if (!(isContinuationOverlayActive && !isAliveCurrentPlayer)) {
+    const shouldRevealSpies =
+      outcome.gameEnded ||
+      outcome.impostorVictory ||
+      roomData?.status === "finished" ||
+      resolveGamePhase(roomData) === "ended";
+
+    if (
+      shouldRevealSpies &&
+      !(isContinuationOverlayActive && !isAliveCurrentPlayer)
+    ) {
       appendSpyNamesLine(msgDiv, roomData, {
         spyInfo,
         primaryMessage: resolvedMessage,
