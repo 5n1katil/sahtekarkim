@@ -105,3 +105,6 @@ try {
   logInitFailure(err);
   throw err;
 }
+
+export default firebaseCompat;
+export { firebaseCompat };
