@@ -2,6 +2,7 @@ import {
   escapeHtml,
   getActivePlayers,
   isPlayerAlive,
+  refGet,
   resolveRoleName,
 } from './utils.js';
 import { TR_ACTORS } from './data/characters_tr_actors.js';
@@ -943,7 +944,7 @@ export const gameLogic = {
     if (!uid) {
       return null;
     }
-    const snap = await window.db.ref(`savedSettings/${uid}`).get();
+    const snap = await refGet(window.db.ref(`savedSettings/${uid}`));
     return snap.exists() ? snap.val() : null;
   },
   /** Oda oluştur */
@@ -1019,7 +1020,7 @@ export const gameLogic = {
   /** Odaya katıl */
   joinRoom: async function (playerName, roomCode) {
     const roomRef = window.db.ref("rooms/" + roomCode);
-    const snapshot = await roomRef.get();
+    const snapshot = await refGet(roomRef);
     if (!snapshot.exists()) {
       throw new Error("Oda bulunamadı!");
     }
@@ -1057,7 +1058,7 @@ export const gameLogic = {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     const needsFetch = !prefetched.settings || !prefetched.players;
     const [settingsSnap, playersSnap] = needsFetch
-      ? await Promise.all([settingsRef.get(), playersRef.get()])
+      ? await Promise.all([refGet(settingsRef), refGet(playersRef)])
       : [
           { exists: () => true, val: () => prefetched.settings },
           { exists: () => true, val: () => prefetched.players },
@@ -1093,8 +1094,8 @@ export const gameLogic = {
     const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     const [settingsSnap, playersSnap] = await Promise.all([
-      settingsRef.get(),
-      playersRef.get(),
+      refGet(settingsRef),
+      refGet(playersRef),
     ]);
 
     if (!settingsSnap.exists() || !playersSnap.exists()) {
@@ -1170,9 +1171,9 @@ export const gameLogic = {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     const eliminatedRef = window.db.ref(`rooms/${roomCode}/eliminated`);
     const [settingsSnap, playersSnap, eliminatedSnap] = await Promise.all([
-      settingsRef.get(),
-      playersRef.get(),
-      eliminatedRef.get(),
+      refGet(settingsRef),
+      refGet(playersRef),
+      refGet(eliminatedRef),
     ]);
 
     if (!settingsSnap.exists() || !playersSnap.exists()) {
@@ -1259,7 +1260,7 @@ export const gameLogic = {
     const playersRef = window.db.ref(`rooms/${roomCode}/players`);
     const listener = async (snapshot) => {
       const roomRef = snapshot.ref.parent;
-      const roomSnap = roomRef ? await roomRef.get() : null;
+      const roomSnap = roomRef ? await refGet(roomRef) : null;
       const playersData = snapshot.val();
 
       if (!roomSnap?.exists() || playersData === null) {
@@ -1539,11 +1540,11 @@ export const gameLogic = {
     });
   },
 
-  guessLocation: function (roomCode, spyUid, guess) {
+  guessLocation: async function (roomCode, spyUid, guess) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.get().then((snap) => {
-      if (!snap.exists()) return;
-      const data = snap.val();
+    const snap = await refGet(ref);
+    if (!snap.exists()) return;
+    const data = snap.val();
       const roles = data.playerRoles || {};
       const spyRole = roles[spyUid];
       if (!spyRole) return;
@@ -2230,58 +2231,55 @@ finalizeVoting: function (roomCode, reason) {
     });
   },
 
-  finalizeGuessTimeout: function (roomCode) {
+  finalizeGuessTimeout: async function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.get().then((snap) => {
-      if (!snap.exists()) return;
-      const data = snap.val();
-      if (data.status === "finished") return;
-      const guessState = data.guess;
-      if (!guessState || !guessState.endsAt) return;
-      if (getServerNow() < guessState.endsAt) return;
+    const snap = await refGet(ref);
+    if (!snap.exists()) return;
+    const data = snap.val();
+    if (data.status === "finished") return;
+    const guessState = data.guess;
+    if (!guessState || !guessState.endsAt) return;
+    if (getServerNow() < guessState.endsAt) return;
 
-      const aliveUids = getAlivePlayersFromState(data?.players, data?.playerRoles);
-      const aliveCount = aliveUids.length;
-      const spyAlive = getSpyUidsFromRoom(data).filter((id) => aliveUids.includes(id)).length;
+    const aliveUids = getAlivePlayersFromState(data?.players, data?.playerRoles);
+    const aliveCount = aliveUids.length;
+    const spyAlive = getSpyUidsFromRoom(data).filter((id) => aliveUids.includes(id)).length;
 
-      const updates = { guess: null };
-      const votingResult = data.voting?.result;
-      const canInnocentsWin =
-        votingResult &&
-        votingResult.eliminatedUid &&
-        aliveCount === 2 &&
-        spyAlive === 1;
+    const updates = { guess: null };
+    const votingResult = data.voting?.result;
+    const canInnocentsWin =
+      votingResult &&
+      votingResult.eliminatedUid &&
+      aliveCount === 2 &&
+      spyAlive === 1;
 
-      if (canInnocentsWin) {
-        updates.status = "finished";
-        updates.winner = "innocent";
-        appendFinalSpyInfo(updates, data);
-      } else {
-        ref.update(updates);
-        return;
-      }
-      const updatePromise = ref.update(updates);
-      if (updates.status === "finished") {
-        updatePromise.then(() =>
-          getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
-            const spyIntro = formatSpyIntro(spyNames);
-            return finalizeGameOver(roomCode, data, {
-              winner: "innocents",
-              reason: "timeout",
-              message: `${spyIntro} tahmin süresini kaçırdı ve oyunu masumlar kazandı!`,
-              eliminatedUid: votingResult?.eliminatedUid,
-              eliminatedName: votingResult?.eliminatedName,
-            });
-          })
-        );
-      }
-    });
+    if (canInnocentsWin) {
+      updates.status = "finished";
+      updates.winner = "innocent";
+      appendFinalSpyInfo(updates, data);
+    } else {
+      await ref.update(updates);
+      return;
+    }
+
+    await ref.update(updates);
+    if (updates.status === "finished") {
+      const { spyNames } = await getSpyNamesForMessage(roomCode, data);
+      const spyIntro = formatSpyIntro(spyNames);
+      await finalizeGameOver(roomCode, data, {
+        winner: "innocents",
+        reason: "timeout",
+        message: `${spyIntro} tahmin süresini kaçırdı ve oyunu masumlar kazandı!`,
+        eliminatedUid: votingResult?.eliminatedUid,
+        eliminatedName: votingResult?.eliminatedName,
+      });
+    }
   },
-  tallyVotes: function (roomCode) {
+  tallyVotes: async function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.get().then((snap) => {
-      if (!snap.exists()) return;
-      const data = snap.val();
+    const snap = await refGet(ref);
+    if (!snap.exists()) return;
+    const data = snap.val();
 
       if (
         data?.voting ||
@@ -2428,87 +2426,75 @@ finalizeVoting: function (roomCode, reason) {
     });
   },
 
-  endRound: function (roomCode) {
+  endRound: async function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.get().then((snap) => {
-      if (!snap.exists()) return;
-      const data = snap.val();
-      const room = data;
-      if (room?.voting || room?.game?.phase !== "playing") return;
-      if (
-        room.voting?.status ||
-        room.game?.phase === "results" ||
-        room.game?.phase === "voting"
-      )
-        return;
-      if (isVotingStateMachineActive(data)) return;
-      const vote = data.voteResult;
-      const tasks = [];
-      const votedUid = vote && vote.voted;
-      let playerInfo = null;
-      if (votedUid) {
-        playerInfo = (data.players || {})[votedUid] || {};
-        const { name = null, isCreator = false } = playerInfo;
-        tasks.push(ref.child(`players/${votedUid}`).remove());
-        tasks.push(ref.child(`playerRoles/${votedUid}`).remove());
-        tasks.push(
-          ref
-            .child(`eliminated/${votedUid}`)
-            .set({ name, isCreator })
-        );
-      }
+    const snap = await refGet(ref);
+    if (!snap.exists()) return;
+    const data = snap.val();
+    const room = data;
+    if (room?.voting || room?.game?.phase !== "playing") return;
+    if (
+      room.voting?.status ||
+      room.game?.phase === "results" ||
+      room.game?.phase === "voting"
+    )
+      return;
+    if (isVotingStateMachineActive(data)) return;
+    const vote = data.voteResult;
+    const tasks = [];
+    const votedUid = vote && vote.voted;
+    let playerInfo = null;
+    if (votedUid) {
+      playerInfo = (data.players || {})[votedUid] || {};
+      const { name = null, isCreator = false } = playerInfo;
+      tasks.push(ref.child(`players/${votedUid}`).remove());
+      tasks.push(ref.child(`playerRoles/${votedUid}`).remove());
+      tasks.push(ref.child(`eliminated/${votedUid}`).set({ name, isCreator }));
+    }
 
-      Promise.all(tasks)
-        .then(() => ref.get())
-        .then((freshSnap) => {
-          if (!freshSnap || !freshSnap.exists()) return;
-          const latestData = freshSnap.val();
-          const activePlayers = getActivePlayers(
-            latestData.playerRoles,
-            latestData.players
-          );
-          const activeUids = activePlayers.map((p) => p.uid);
-          const remainingSpies = getSpyUidsFromRoom(latestData).filter((id) =>
-            activeUids.includes(id)
-          );
-          if (remainingSpies.length === 0) {
-            const updates = appendFinalSpyInfo(
-              { status: "finished", winner: "innocent" },
-              latestData
-            );
-            const eliminatedName = playerInfo?.name || votedUid;
-            ref.update(updates).then(() =>
-              getSpyNamesForMessage(roomCode, latestData).then(({ spyNames }) => {
-                const spyIntro = formatSpyIntro(spyNames);
-                return finalizeGameOver(roomCode, latestData, {
-                  winner: "innocents",
-                  reason: "vote",
-                  eliminatedUid: votedUid,
-                  eliminatedName,
-                  message: `${spyIntro} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`,
-                });
-              })
-            );
-            return;
-          }
-          this.checkSpyWin(roomCode, latestData).then((spyWon) => {
-            if (spyWon) {
-              const updates = appendFinalSpyInfo(
-                { status: "finished" },
-                latestData
-              );
-              ref.update(updates);
-              return;
-            }
-            ref.update({ voteResult: null }).then(() => {
-              this.nextRound(roomCode);
-            });
-          });
-        });
-    });
+    await Promise.all(tasks);
+    const freshSnap = await refGet(ref);
+    if (!freshSnap || !freshSnap.exists()) return;
+    const latestData = freshSnap.val();
+    const activePlayers = getActivePlayers(
+      latestData.playerRoles,
+      latestData.players
+    );
+    const activeUids = activePlayers.map((p) => p.uid);
+    const remainingSpies = getSpyUidsFromRoom(latestData).filter((id) =>
+      activeUids.includes(id)
+    );
+    if (remainingSpies.length === 0) {
+      const updates = appendFinalSpyInfo(
+        { status: "finished", winner: "innocent" },
+        latestData
+      );
+      const eliminatedName = playerInfo?.name || votedUid;
+      await ref.update(updates);
+      const { spyNames } = await getSpyNamesForMessage(roomCode, latestData);
+      const spyIntro = formatSpyIntro(spyNames);
+      await finalizeGameOver(roomCode, latestData, {
+        winner: "innocents",
+        reason: "vote",
+        eliminatedUid: votedUid,
+        eliminatedName,
+        message: `${spyIntro} arasından ${eliminatedName} elendi ve oyunu masumlar kazandı!`,
+      });
+      return;
+    }
+
+    const spyWon = await this.checkSpyWin(roomCode, latestData);
+    if (spyWon) {
+      const updates = appendFinalSpyInfo({ status: "finished" }, latestData);
+      await ref.update(updates);
+      return;
+    }
+
+    await ref.update({ voteResult: null });
+    this.nextRound(roomCode);
   },
 
-checkSpyWin: function (roomCode, latestData) {
+checkSpyWin: async function (roomCode, latestData) {
   const isVotingOrResultsPhase = (data) =>
     Boolean(
       data?.voting?.status ||
@@ -2524,67 +2510,60 @@ checkSpyWin: function (roomCode, latestData) {
   };
 
   const ref = window.db.ref("rooms/" + roomCode);
-  const dataPromise = latestData
-    ? Promise.resolve(latestData)
-    : ref.get().then((snap) => (snap.exists() ? snap.val() : null));
+  const dataSnap = latestData ? null : await refGet(ref);
+  const data = latestData ?? (dataSnap?.exists() ? dataSnap.val() : null);
 
-  return dataPromise.then((data) => {
-    if (shouldExitEarly(data)) return false;
+  if (shouldExitEarly(data)) return false;
 
-    const evaluation = evaluateWinConditions(data);
-    if (!evaluation.shouldEnd) return false;
+  const evaluation = evaluateWinConditions(data);
+  if (!evaluation.shouldEnd) return false;
 
-    const winnerValue =
-      evaluation.winner === "spies"
-        ? "spy"
-        : evaluation.winner === "innocents"
-          ? "innocent"
-          : evaluation.winner;
+  const winnerValue =
+    evaluation.winner === "spies"
+      ? "spy"
+      : evaluation.winner === "innocents"
+        ? "innocent"
+        : evaluation.winner;
 
-    const updates = appendFinalSpyInfo(
-      {
-        status: "finished",
-        winner: winnerValue,
-        spyParityWin: evaluation.winner === "spies",
-        game: { ...(data.game || {}), phase: "ended" },
-        phase: "ended",
-      },
-      data
-    );
+  const updates = appendFinalSpyInfo(
+    {
+      status: "finished",
+      winner: winnerValue,
+      spyParityWin: evaluation.winner === "spies",
+      game: { ...(data.game || {}), phase: "ended" },
+      phase: "ended",
+    },
+    data
+  );
 
-    return ref
-      .update(updates)
-      .then(() => getSpyNamesForMessage(roomCode, data))
-      .then(({ spyNames }) =>
-        finalizeGameOver(roomCode, data, {
-          winner: evaluation.winner,
-          reason: evaluation.reason || "parity",
-          message:
-            evaluation.winner === "innocents"
-              ? `${formatSpyIntro(spyNames)} arasından son sahtekar elendi ve oyunu masumlar kazandı!`
-              : `${formatSpyIntro(spyNames)} sayıca üstünlük sağladı ve oyunu kazandı!`,
-        })
-      )
-      .then(() => true);
+  await ref.update(updates);
+  const { spyNames } = await getSpyNamesForMessage(roomCode, data);
+  await finalizeGameOver(roomCode, data, {
+    winner: evaluation.winner,
+    reason: evaluation.reason || "parity",
+    message:
+      evaluation.winner === "innocents"
+        ? `${formatSpyIntro(spyNames)} arasından son sahtekar elendi ve oyunu masumlar kazandı!`
+        : `${formatSpyIntro(spyNames)} sayıca üstünlük sağladı ve oyunu kazandı!`,
   });
+  return true;
   },
-  nextRound: function (roomCode) {
+  nextRound: async function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.get().then((snap) => {
-      if (!snap.exists()) return;
-      const data = snap.val();
-      if (isVotingStateMachineActive(data)) return;
-      const nextRound = (data.round || 1) + 1;
-      ref.update({
-        round: nextRound,
-        votes: null,
-        voteResult: null,
-        votingStarted: false,
-        voteRequests: null,
-        voteStartRequests: null,
-        voting: null,
-        game: { ...(data.game || {}), phase: "playing" },
-      });
+    const snap = await refGet(ref);
+    if (!snap.exists()) return;
+    const data = snap.val();
+    if (isVotingStateMachineActive(data)) return;
+    const nextRound = (data.round || 1) + 1;
+    await ref.update({
+      round: nextRound,
+      votes: null,
+      voteResult: null,
+      votingStarted: false,
+      voteRequests: null,
+      voteStartRequests: null,
+      voting: null,
+      game: { ...(data.game || {}), phase: "playing" },
     });
   },
 };
