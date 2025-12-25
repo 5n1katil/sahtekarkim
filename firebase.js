@@ -1,7 +1,11 @@
 // firebase.js
 // -------------------------
-// Firebase compat setup (no modules)
+// Firebase compat setup using explicit CDN module imports
 // -------------------------
+
+import firebase from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js";
+import "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js";
+import "https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
@@ -24,6 +28,7 @@ const db = firebase.database();
 
 window.auth = auth;
 window.db = db;
+window.firebase = firebase;
 
 // 3.1) Server time offset helper
 let serverTimeOffset = 0;
