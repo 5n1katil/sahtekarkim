@@ -653,6 +653,7 @@ function updateRoleDisplay(myData, settings) {
     const renderKey = JSON.stringify({
       result: resolvedResultToRender,
       context,
+      continuationPending: !!roomData?.voting?.continuationPending,
       continueAcks: roomData?.voting?.continueAcks || null,
       phase: resolveGamePhase(roomData),
     });
@@ -729,8 +730,10 @@ function updateRoleDisplay(myData, settings) {
     const isEliminatedPlayer =
       currentUid === eliminatedUidFromResult || !isAliveCurrentPlayer;
     const isResultsPhase = currentPhase === "results";
+    const continuationPending = !!roomData?.voting?.continuationPending;
+    const isContinuationOverlayActive = isResultsPhase || continuationPending;
     const waitingText =
-      filteredAliveUids.length > 0
+      continuationPending && filteredAliveUids.length > 0
         ? `Devam için onay bekleniyor (${ackCount}/${filteredAliveUids.length})`
         : null;
     const cls = outcome.impostorVictory
@@ -742,11 +745,11 @@ function updateRoleDisplay(myData, settings) {
     const actionsEl = document.getElementById("gameActions");
     const spyInfo = getSpyInfo(roomData);
     const resolvedMessage =
-      isResultsPhase && !isAliveCurrentPlayer
+      isContinuationOverlayActive && !isAliveCurrentPlayer
         ? "Elendin! Oyun devam ediyor."
         : resolveGameOverMessage(roomData, outcome.message, spyInfo);
     msgDiv.textContent = resolvedMessage;
-    if (!(isResultsPhase && !isAliveCurrentPlayer)) {
+    if (!(isContinuationOverlayActive && !isAliveCurrentPlayer)) {
       appendSpyNamesLine(msgDiv, roomData, {
         spyInfo,
         primaryMessage: resolvedMessage,
@@ -811,10 +814,10 @@ function updateRoleDisplay(myData, settings) {
             console.error("[gameEnded overlay] leaveRoom failed", error);
           })
           .finally(() => {
-            handleRoomGone("manual exit");
+          handleRoomGone("manual exit");
           });
       });
-    } else if (isResultsPhase) {
+    } else if (isContinuationOverlayActive) {
       if (waitingText) {
         const info = document.createElement("div");
         info.className = "result-subtext";
@@ -832,8 +835,7 @@ function updateRoleDisplay(myData, settings) {
         });
       }
 
-      const shouldShowContinueButton =
-        isAliveCurrentPlayer && eliminatedUidFromResult !== currentUid;
+      const shouldShowContinueButton = continuationPending;
       if (shouldShowContinueButton) {
         const btn = document.createElement("button");
         btn.id = "continueBtn";
@@ -1999,12 +2001,14 @@ function updateRoleDisplay(myData, settings) {
         const overlayEl = document.getElementById("resultOverlay");
         const isEliminationOverlayActive =
           overlayEl?.dataset.overlayType === "elimination";
+        const continuationPending = !!roomData?.voting?.continuationPending;
         const shouldHideResultOverlay =
           overlayEl &&
           currentPhase !== "results" &&
           roomData.status === "started" &&
           !roundSafeGameOver &&
-          !isEliminationOverlayActive;
+          !isEliminationOverlayActive &&
+          !continuationPending;
         if (shouldHideResultOverlay) {
           overlayEl.classList.add("hidden");
           overlayEl.classList.remove("impostor-animation", "innocent-animation");
@@ -2271,12 +2275,14 @@ function updateRoleDisplay(myData, settings) {
         const shouldShowNextRound =
           isPlayerAliveForActions &&
           (roomData?.voting?.status === "resolved" ||
-            currentPhase === "results");
+            currentPhase === "results" ||
+            roomData?.voting?.continuationPending);
         nextRoundBtn?.classList.toggle("hidden", !shouldShowNextRound);
 
         const shouldShowVoteOutcome =
           roomData?.voting?.status === "resolved" ||
-          currentPhase === "results";
+          currentPhase === "results" ||
+          roomData?.voting?.continuationPending;
         const fallbackOutcomeMessage = resolvedOutcomeContext?.outcome?.message;
 
         if (activeVoteResult) {
