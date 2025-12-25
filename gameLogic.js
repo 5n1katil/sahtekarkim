@@ -2422,8 +2422,7 @@ finalizeVoting: function (roomCode, reason) {
       }
 
       ref.update(updates);
-    });
-  },
+    },
 
   endRound: async function (roomCode) {
     const ref = window.db.ref("rooms/" + roomCode);
