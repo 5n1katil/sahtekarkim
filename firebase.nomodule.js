@@ -74,6 +74,13 @@ try {
 
   window.serverTime = serverTime;
 
+  // addDoc bekleyen eski önbellekli sürümler için daha anlaşılır bir uyarı üret.
+  if (typeof window.addDoc !== "function") {
+    window.addDoc = () => {
+      throw new Error("Firestore API'si bu sürümde devre dışıdır.");
+    };
+  }
+
   // 4) Sign in anonymously ONCE with persistence
   const authReady = auth
     .setPersistence(firebaseCompat.auth.Auth.Persistence.LOCAL)
