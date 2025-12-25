@@ -2145,7 +2145,10 @@ finalizeVoting: function (roomCode, reason) {
       const blockLegacyVotingUpdates = !!room?.voting?.status;
 
       const phase = room.game?.phase || room.phase;
-      if (phase !== "results") return room;
+      const continuationActive =
+        room?.voting?.continuationPending || room?.voting?.status === "resolved";
+      const isResultsPhase = phase === "results";
+      if (!isResultsPhase && !continuationActive) return room;
 
       const roles = room.playerRoles || {};
       const players = room.players || {};
@@ -2170,7 +2173,6 @@ finalizeVoting: function (roomCode, reason) {
           continueAcks,
         },
       };
-
       if (allAcked) {
         nextRoom.voting = {
           ...nextRoom.voting,
