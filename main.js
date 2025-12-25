@@ -2462,6 +2462,18 @@ window.showSetupJoin = showSetupJoin;
  *  EVENT LISTENERS
  * ------------------------ */
 function initUI() {
+  console.log("[initUI] started");
+
+  const on = (id, evt, fn) => {
+    const el = document.getElementById(id);
+    if (!el) {
+      console.warn(`[initUI] missing element #${id}`);
+      return null;
+    }
+    el.addEventListener(evt, fn);
+    return el;
+  };
+
   const gameTypeSelect = document.getElementById("gameType");
   const categoryLabel = document.getElementById("categoryLabel");
   const categorySelect = document.getElementById("categoryName");
@@ -2526,6 +2538,10 @@ function initUI() {
   const saveSettingsBtn = document.getElementById("saveSettingsBtn");
   const joinRoomBtn = document.getElementById("joinRoomBtn");
 
+  if (createRoomBtn) {
+    console.log("[initUI] createRoomBtn found");
+  }
+
   const toggleActionButtons = (disabled) => {
     [createRoomBtn, saveSettingsBtn, joinRoomBtn].forEach((btn) => {
       if (btn) btn.disabled = disabled;
@@ -2548,7 +2564,7 @@ function initUI() {
     handleFirebaseInitError(event?.detail);
   });
 
-  saveSettingsBtn.addEventListener("click", async () => {
+  on("saveSettingsBtn", "click", async () => {
     const settings = await buildSettings();
     try {
       await gameLogic.saveSettings(settings);
@@ -2560,6 +2576,7 @@ function initUI() {
 
   let createRoomRunning = false;
   async function handleCreateRoom() {
+    console.log("[handleCreateRoom] fired");
     if (createRoomRunning) return;
     createRoomRunning = true;
 
@@ -2573,8 +2590,8 @@ function initUI() {
     }
 
     // Buton tepkisiz görünmesin diye yükleme başlamadan önce kapat
-    createRoomBtn.disabled = true;
-    createRoomLoading.classList.remove("hidden");
+    if (createRoomBtn) createRoomBtn.disabled = true;
+    createRoomLoading?.classList.remove("hidden");
 
     try {
       const settings = await buildSettings();
@@ -2609,16 +2626,16 @@ function initUI() {
       }
       gameLogicRoomUnsub = gameLogic.listenRoom(roomCode);
     } catch (err) {
+      console.error("[handleCreateRoom] failed", err);
       alert(err.message || err);
     } finally {
       createRoomRunning = false;
-      createRoomBtn.disabled = false;
-      createRoomLoading.classList.add("hidden");
+      if (createRoomBtn) createRoomBtn.disabled = false;
+      createRoomLoading?.classList.add("hidden");
     }
   }
 
-  createRoomBtn.addEventListener("click", handleCreateRoom);
-  createRoomBtn.addEventListener("pointerdown", handleCreateRoom);
+  on("createRoomBtn", "click", handleCreateRoom);
 
   let joinRoomRunning = false;
   async function handleJoinRoom() {
@@ -2668,10 +2685,10 @@ function initUI() {
     }
   }
 
-  joinRoomBtn.addEventListener("click", handleJoinRoom);
-  joinRoomBtn.addEventListener("pointerdown", handleJoinRoom);
+  on("joinRoomBtn", "click", handleJoinRoom);
+  on("joinRoomBtn", "pointerdown", handleJoinRoom);
 
-  document.getElementById("leaveRoomBtn").addEventListener("click", () => {
+  on("leaveRoomBtn", "click", () => {
     const action = isCreator
       ? gameLogic.deleteRoom(currentRoomCode)
       : gameLogic.leaveRoom(currentRoomCode);
@@ -2686,7 +2703,7 @@ function initUI() {
       });
   });
 
-  document.getElementById("startGameBtn").addEventListener("click", async (e) => {
+  on("startGameBtn", "click", async (e) => {
     if (!currentRoomCode) {
       alert("Oda kodu bulunamadı!");
       return;
@@ -2708,7 +2725,7 @@ function initUI() {
     }
   });
 
-  document.getElementById("startVotingBtn").addEventListener("click", (e) => {
+  on("startVotingBtn", "click", (e) => {
     const btn = e.currentTarget;
     hasRequestedStart = true;
     if (btn) {
@@ -2726,25 +2743,22 @@ function initUI() {
     });
   });
 
-  const voteList = document.getElementById("voteList");
-  if (voteList) {
-    voteList.addEventListener("click", (event) => {
-      const targetBtn = event.target.closest(".vote-option");
-      if (!targetBtn) return;
-      const { uid } = targetBtn.dataset;
-      const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
-      const selected = candidates.find((c) => c.uid === uid);
-      if (selected) {
-        setSelectedVote(selected.uid, selected.name || selected.uid);
-        voteList
-          .querySelectorAll(".vote-option")
-          .forEach((btn) => btn.classList.toggle("active", btn.dataset.uid === uid));
-      }
-    });
-  }
+  const voteList = on("voteList", "click", (event) => {
+    const targetBtn = event.target.closest(".vote-option");
+    if (!targetBtn) return;
+    const { uid } = targetBtn.dataset;
+    const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
+    const selected = candidates.find((c) => c.uid === uid);
+    if (selected) {
+      setSelectedVote(selected.uid, selected.name || selected.uid);
+      voteList
+        ?.querySelectorAll(".vote-option")
+        .forEach((btn) => btn.classList.toggle("active", btn.dataset.uid === uid));
+    }
+  });
 
   // Oy ver
-  document.getElementById("submitVoteBtn").addEventListener("click", () => {
+  on("submitVoteBtn", "click", () => {
     if (!selectedVoteUid) {
       alert("Lütfen oy vereceğin kişiyi seç.");
       return;
@@ -2753,7 +2767,7 @@ function initUI() {
     showVoteConfirmation();
   });
 
-  document.getElementById("confirmVoteBtn").addEventListener("click", () => {
+  on("confirmVoteBtn", "click", () => {
     if (!selectedVoteUid) return;
     const btn = document.getElementById("submitVoteBtn");
     if (btn) btn.disabled = true;
@@ -2766,14 +2780,14 @@ function initUI() {
     gameLogic.submitVote(currentRoomCode, currentUid, selectedVoteUid);
   });
 
-  document.getElementById("cancelVoteBtn").addEventListener("click", () => {
+  on("cancelVoteBtn", "click", () => {
     const confirmArea = document.getElementById("voteConfirmArea");
     confirmArea?.classList.add("hidden");
     const confirmBtn = document.getElementById("confirmVoteBtn");
     if (confirmBtn) confirmBtn.disabled = false;
   });
 
-  document.getElementById("submitGuessBtn").addEventListener("click", () => {
+  on("submitGuessBtn", "click", () => {
     const guessSelect = document.getElementById("guessSelect");
     const guess = guessSelect ? guessSelect.value : "";
     if (guessSelect) {
@@ -2785,7 +2799,7 @@ function initUI() {
   });
 
   // Sonraki tur
-  document.getElementById("nextRoundBtn").addEventListener("click", () => {
+  on("nextRoundBtn", "click", () => {
     const roomData = latestRoomData;
     const currentPhase = resolveGamePhase(roomData);
     const isAliveForNextRound = roomData ? isCurrentPlayerEligible(roomData) : true;
@@ -2799,7 +2813,7 @@ function initUI() {
   });
 
   // Rol bilgisini kopyalama
-  document.getElementById("copyRoleBtn").addEventListener("click", () => {
+  on("copyRoleBtn", "click", () => {
     const text = document.getElementById("roleMessage").innerText;
     navigator.clipboard
       .writeText(text)
@@ -2807,7 +2821,7 @@ function initUI() {
   });
 
   // Oyundan çık (ana ekrana dön)
-  document.getElementById("backToHomeBtn").addEventListener("click", () => {
+  on("backToHomeBtn", "click", () => {
     const roomCode = localStorage.getItem("roomCode");
     const playerName = localStorage.getItem("playerName");
     const isCreator = localStorage.getItem("isCreator") === "true";
@@ -2829,6 +2843,8 @@ function initUI() {
         window.location.replace("./index.html");
       });
   });
+
+  console.log("[initUI] listeners attached");
 }
 
 document.addEventListener("DOMContentLoaded", initUI);
