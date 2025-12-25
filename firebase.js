@@ -100,74 +100,32 @@ const loadFirebaseCompat = () => {
     }
 
     const compat = await waitForWindowFirebase();
-  console.error("================ firebase.js ================");
-  console.error(message);
-  console.error("=============================================");
-  if (typeof alert === "function") alert(message);
+    if (!compat) throw new Error("Firebase compat failed to load.");
+
+    firebaseCompat = compat;
+    return firebaseCompat;
+  })();
+
+  return firebaseCompatPromise;
 };
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
-  authDomain: "detektif-c17bb.firebaseapp.com",
-  databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com",
-  projectId: "detektif-c17bb",
-  storageBucket: "detektif-c17bb.appspot.com",
-  messagingSenderId: "422256375848",
-  appId: "1:422256375848:web:873b0a6372c992accf9d1d",
-};
+const initializeFirebase = async () => {
+  const compat = await loadFirebaseCompat();
 
-const CDN_VERSION = "10.12.0";
-const firebaseCompatScripts = [
-  `https://www.gstatic.com/firebasejs/${CDN_VERSION}/firebase-app-compat.js`,
-  `https://www.gstatic.com/firebasejs/${CDN_VERSION}/firebase-auth-compat.js`,
-  `https://www.gstatic.com/firebasejs/${CDN_VERSION}/firebase-database-compat.js`,
-];
+  const app = compat.initializeApp(firebaseConfig);
+  const auth = compat.auth(app);
+  const db = compat.database(app);
 
-let firebaseCompat;
-let firebaseCompatPromise;
-let authInstance;
-let dbInstance;
-
-const waitForWindowFirebase = () =>
-  new Promise((resolve) => {
-    if (typeof window === "undefined") {
-      resolve(undefined);
-      return;
-    }
-
-    const existing = window.firebase;
-    if (existing) {
-      resolve(existing);
-      return;
-    }
-
-    let attempts = 0;
-    const timer = setInterval(() => {
-      attempts += 1;
-      if (window.firebase) {
-        clearInterval(timer);
-        resolve(window.firebase);
-      } else if (attempts > 50) {
-        clearInterval(timer);
-        resolve(undefined);
-      }
-    }, 50);
-  // Böylece tarayıcı, tanımsız referans hatası fırlatmak yerine anlaşılır bir hata verir.
-  if (typeof window.addDoc !== "function") {
+  // Avoid undefined reference errors for any old Firestore callers
+  if (typeof window !== "undefined" && typeof window.addDoc !== "function") {
     window.addDoc = () => {
-      throw new Error(
-        "Firestore API'si bu sürümde kullanılmıyor. Lütfen sayfayı yenileyip yeniden deneyin."
-      );
+      throw new Error("Firestore API is not used in this version.");
     };
   }
 
-  // 4) Sign in anonymously ONCE with persistence
   const authReady = auth
     .setPersistence(compat.auth.Auth.Persistence.LOCAL)
-    .then(() => {
-      if (auth.currentUser) return auth.currentUser; // already signed in
-      return auth.signInAnonymously().then((cred) => cred.user);
-    })
+    .then(() => (auth.currentUser ? auth.currentUser : auth.signInAnonymously().then((cred) => cred.user)))
     .then((user) => {
       if (user?.uid) console.log("Anonim giriş başarılı. UID:", user.uid);
       return user;
@@ -177,38 +135,39 @@ const waitForWindowFirebase = () =>
       throw err;
     });
 
-  // 5) Listen for auth state changes
   auth.onAuthStateChanged((user) => {
-    window.myUid = user ? user.uid : null;
+    if (typeof window !== "undefined") {
+      window.myUid = user ? user.uid : null;
+    }
   });
 
-  // 6) Expose auth readiness promise for consumers
-  window.authReady = authReady;
+  authInstance = auth;
+  dbInstance = db;
 
-  return { compat, auth, db, authReady };
+  if (typeof window !== "undefined") {
+    window.authReady = authReady;
+  }
+
+  await authReady;
+
   return { compat, auth, db, authReady };
 };
 
 const firebaseInitPromise = initializeFirebase()
   .then((result) => {
-    window.firebaseInitPromise = firebaseInitPromise;
+    if (typeof window !== "undefined") {
+      window.firebaseInitPromise = firebaseInitPromise;
+    }
     return result;
   })
   .catch((err) => {
-    window.firebaseInitPromise = Promise.reject(err);
+    if (typeof window !== "undefined") {
+      window.firebaseInitPromise = Promise.reject(err);
+      window.dispatchEvent(new CustomEvent("firebase-init-failed", { detail: err }));
+    }
     logInitFailure(err);
-    window.dispatchEvent(
-      new CustomEvent("firebase-init-failed", {
-        detail: err,
-      })
-    );
     throw err;
   });
-
-// Ortak kullanıma aç
-if (typeof window !== "undefined") {
-  window.firebaseInitPromise = firebaseInitPromise;
-}
 
 const requireFirebaseReady = () => firebaseInitPromise;
 const getAuth = () => authInstance;
