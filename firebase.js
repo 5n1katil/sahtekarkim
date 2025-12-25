@@ -94,6 +94,16 @@ const initializeFirebase = async () => {
 
   window.serverTime = serverTime;
 
+  // Firestore'un modüler addDoc API'sini bekleyen eski önbellekler için uyarı niteliğinde bir koruma ekleyelim.
+  // Böylece tarayıcı, tanımsız referans hatası fırlatmak yerine anlaşılır bir hata verir.
+  if (typeof window.addDoc !== "function") {
+    window.addDoc = () => {
+      throw new Error(
+        "Firestore API'si bu sürümde kullanılmıyor. Lütfen sayfayı yenileyip yeniden deneyin."
+      );
+    };
+  }
+
   // 4) Sign in anonymously ONCE with persistence
   const authReady = auth
     .setPersistence(compat.auth.Auth.Persistence.LOCAL)
