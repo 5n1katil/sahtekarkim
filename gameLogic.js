@@ -67,7 +67,19 @@ function getAlivePlayersFromState(players, roles) {
 
 export function evaluateWinConditions(roomData) {
   const players = roomData?.players || {};
-  const aliveUids = getAliveUids(players);
+  const playerRoles = roomData?.playerRoles || {};
+  const aliveUids = getAlivePlayersFromState(players, playerRoles);
+
+  const missingPlayerEntries = Object.keys(playerRoles).filter(
+    (uid) => !(uid in players)
+  );
+  if (missingPlayerEntries.length) {
+    console.warn(
+      "playerRoles contains entries missing from players; treating as alive unless eliminated",
+      missingPlayerEntries
+    );
+  }
+
   const aliveSpies = getSpyUidsFromRoom(roomData).filter((uid) =>
     aliveUids.includes(uid)
   ).length;
