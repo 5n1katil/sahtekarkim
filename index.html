@@ -676,24 +676,31 @@
   export default firebaseCompat;
   export { firebaseCompat, firebaseInitPromise, loadFirebaseCompat };
 </script>
-<script>
+<script type="module">
   // Uygulama yüklenmeden önce eski servis worker kayıtlarını temizle
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker
-      .getRegistrations()
-      .then((registrations) => {
-        registrations.forEach((registration) => {
+  const cleanupServiceWorkers = (async () => {
+    if (!("serviceWorker" in navigator)) return;
+
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(
+        registrations.map((registration) =>
           registration.unregister().catch((err) => {
             console.warn("Service worker kaldırılamadı", err);
-          });
-        });
-      })
-      .catch((err) => {
-        console.warn("Service worker kayıtları listelenemedi", err);
-      });
+          })
+        )
+      );
+    } catch (err) {
+      console.warn("Service worker kayıtları listelenemedi", err);
+    }
+  })();
+
+  try {
+    await cleanupServiceWorkers;
+  } finally {
+    await import("./main.js");
   }
 </script>
-<script type="module" src="main.js"></script>
 
 <!-- Eski tarayıcılar: yalnızca klasik bundle ve Firebase compat CDN'leri -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" nomodule></script>
