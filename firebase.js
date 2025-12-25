@@ -145,6 +145,9 @@ const initializeFirebase = async () => {
   dbInstance = db;
 
   if (typeof window !== "undefined") {
+    window.firebase = compat;
+    window.auth = auth;
+    window.db = db;
     window.authReady = authReady;
   }
 
@@ -156,6 +159,9 @@ const initializeFirebase = async () => {
 const firebaseInitPromise = initializeFirebase()
   .then((result) => {
     if (typeof window !== "undefined") {
+      window.firebase = firebaseCompat;
+      window.auth = authInstance;
+      window.db = dbInstance;
       window.firebaseInitPromise = firebaseInitPromise;
     }
     return result;
