@@ -2146,7 +2146,7 @@ finalizeVoting: function (roomCode, reason) {
 
       const phase = room.game?.phase || room.phase;
       const votingStatus = room.voting?.status;
-      const continuationPending = !!room.voting?.continuationPending;
+      let continuationPending = !!room.voting?.continuationPending;
 
       if (!continuationPending && phase !== "results" && votingStatus !== "resolved")
         return room;
@@ -2159,7 +2159,7 @@ finalizeVoting: function (roomCode, reason) {
       const continueAcks = { ...(room.voting?.continueAcks || {}) };
       continueAcks[userUid] = true;
 
-      const nextContinuationPending =
+      continuationPending =
         room.voting?.continuationPending !== false || !!continueAcks[userUid];
 
       const allAcked =
@@ -2170,7 +2170,7 @@ finalizeVoting: function (roomCode, reason) {
         voting: {
           ...(room.voting || {}),
           status: room.voting?.status || "resolved",
-          continuationPending: nextContinuationPending,
+          continuationPending,
           continueAcks,
         },
       };
