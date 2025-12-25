@@ -5,7 +5,12 @@ import {
   refGet,
   resolveRoleName,
 } from './utils.js';
+import { requireFirebaseReady, getDb, getAuth } from './firebase.js';
 import { TR_ACTORS } from './data/characters_tr_actors.js';
+
+const { compat: firebase } = await requireFirebaseReady();
+const db = getDb();
+const auth = getAuth();
 
 let anonymousSignInPromise = null;
 
@@ -14,7 +19,7 @@ const ROOM_PLAYER_LIMIT = 20;
 const votingWatchers = new Map();
 
 function generateRoundId() {
-  const newRef = window.db.ref().push();
+  const newRef = db.ref().push();
   return newRef.key || String(Date.now());
 }
 
@@ -176,7 +181,7 @@ function appendFinalSpyInfo(updates, data) {
     spyUids,
     spyNames,
     revealedAt:
-      finalState.revealedAt || window.firebase.database.ServerValue.TIMESTAMP,
+      finalState.revealedAt || firebase.database.ServerValue.TIMESTAMP,
   };
 
   return updates;
@@ -224,13 +229,13 @@ async function ensureSpiesSnapshot(roomCode, data, spiesOverride) {
     : deriveSpyDetails(data);
   if (!spies.length) return spies;
 
-  const snapshotRef = window.db.ref(`rooms/${roomCode}/spiesSnapshot`);
+  const snapshotRef = db.ref(`rooms/${roomCode}/spiesSnapshot`);
   await snapshotRef.transaction((current) => {
     if (current && Array.isArray(current.spies) && current.spies.length > 0) {
       return current;
     }
     return {
-      createdAt: window.firebase.database.ServerValue.TIMESTAMP,
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
       roundId: data?.roundId || null,
       spies,
     };
@@ -259,10 +264,10 @@ async function finalizeGameOver(roomCode, data, payload) {
     spies,
     spyNames,
     roundId: data?.roundId || null,
-    finalizedAt: window.firebase.database.ServerValue.TIMESTAMP,
+    finalizedAt: firebase.database.ServerValue.TIMESTAMP,
   };
 
-  const ref = window.db.ref(`rooms/${roomCode}/gameOver`);
+  const ref = db.ref(`rooms/${roomCode}/gameOver`);
   return ref.transaction((current) => {
     if (current?.finalizedAt) return undefined;
     return gameOver;
@@ -483,7 +488,7 @@ function buildRoleAssignments(roomCode, settings, players, roundId) {
     .filter((s) => s.name);
 
   const spiesSnapshotPayload = {
-    createdAt: window.firebase.database.ServerValue.TIMESTAMP,
+    createdAt: firebase.database.ServerValue.TIMESTAMP,
     roundId: roundId || null,
     spies: spiesArr,
   };
@@ -870,18 +875,18 @@ export const gameLogic = {
    * kullanıcı alarak basit bir yeniden deneme yapar.
    */
   forceReauth: async function () {
-    if (!window.auth) return null;
+    if (!auth) return null;
 
     try {
-      if (window.auth.currentUser) {
-        await window.auth.signOut();
+      if (auth.currentUser) {
+        await auth.signOut();
       }
     } catch (err) {
       console.warn("Mevcut oturum kapatılamadı:", err);
     }
 
     try {
-      await window.auth.signInAnonymously();
+      await auth.signInAnonymously();
       return await new Promise((resolve, reject) => {
         let unsubscribe = () => {};
         const timeout = setTimeout(() => {
@@ -889,7 +894,7 @@ export const gameLogic = {
           reject(new Error("Anonim oturum zaman aşımına uğradı"));
         }, 5000);
 
-        unsubscribe = window.auth.onAuthStateChanged((user) => {
+        unsubscribe = auth.onAuthStateChanged((user) => {
           if (user && user.uid) {
             clearTimeout(timeout);
             unsubscribe();
@@ -903,20 +908,20 @@ export const gameLogic = {
     }
   },
   getUid: async function () {
-    if (!window.auth) return null;
-    if (window.auth.currentUser && window.auth.currentUser.uid) {
-      return window.auth.currentUser.uid;
+    if (!auth) return null;
+    if (auth.currentUser && auth.currentUser.uid) {
+      return auth.currentUser.uid;
     }
     
     if (!anonymousSignInPromise) {
       anonymousSignInPromise = new Promise((resolve) => {
-        const unsubscribe = window.auth.onAuthStateChanged((user) => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
           if (user && user.uid) {
             unsubscribe();
             resolve(user.uid);
           }
         });
-        window.auth
+        auth
           .signInAnonymously()
           .catch((err) => {
             console.error("Anonim giriş hatası:", err);
@@ -934,7 +939,7 @@ export const gameLogic = {
       throw new Error("Kimlik doğrulaması tamamlanamadı");
     }
     const { spyGuessLimit, ...rest } = settings;
-    return window.db
+    return db
       .ref(`savedSettings/${uid}`)
       .set({ ...rest, spyGuessLimit });
   },
@@ -944,7 +949,7 @@ export const gameLogic = {
     if (!uid) {
       return null;
     }
-    const snap = await refGet(window.db.ref(`savedSettings/${uid}`));
+    const snap = await refGet(db.ref(`savedSettings/${uid}`));
     return snap.exists() ? snap.val() : null;
   },
   /** Oda oluştur */
@@ -962,7 +967,7 @@ export const gameLogic = {
       return null;
     }
 
-    const roomRef = window.db.ref(`rooms/${roomCode}`);
+    const roomRef = db.ref(`rooms/${roomCode}`);
     const roomData = {
       creatorUid: uid,
       createdAt: firebase.database.ServerValue.TIMESTAMP,
@@ -1019,7 +1024,7 @@ export const gameLogic = {
 
   /** Odaya katıl */
   joinRoom: async function (playerName, roomCode) {
-    const roomRef = window.db.ref("rooms/" + roomCode);
+    const roomRef = db.ref("rooms/" + roomCode);
     const snapshot = await refGet(roomRef);
     if (!snapshot.exists()) {
       throw new Error("Oda bulunamadı!");
@@ -1036,7 +1041,7 @@ export const gameLogic = {
     if (!uid) {
       throw new Error("Kimlik doğrulanamadı");
     }
-    const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
+    const playerRef = db.ref(`rooms/${roomCode}/players/${uid}`);
     await playerRef.set({
       name: playerName,
       isCreator: false,
@@ -1054,8 +1059,8 @@ export const gameLogic = {
 
   /** Oyunculara roller atayın */
   assignRoles: async function (roomCode, roundId, prefetched = {}) {
-    const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
-    const playersRef = window.db.ref(`rooms/${roomCode}/players`);
+    const settingsRef = db.ref(`rooms/${roomCode}/settings`);
+    const playersRef = db.ref(`rooms/${roomCode}/players`);
     const needsFetch = !prefetched.settings || !prefetched.players;
     const [settingsSnap, playersSnap] = needsFetch
       ? await Promise.all([refGet(settingsRef), refGet(playersRef)])
@@ -1077,8 +1082,8 @@ export const gameLogic = {
       roundId
     );
 
-    await window.db.ref().update(updates);
-    await window.db
+    await db.ref().update(updates);
+    await db
       .ref(`rooms/${roomCode}/spiesSnapshot`)
       .transaction((current) => {
         if (current && Array.isArray(current.spies) && current.spies.length) {
@@ -1091,8 +1096,8 @@ export const gameLogic = {
   startGame: async function (roomCode) {
     clearVotingWatcher(roomCode);
     const roundId = generateRoundId();
-    const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
-    const playersRef = window.db.ref(`rooms/${roomCode}/players`);
+    const settingsRef = db.ref(`rooms/${roomCode}/settings`);
+    const playersRef = db.ref(`rooms/${roomCode}/players`);
     const [settingsSnap, playersSnap] = await Promise.all([
       refGet(settingsRef),
       refGet(playersRef),
@@ -1161,15 +1166,15 @@ export const gameLogic = {
       updatePayload[`${roomBasePath}/players/${uid}`] = player;
     });
 
-    await window.db.ref().update(updatePayload);
+    await db.ref().update(updatePayload);
   },
 
   restartGame: async function (roomCode) {
     clearVotingWatcher(roomCode);
     const roundId = generateRoundId();
-    const settingsRef = window.db.ref(`rooms/${roomCode}/settings`);
-    const playersRef = window.db.ref(`rooms/${roomCode}/players`);
-    const eliminatedRef = window.db.ref(`rooms/${roomCode}/eliminated`);
+    const settingsRef = db.ref(`rooms/${roomCode}/settings`);
+    const playersRef = db.ref(`rooms/${roomCode}/players`);
+    const eliminatedRef = db.ref(`rooms/${roomCode}/eliminated`);
     const [settingsSnap, playersSnap, eliminatedSnap] = await Promise.all([
       refGet(settingsRef),
       refGet(playersRef),
@@ -1236,19 +1241,19 @@ export const gameLogic = {
       updatePayload[`${roomBasePath}/players/${uid}`] = player;
     });
 
-    await window.db.ref().update(updatePayload);
+    await db.ref().update(updatePayload);
   },
 
   /** Odayı sil */
   deleteRoom: function (roomCode) {
-    return window.db.ref("rooms/" + roomCode).remove();
+    return db.ref("rooms/" + roomCode).remove();
   },
 
   /** Odadan çık */
   leaveRoom: async function (roomCode) {
     const uid = await this.getUid();
     if (!uid) return Promise.resolve();
-    const playerRef = window.db.ref(`rooms/${roomCode}/players/${uid}`);
+    const playerRef = db.ref(`rooms/${roomCode}/players/${uid}`);
     ["roomCode", "playerName", "isCreator"].forEach((key) =>
       localStorage.removeItem(key)
     );
@@ -1257,7 +1262,7 @@ export const gameLogic = {
 
   /** Oyuncuları canlı dinle */
   listenPlayers: function (roomCode, callback) {
-    const playersRef = window.db.ref(`rooms/${roomCode}/players`);
+    const playersRef = db.ref(`rooms/${roomCode}/players`);
     const listener = async (snapshot) => {
       const roomRef = snapshot.ref.parent;
       const roomSnap = roomRef ? await refGet(roomRef) : null;
@@ -1281,7 +1286,7 @@ export const gameLogic = {
 
       // Oda tamamen boşaldıysa kapat
       if (uids.length === 0) {
-        window.db.ref("rooms/" + roomCode).remove();
+        db.ref("rooms/" + roomCode).remove();
         localStorage.clear();
         location.reload();
       }
@@ -1314,7 +1319,7 @@ export const gameLogic = {
 
   /** Oda ve oyun durumunu canlı dinle */
   listenRoom: function (roomCode) {
-    const roomRef = window.db.ref("rooms/" + roomCode);
+    const roomRef = db.ref("rooms/" + roomCode);
 
     const listener = async (snapshot) => {
       const roomData = snapshot.val();
@@ -1377,7 +1382,7 @@ export const gameLogic = {
 
   // Oylamayı başlatma isteği kaydet
   startVote: function (roomCode, uid) {
-    const roomRef = window.db.ref(`rooms/${roomCode}`);
+    const roomRef = db.ref(`rooms/${roomCode}`);
     return roomRef.transaction((currentData) => {
       if (!currentData) return currentData;
       const votingState = currentData.voting || {};
@@ -1457,7 +1462,7 @@ export const gameLogic = {
   },
 
   startVoting: function (roomCode, playersSnapshot) {
-    const ref = window.db.ref("rooms/" + roomCode);
+    const ref = db.ref("rooms/" + roomCode);
     const snapshotUids = new Set(
       (playersSnapshot || [])
         .map((p) => p?.uid || p?.id)
@@ -1541,7 +1546,7 @@ export const gameLogic = {
   },
 
   guessLocation: async function (roomCode, spyUid, guess) {
-    const ref = window.db.ref("rooms/" + roomCode);
+    const ref = db.ref("rooms/" + roomCode);
     const snap = await refGet(ref);
     if (!snap.exists()) return;
     const data = snap.val();
@@ -1695,7 +1700,7 @@ export const gameLogic = {
     if (!roomCode || !voterUid || !targetUid) return;
     if (voterUid === targetUid) return;
 
-    const ref = window.db.ref("rooms/" + roomCode);
+    const ref = db.ref("rooms/" + roomCode);
     const finalizeVoting = this.finalizeVoting.bind(this);
 
     return ref
@@ -1777,7 +1782,7 @@ export const gameLogic = {
 
 finalizeVoting: function (roomCode, reason) {
   console.log("[finalizeVoting] called", { reason, roomId: roomCode });
-  const ref = window.db.ref("rooms/" + roomCode);
+  const ref = db.ref("rooms/" + roomCode);
 
   return ref
     .transaction((room) => {
@@ -1867,7 +1872,7 @@ finalizeVoting: function (roomCode, reason) {
         }
       }
 
-      const finalizedAt = window.firebase.database.ServerValue.TIMESTAMP;
+      const finalizedAt = firebase.database.ServerValue.TIMESTAMP;
       const votingRound = votingState.round ?? room.round ?? null;
 
       let nextPlayers = room.players || {};
@@ -2088,7 +2093,7 @@ finalizeVoting: function (roomCode, reason) {
   restartVotingAfterTie: function (roomCode) {
     if (!roomCode) return Promise.resolve(null);
 
-    const votingRef = window.db.ref(`rooms/${roomCode}/voting`);
+    const votingRef = db.ref(`rooms/${roomCode}/voting`);
     return votingRef
       .transaction((voting) => {
         if (!voting) return voting;
@@ -2139,7 +2144,7 @@ finalizeVoting: function (roomCode, reason) {
     const userUid = uid || (await this.getUid());
     if (!roomCode || !userUid) return;
 
-    const ref = window.db.ref("rooms/" + roomCode);
+    const ref = db.ref("rooms/" + roomCode);
     return ref.transaction((room) => {
       if (!room) return room;
       const blockLegacyVotingUpdates = !!room?.voting?.status;
@@ -2202,7 +2207,7 @@ finalizeVoting: function (roomCode, reason) {
   },
 
   resetVotingState: function (roomCode) {
-    const ref = window.db.ref("rooms/" + roomCode);
+    const ref = db.ref("rooms/" + roomCode);
     return ref.transaction((room) => {
       if (!room) return room;
       const blockLegacyVotingUpdates = !!room?.voting?.status;
@@ -2231,7 +2236,7 @@ finalizeVoting: function (roomCode, reason) {
   },
 
   finalizeGuessTimeout: async function (roomCode) {
-    const ref = window.db.ref("rooms/" + roomCode);
+    const ref = db.ref("rooms/" + roomCode);
     const snap = await refGet(ref);
     if (!snap.exists()) return;
     const data = snap.val();
@@ -2275,7 +2280,7 @@ finalizeVoting: function (roomCode, reason) {
     }
   },
   tallyVotes: async function (roomCode) {
-    const ref = window.db.ref("rooms/" + roomCode);
+    const ref = db.ref("rooms/" + roomCode);
     const snap = await refGet(ref);
     if (!snap.exists()) return;
     const data = snap.val();
@@ -2425,7 +2430,7 @@ finalizeVoting: function (roomCode, reason) {
     },
 
   endRound: async function (roomCode) {
-    const ref = window.db.ref("rooms/" + roomCode);
+    const ref = db.ref("rooms/" + roomCode);
     const snap = await refGet(ref);
     if (!snap.exists()) return;
     const data = snap.val();
@@ -2507,7 +2512,7 @@ checkSpyWin: async function (roomCode, latestData) {
     return false;
   };
 
-  const ref = window.db.ref("rooms/" + roomCode);
+  const ref = db.ref("rooms/" + roomCode);
   const dataSnap = latestData ? null : await refGet(ref);
   const data = latestData ?? (dataSnap?.exists() ? dataSnap.val() : null);
 
@@ -2547,7 +2552,7 @@ checkSpyWin: async function (roomCode, latestData) {
   return true;
   },
   nextRound: async function (roomCode) {
-    const ref = window.db.ref("rooms/" + roomCode);
+    const ref = db.ref("rooms/" + roomCode);
     const snap = await refGet(ref);
     if (!snap.exists()) return;
     const data = snap.val();
