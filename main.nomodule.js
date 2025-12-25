@@ -210,17 +210,27 @@
     if (spies && typeof spies === "object") return Object.keys(spies);
     return [];
   }
+  function getSpyUidsFromRoom(room) {
+    const spies = new Set(getSpyUids$1(room?.spies));
+    Object.entries(room?.playerRoles || {}).forEach(_ref => {
+      let [uid, role] = _ref;
+      if (role && (role.isSpy || role.roleType === "spy" || role.isImpostor)) {
+        spies.add(uid);
+      }
+    });
+    return Array.from(spies);
+  }
   function isVotingStateMachineActive(room) {
     const votingStatus = room?.voting?.status;
     const gamePhase = room?.game?.phase;
     return votingStatus === "in_progress" || gamePhase === "voting" || gamePhase === "results";
   }
   function getAliveUids(playersObj) {
-    return Object.entries(playersObj || {}).filter(_ref => {
-      let [, player] = _ref;
+    return Object.entries(playersObj || {}).filter(_ref2 => {
+      let [, player] = _ref2;
       return isPlayerAlive(player);
-    }).map(_ref2 => {
-      let [uid] = _ref2;
+    }).map(_ref3 => {
+      let [uid] = _ref3;
       return uid;
     });
   }
@@ -233,6 +243,45 @@
       }
     });
     return alive;
+  }
+  function evaluateWinConditions(roomData) {
+    const players = roomData?.players || {};
+    const playerRoles = roomData?.playerRoles || {};
+    const aliveUids = getAlivePlayersFromState(players, playerRoles);
+    const missingPlayerEntries = Object.keys(playerRoles).filter(uid => !(uid in players));
+    if (missingPlayerEntries.length) {
+      console.warn("playerRoles contains entries missing from players; treating as alive unless eliminated", missingPlayerEntries);
+    }
+    const aliveSpies = getSpyUidsFromRoom(roomData).filter(uid => aliveUids.includes(uid)).length;
+    const aliveInnocents = Math.max(aliveUids.length - aliveSpies, 0);
+    if (aliveSpies === 0) {
+      return {
+        shouldEnd: true,
+        winner: "innocents",
+        reason: "all_spies_eliminated",
+        aliveSpies,
+        aliveInnocents,
+        aliveCount: aliveUids.length
+      };
+    }
+    if (aliveInnocents === 1 && aliveSpies >= 1 || aliveSpies > aliveInnocents) {
+      return {
+        shouldEnd: true,
+        winner: "spies",
+        reason: "parity",
+        aliveSpies,
+        aliveInnocents,
+        aliveCount: aliveUids.length
+      };
+    }
+    return {
+      shouldEnd: false,
+      winner: null,
+      reason: null,
+      aliveSpies,
+      aliveInnocents,
+      aliveCount: aliveUids.length
+    };
   }
   function buildExpectedVotersMap(uids) {
     return uids.reduce((acc, id) => {
@@ -287,8 +336,8 @@
     const roles = data?.playerRoles || {};
     const players = data?.players || {};
     const spyCandidates = new Set(getSpyUids$1(data?.spies));
-    Object.entries(roles).forEach(_ref3 => {
-      let [uid, role] = _ref3;
+    Object.entries(roles).forEach(_ref4 => {
+      let [uid, role] = _ref4;
       if (!role) return;
       if (role.isSpy || role.roleType === "spy" || role.isImpostor) {
         spyCandidates.add(uid);
@@ -794,8 +843,8 @@
       }
       const settings = settingsSnap.val();
       const allPlayers = playersSnap.val() || {};
-      const players = Object.fromEntries(Object.entries(allPlayers).filter(_ref4 => {
-        let [_, p] = _ref4;
+      const players = Object.fromEntries(Object.entries(allPlayers).filter(_ref5 => {
+        let [_, p] = _ref5;
         return p && p.name;
       }));
       if (Object.keys(players).length !== Object.keys(allPlayers).length) {
@@ -805,8 +854,8 @@
       if (playerCount < MIN_PLAYERS$1) {
         throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
       }
-      const revivedPlayers = Object.fromEntries(Object.entries(players).map(_ref5 => {
-        let [uid, player] = _ref5;
+      const revivedPlayers = Object.fromEntries(Object.entries(players).map(_ref6 => {
+        let [uid, player] = _ref6;
         return [uid, {
           ...player,
           status: "alive",
@@ -843,8 +892,8 @@
         [`${roomBasePath}/gameOver`]: null,
         [`${roomBasePath}/final`]: null
       };
-      Object.entries(revivedPlayers).forEach(_ref6 => {
-        let [uid, player] = _ref6;
+      Object.entries(revivedPlayers).forEach(_ref7 => {
+        let [uid, player] = _ref7;
         updatePayload[`${roomBasePath}/players/${uid}`] = player;
       });
       await window.db.ref().update(updatePayload);
@@ -867,8 +916,8 @@
         ...players
       };
       const revivedPlayers = {};
-      Object.entries(mergedPlayers).forEach(_ref7 => {
-        let [uid, player] = _ref7;
+      Object.entries(mergedPlayers).forEach(_ref8 => {
+        let [uid, player] = _ref8;
         if (!player?.name) {
           throw new Error("Tüm oyuncuların bir adı olmalıdır.");
         }
@@ -912,8 +961,8 @@
         [`${roomBasePath}/gameOver`]: null,
         [`${roomBasePath}/final`]: null
       };
-      Object.entries(revivedPlayers).forEach(_ref8 => {
-        let [uid, player] = _ref8;
+      Object.entries(revivedPlayers).forEach(_ref9 => {
+        let [uid, player] = _ref9;
         updatePayload[`${roomBasePath}/players/${uid}`] = player;
       });
       await window.db.ref().update(updatePayload);
@@ -941,8 +990,8 @@
           return;
         }
         const playersObj = playersData || {};
-        const playersArr = Object.entries(playersObj).map(_ref9 => {
-          let [uid, p] = _ref9;
+        const playersArr = Object.entries(playersObj).map(_ref0 => {
+          let [uid, p] = _ref0;
           return {
             uid,
             ...p
@@ -963,8 +1012,8 @@
 
         // Kurucu ayrıldıysa ve oyun başlamadıysa odayı kapat
         const roomData = roomSnap.val();
-        const resolvedCreatorUid = roomData?.settings?.creatorUid || roomData?.creatorUid || Object.entries(roomData?.players || {}).find(_ref0 => {
-          let [, player] = _ref0;
+        const resolvedCreatorUid = roomData?.settings?.creatorUid || roomData?.creatorUid || Object.entries(roomData?.players || {}).find(_ref1 => {
+          let [, player] = _ref1;
           return Boolean(player?.isCreator);
         })?.[0];
 
@@ -1204,10 +1253,10 @@
         const preserveVotes = data.voting?.votes;
         if (guessValue === correctAnswer) {
           const guessWord = gameType === "category" ? "rolü" : "konumu";
-          getSpyNamesForMessage(roomCode, data).then(_ref1 => {
+          getSpyNamesForMessage(roomCode, data).then(_ref10 => {
             let {
               spyNames
-            } = _ref1;
+            } = _ref10;
             const spyIntro = formatSpyIntro$1(spyNames);
             const message = `${spyIntro} ${guessWord} ${guessValue} olarak doğru tahmin etti ve oyunu kazandı!`;
             const winUpdate = {
@@ -1288,10 +1337,10 @@
             const guessWord = gameType === "category" ? "rolü" : "konumu";
             const actualWord = gameType === "category" ? "rol" : "konum";
             appendFinalSpyInfo(updates, data);
-            getSpyNamesForMessage(roomCode, data).then(_ref10 => {
+            getSpyNamesForMessage(roomCode, data).then(_ref11 => {
               let {
                 spyNames
-              } = _ref10;
+              } = _ref11;
               const spyIntro = formatSpyIntro$1(spyNames);
               const message = `${spyIntro} ${guessWord} ${guessValue} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
               ref.update(updates).then(() => finalizeGameOver(roomCode, data, {
@@ -1353,8 +1402,8 @@
         const expectedCount = expectedVoters.length;
         if (!expectedCount) return;
         const votes = votingState.votes || {};
-        const validVotes = Object.entries(votes).reduce((acc, _ref11) => {
-          let [voter, target] = _ref11;
+        const validVotes = Object.entries(votes).reduce((acc, _ref12) => {
+          let [voter, target] = _ref12;
           if (expectedSet.has(voter) && expectedSet.has(target)) {
             acc[voter] = target;
           }
@@ -1396,8 +1445,8 @@
         const normalizedExpectedVotersMap = votingState.expectedVoters && Object.keys(votingState.expectedVoters || {}).length ? votingState.expectedVoters : buildExpectedVotersMap(derivedExpectedVoters);
         const endsAt = typeof votingState.endsAt === "number" ? votingState.endsAt : null;
         const votesMap = votingState.votes || {};
-        const validVotes = Object.entries(votesMap).reduce((acc, _ref12) => {
-          let [voter, target] = _ref12;
+        const validVotes = Object.entries(votesMap).reduce((acc, _ref13) => {
+          let [voter, target] = _ref13;
           if (derivedExpectedSet.has(voter) && derivedExpectedSet.has(target)) {
             acc[voter] = target;
           }
@@ -1459,49 +1508,36 @@
             }
           };
         }
-
-        // Daha güvenli: canlıları direkt players status'ünden say (role sync hatalarından etkilenmez)
         const aliveUids = getAliveUids(nextPlayers);
-        const remainingSpies = getSpyUids$1(room.spies).filter(id => aliveUids.includes(id));
-        const spyAlive = remainingSpies.length;
-        const aliveCount = aliveUids.length;
-        const innocentAlive = Math.max(aliveCount - spyAlive, 0);
-        let nextStatus = room.status;
-        let nextWinner = room.winner;
-        let nextGamePhase = "results";
+        const remainingSpies = getSpyUidsFromRoom(room).filter(id => aliveUids.includes(id));
+        const evaluation = evaluateWinConditions({
+          ...room,
+          players: nextPlayers});
         const finalUpdates = {};
-
-        // 🎯 KAZANMA KOŞULLARI (DOĞRU HALİ)
-        if (spyAlive === 0) {
+        let nextStatus = room.status;
+        let nextWinner = room.winner ?? null;
+        let nextGamePhase = evaluation.shouldEnd ? "ended" : "playing";
+        if (evaluation.shouldEnd) {
+          const winnerValue = evaluation.winner === "spies" ? "spy" : evaluation.winner === "innocents" ? "innocent" : evaluation.winner;
           nextStatus = "finished";
-          nextWinner = "innocent";
+          nextWinner = winnerValue;
+          if (evaluation.winner === "spies") {
+            finalUpdates.spyParityWin = true;
+          }
           appendFinalSpyInfo(finalUpdates, room);
           nextGamePhase = "ended";
-        } else if (innocentAlive <= 1) {
-          nextStatus = "finished";
-          nextWinner = "spy";
-          finalUpdates.spyParityWin = true;
-          nextGamePhase = "ended";
         } else {
-          nextStatus = room.status;
           nextWinner = null;
-          nextGamePhase = "results";
         }
-
-        // Harmless sanity scenarios around vote resolution (counts derived from getAliveUids/getSpyUids)
-        console.assert(!(spyAlive === 2 && innocentAlive === 1 && !isTie && eliminatedUid && !eliminatedRole?.isSpy) || nextWinner === "spy", "2 spies + 2 innocents, innocent eliminated -> spies should win");
-        console.assert(!(spyAlive === 1 && innocentAlive === 1 && !isTie && eliminatedUid && !eliminatedRole?.isSpy) || nextWinner === "spy", "1 spy + 2 innocents, innocent eliminated -> spies should win");
-        console.assert(!(spyAlive === 1 && innocentAlive === 2 && !isTie && eliminatedUid && eliminatedRole?.isSpy) || nextStatus !== "finished", "2 spies + 2 innocents, spy eliminated -> game should continue");
-        console.assert(spyAlive !== 0 || nextWinner === "innocent" && nextStatus === "finished", "Any state with 0 spies -> innocents should win");
         const resultPayload = {
           ...(votingState.result || {}),
           round: votingRound,
           finalizedAt,
           tie: isTie,
           votes: validVotes,
-          aliveCount,
-          spyAlive,
-          innocentAlive,
+          aliveCount: evaluation.aliveCount,
+          spyAlive: evaluation.aliveSpies,
+          innocentAlive: evaluation.aliveInnocents,
           roundId: room.roundId || null
         };
 
@@ -1522,6 +1558,7 @@
             resultPayload.revealSpies = false;
           }
         }
+        if (evaluation.reason) resultPayload.winReason = evaluation.reason;
         if (reason) resultPayload.reason = reason;
         if (!isTie && eliminatedUid) {
           resultPayload.eliminatedUid = eliminatedUid;
@@ -1550,6 +1587,7 @@
             startedBy: null,
             votes: null,
             expectedVoters: normalizedExpectedVotersMap,
+            continuationPending: true,
             continueAcks: {},
             result: resultPayload
           },
@@ -1578,7 +1616,8 @@
         const finalizedAt = votingResult?.finalizedAt;
         const phase = roomData?.phase;
         const gamePhase = roomData?.game?.phase;
-        const isEnded = roomData?.status === "finished" || phase === "ended" || gamePhase === "ended";
+        const evaluation = evaluateWinConditions(roomData);
+        const isEnded = evaluation.shouldEnd;
         console.log("[finalizeVoting] transaction result", {
           committed: result.committed,
           roomId: roomCode,
@@ -1601,16 +1640,14 @@
             warnings
           });
         }
-
-        // ✅ Sadece oyun bittiyse ve elimizde elimine edilen varsa gameOver'u finalize et
-        if (roomData?.status !== "finished") return;
+        if (!evaluation.shouldEnd) return;
         if (!votingResult?.eliminatedUid) return;
         const eliminatedName = votingResult.eliminatedName || votingResult.eliminatedUid;
-        const winner = normalizeWinnerValue(roomData.winner === "innocent" ? "innocents" : roomData.winner === "spy" ? "spies" : roomData.winner);
-        return getSpyNamesForMessage(roomCode, roomData).then(_ref13 => {
+        const winner = normalizeWinnerValue(evaluation.winner);
+        return getSpyNamesForMessage(roomCode, roomData).then(_ref14 => {
           let {
             spyNames
-          } = _ref13;
+          } = _ref14;
           const spyIntro = formatSpyIntro$1(spyNames);
           const message = winner === "innocents" ? `Sahtekar ${eliminatedName} elendi! Oyunu masumlar kazandı!` : `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`;
           return finalizeGameOver(roomCode, roomData, {
@@ -1662,24 +1699,25 @@
         if (!room) return room;
         const blockLegacyVotingUpdates = !!room?.voting?.status;
         const phase = room.game?.phase || room.phase;
-        if (phase !== "results") return room;
+        const votingStatus = room.voting?.status;
+        let continuationPending = !!room.voting?.continuationPending;
+        if (!continuationPending && phase !== "results" && votingStatus !== "resolved") return room;
         const roles = room.playerRoles || {};
         const players = room.players || {};
-        const playerStatus = typeof players[userUid]?.status === "string" ? players[userUid].status : "alive";
-        if (playerStatus !== "alive") return room;
         const alivePlayers = getActivePlayers(roles, players);
         const aliveUids = alivePlayers.map(p => p.uid);
-        if (!aliveUids.includes(userUid)) return room;
         const continueAcks = {
           ...(room.voting?.continueAcks || {})
         };
         continueAcks[userUid] = true;
+        continuationPending = room.voting?.continuationPending !== false || !!continueAcks[userUid];
         const allAcked = aliveUids.length > 0 && aliveUids.every(id => continueAcks[id]);
         const nextRoom = {
           ...room,
           voting: {
             ...(room.voting || {}),
             status: room.voting?.status || "resolved",
+            continuationPending,
             continueAcks
           }
         };
@@ -1691,6 +1729,7 @@
             expectedVoters: null,
             votes: null,
             result: null,
+            continuationPending: false,
             continueAcks: null
           };
           if (!blockLegacyVotingUpdates) {
@@ -1729,7 +1768,9 @@
         }
         nextRoom.voting = {
           status: "idle",
-          startedBy: {}
+          startedBy: {},
+          continuationPending: false,
+          continueAcks: null
         };
         nextRoom.phase = "clue";
         nextRoom.game = {
@@ -1750,7 +1791,7 @@
         if (getServerNow() < guessState.endsAt) return;
         const aliveUids = getAlivePlayersFromState(data?.players, data?.playerRoles);
         const aliveCount = aliveUids.length;
-        const spyAlive = getSpyUids$1(data?.spies).filter(id => aliveUids.includes(id)).length;
+        const spyAlive = getSpyUidsFromRoom(data).filter(id => aliveUids.includes(id)).length;
         const updates = {
           guess: null
         };
@@ -1766,10 +1807,10 @@
         }
         const updatePromise = ref.update(updates);
         if (updates.status === "finished") {
-          updatePromise.then(() => getSpyNamesForMessage(roomCode, data).then(_ref14 => {
+          updatePromise.then(() => getSpyNamesForMessage(roomCode, data).then(_ref15 => {
             let {
               spyNames
-            } = _ref14;
+            } = _ref15;
             const spyIntro = formatSpyIntro$1(spyNames);
             return finalizeGameOver(roomCode, data, {
               winner: "innocents",
@@ -1795,14 +1836,14 @@
         const alivePlayers = getActivePlayers(data.playerRoles, data.players);
         const players = alivePlayers.map(p => p.uid);
         const votes = data.voting?.votes || data.votes || {};
-        const voteEntries = Object.entries(votes).filter(_ref15 => {
-          let [voter, target] = _ref15;
+        const voteEntries = Object.entries(votes).filter(_ref16 => {
+          let [voter, target] = _ref16;
           return players.includes(voter) && players.includes(target);
         });
         if (voteEntries.length < players.length) return;
         const counts = {};
-        voteEntries.forEach(_ref16 => {
-          let [, t] = _ref16;
+        voteEntries.forEach(_ref17 => {
+          let [, t] = _ref17;
           counts[t] = (counts[t] || 0) + 1;
         });
         console.log("[tallyVotes] Vote counts:", counts);
@@ -1825,7 +1866,7 @@
         const eliminatedName = data.voting?.snapshot?.names?.[voted] || data.players?.[voted]?.name || rosterEntry?.name || voted;
         const isSpy = votedRole ? votedRole.isSpy : false;
         const remainingPlayers = Object.keys(data.playerRoles || {}).filter(uid => uid !== voted);
-        const remainingSpies = getSpyUids$1(data.spies).filter(id => remainingPlayers.includes(id));
+        const remainingSpies = getSpyUidsFromRoom(data).filter(id => remainingPlayers.includes(id));
         console.log(`[tallyVotes] Player ${voted} received ${counts[voted]} votes. Eliminated: ${!isSpy}`);
         const voteResult = {
           voted,
@@ -1855,19 +1896,49 @@
             };
           }
         }
+        const nextPlayers = {
+          ...(data.players || {})
+        };
+        const eliminatedPlayerEntry = nextPlayers[voted] || {};
+        nextPlayers[voted] = {
+          ...eliminatedPlayerEntry,
+          status: "eliminated",
+          eliminatedAt: getServerNow()
+        };
         const updates = {
           voteResult,
-          votingStarted: false
+          votingStarted: false,
+          players: nextPlayers
         };
+        if (data.eliminated) {
+          updates.eliminated = {
+            ...data.eliminated,
+            [voted]: {
+              name: eliminatedName,
+              isCreator: !!eliminatedPlayerEntry.isCreator,
+              eliminatedAt: getServerNow()
+            }
+          };
+        }
         if (votingResultUpdate) {
           updates.voting = {
             ...data.voting,
             result: votingResultUpdate
           };
         }
-        if (isSpy && remainingSpies.length === 0) {
+        const evaluation = evaluateWinConditions({
+          ...data,
+          players: nextPlayers,
+          eliminated: updates.eliminated || data.eliminated
+        });
+        if (evaluation.shouldEnd) {
           updates.status = "finished";
-          updates.winner = "innocent";
+          updates.winner = evaluation.winner === "spies" ? "spy" : evaluation.winner === "innocents" ? "innocent" : evaluation.winner;
+          updates.phase = "ended";
+          updates.game = {
+            ...(data.game || {}),
+            phase: "ended"
+          };
           appendFinalSpyInfo(updates, data);
         }
         ref.update(updates);
@@ -1904,17 +1975,17 @@
           const latestData = freshSnap.val();
           const activePlayers = getActivePlayers(latestData.playerRoles, latestData.players);
           const activeUids = activePlayers.map(p => p.uid);
-          const remainingSpies = getSpyUids$1(latestData.spies).filter(id => activeUids.includes(id));
+          const remainingSpies = getSpyUidsFromRoom(latestData).filter(id => activeUids.includes(id));
           if (remainingSpies.length === 0) {
             const updates = appendFinalSpyInfo({
               status: "finished",
               winner: "innocent"
             }, latestData);
             const eliminatedName = playerInfo?.name || votedUid;
-            ref.update(updates).then(() => getSpyNamesForMessage(roomCode, latestData).then(_ref17 => {
+            ref.update(updates).then(() => getSpyNamesForMessage(roomCode, latestData).then(_ref18 => {
               let {
                 spyNames
-              } = _ref17;
+              } = _ref18;
               const spyIntro = formatSpyIntro$1(spyNames);
               return finalizeGameOver(roomCode, latestData, {
                 winner: "innocents",
@@ -1949,55 +2020,35 @@
         if (!data) return true;
         if (data?.status === "finished") return true;
         if (isVotingOrResultsPhase(data)) return true;
-        const activePlayers = getActivePlayers(data.playerRoles, data.players);
-        const activeUids = activePlayers.map(p => p.uid);
-        const activeSpies = getSpyUids$1(data.spies).filter(s => activeUids.includes(s));
-        const innocentAlive = activePlayers.length - activeSpies.length;
-        return innocentAlive > 1; // sadece 1 veya daha az masum kalınca parity kontrolü
+        return false;
       };
       const ref = window.db.ref("rooms/" + roomCode);
       const dataPromise = latestData ? Promise.resolve(latestData) : ref.get().then(snap => snap.exists() ? snap.val() : null);
       return dataPromise.then(data => {
         if (shouldExitEarly(data)) return false;
-        const activePlayers = getActivePlayers(data.playerRoles, data.players);
-        const activeUids = activePlayers.map(p => p.uid);
-        const activeSpies = getSpyUids$1(data.spies).filter(s => activeUids.includes(s));
-        const spyAlive = activeSpies.length;
-        const innocentAlive = activePlayers.length - spyAlive;
-        if (spyAlive === 0) {
-          const updates = appendFinalSpyInfo({
-            status: "finished",
-            winner: "innocents"
-          }, data);
-          return ref.update(updates).then(() => getSpyNamesForMessage(roomCode, data)).then(_ref18 => {
-            let {
-              spyNames
-            } = _ref18;
-            return finalizeGameOver(roomCode, data, {
-              winner: "innocents",
-              reason: "parity",
-              message: `${formatSpyIntro$1(spyNames)} arasından son sahtekar elendi ve oyunu masumlar kazandı!`
-            });
-          }).then(() => true);
-        }
-        if (innocentAlive <= 1 && spyAlive > 0) {
-          const updates = appendFinalSpyInfo({
-            status: "finished",
-            winner: "spy",
-            spyParityWin: true
-          }, data);
-          return ref.update(updates).then(() => getSpyNamesForMessage(roomCode, data)).then(_ref19 => {
-            let {
-              spyNames
-            } = _ref19;
-            return finalizeGameOver(roomCode, data, {
-              winner: "spies",
-              reason: "parity",
-              message: `${formatSpyIntro$1(spyNames)} sayıca üstünlük sağladı ve oyunu kazandı!`
-            });
-          }).then(() => true);
-        }
-        return false;
+        const evaluation = evaluateWinConditions(data);
+        if (!evaluation.shouldEnd) return false;
+        const winnerValue = evaluation.winner === "spies" ? "spy" : evaluation.winner === "innocents" ? "innocent" : evaluation.winner;
+        const updates = appendFinalSpyInfo({
+          status: "finished",
+          winner: winnerValue,
+          spyParityWin: evaluation.winner === "spies",
+          game: {
+            ...(data.game || {}),
+            phase: "ended"
+          },
+          phase: "ended"
+        }, data);
+        return ref.update(updates).then(() => getSpyNamesForMessage(roomCode, data)).then(_ref19 => {
+          let {
+            spyNames
+          } = _ref19;
+          return finalizeGameOver(roomCode, data, {
+            winner: evaluation.winner,
+            reason: evaluation.reason || "parity",
+            message: evaluation.winner === "innocents" ? `${formatSpyIntro$1(spyNames)} arasından son sahtekar elendi ve oyunu masumlar kazandı!` : `${formatSpyIntro$1(spyNames)} sayıca üstünlük sağladı ve oyunu kazandı!`
+          });
+        }).then(() => true);
       });
     },
     nextRound: function (roomCode) {
@@ -2412,6 +2463,7 @@
     if (roomData?.voting?.status === "in_progress" || gamePhase === "voting" || gamePhase === "results") {
       return false;
     }
+    if (roomData?.voting?.continuationPending) return false;
     const roundKey = getRoundKey(roomData);
     const alreadyTriggered = endRoundTriggeredForRound === roundKey;
     if (alreadyTriggered) return true;
@@ -2434,9 +2486,18 @@
     const normalizedSpyNames = uniqueNames((spyNames || []).map(name => sanitizeName(name))).filter(Boolean);
     const impostorWinnersText = formatSpyWinnersText(normalizedSpyNames);
     if (eliminatedIsImpostor) {
+      const impostorsRemaining = Math.max(0, aliveImpostorsCount || 0);
+      const impostorsAfterElimination = impostorsRemaining;
+      if (impostorsAfterElimination <= 0) {
+        return {
+          message: `Oylama sonucunda Sahtekar ${safeName} elendi ve oyunu masumlar kazandı!`,
+          gameEnded: true,
+          impostorVictory: false
+        };
+      }
       return {
-        message: `Oylama sonucunda Sahtekar ${safeName} elendi ve oyunu masumlar kazandı!`,
-        gameEnded: true,
+        message: `Sahtekar ${safeName} elendi! Fakat henüz oyun bitmiş değil...`,
+        gameEnded: false,
         impostorVictory: false
       };
     }
@@ -2526,6 +2587,7 @@
     const renderKey = JSON.stringify({
       result: resolvedResultToRender,
       context,
+      continuationPending: !!roomData?.voting?.continuationPending,
       continueAcks: roomData?.voting?.continueAcks || null,
       phase: resolveGamePhase(roomData)
     });
@@ -2574,16 +2636,20 @@
     const hasAcked = !!continueAcks[currentUid];
     const isEliminatedPlayer = currentUid === eliminatedUidFromResult || !isAliveCurrentPlayer;
     const isResultsPhase = currentPhase === "results";
-    const waitingText = filteredAliveUids.length > 0 ? `Devam için onay bekleniyor (${ackCount}/${filteredAliveUids.length})` : null;
+    const resolvedVotingState = roomData?.voting?.status === "resolved";
+    const continuationPending = !!roomData?.voting?.continuationPending;
+    const isContinuationOverlayActive = isResultsPhase || continuationPending || resolvedVotingState;
+    const waitingText = continuationPending && filteredAliveUids.length > 0 ? `Devam için onay bekleniyor (${ackCount}/${filteredAliveUids.length})` : null;
     const cls = outcome.impostorVictory ? "impostor-animation" : "innocent-animation";
     const msgDiv = document.createElement("div");
     msgDiv.className = "result-message";
     overlay.innerHTML = "";
     const actionsEl = document.getElementById("gameActions");
     const spyInfo = getSpyInfo(roomData);
-    const resolvedMessage = isResultsPhase && !isAliveCurrentPlayer ? "Elendin! Oyun devam ediyor." : resolveGameOverMessage(roomData, outcome.message, spyInfo);
+    const resolvedMessage = isContinuationOverlayActive && !outcome.gameEnded && !isAliveCurrentPlayer ? "Elendin! Oyun devam ediyor." : resolveGameOverMessage(roomData, outcome.message, spyInfo);
     msgDiv.textContent = resolvedMessage;
-    if (!(isResultsPhase && !isAliveCurrentPlayer)) {
+    const shouldRevealSpies = outcome.gameEnded || outcome.impostorVictory || roomData?.status === "finished" || resolveGamePhase(roomData) === "ended";
+    if (shouldRevealSpies && !(isContinuationOverlayActive && !isAliveCurrentPlayer)) {
       appendSpyNamesLine(msgDiv, roomData, {
         spyInfo,
         primaryMessage: resolvedMessage
@@ -2634,7 +2700,7 @@
           handleRoomGone("manual exit");
         });
       });
-    } else if (isResultsPhase) {
+    } else if (isContinuationOverlayActive) {
       if (waitingText) {
         const info = document.createElement("div");
         info.className = "result-subtext";
@@ -2651,7 +2717,7 @@
           handleRestart(restartBtn);
         });
       }
-      const shouldShowContinueButton = isAliveCurrentPlayer && eliminatedUidFromResult !== currentUid;
+      const shouldShowContinueButton = continuationPending;
       if (shouldShowContinueButton) {
         const btn = document.createElement("button");
         btn.id = "continueBtn";
@@ -3302,7 +3368,7 @@
         const isEliminatedPlayer = roomData?.eliminated && roomData.eliminated[currentUid] || roomData?.players?.[currentUid]?.status === "eliminated";
         const isGameFinished = roomData?.status === "finished" || roomData?.spyParityWin;
         const isPlayerAliveForActions = isCurrentPlayerEligible(roomData);
-        const shouldShowEliminationOverlay = isEliminatedPlayer && !isGameFinished && !voteEndsGame;
+        const shouldShowEliminationOverlay = isEliminatedPlayer && !isGameFinished && !voteEndsGame && !roundSafeGameOver;
         if (shouldShowEliminationOverlay) {
           wasEliminated = true;
           showEliminationOverlay(roomCode);
@@ -3364,7 +3430,6 @@
         const exitBtn = document.getElementById("backToHomeBtn");
         const resolvedPhase = resolveGamePhase(roomData);
         const resolvedWinner = roomData?.winner;
-
         if (roomData && resolvedPhase === "ended" && (resolvedWinner === "spy" || resolvedWinner === "spies")) {
           const resolvedSpyVoteResult = getResolvedVoteResult(roomData);
           const resolvedSpyVoteFallback = !resolvedSpyVoteResult && roomData?.voting?.status === "resolved" && roomData?.voting?.result ? normalizeVotingResult(roomData.voting.result) : null;
@@ -3460,7 +3525,10 @@
           const currentPhase = resolveGamePhase(roomData);
           const overlayEl = document.getElementById("resultOverlay");
           const isEliminationOverlayActive = overlayEl?.dataset.overlayType === "elimination";
-          const shouldHideResultOverlay = overlayEl && currentPhase !== "results" && roomData.status === "started" && !roundSafeGameOver && !isEliminationOverlayActive;
+          const votingStatus = roomData?.voting?.status || "idle";
+          const continuationPending = !!roomData?.voting?.continuationPending;
+          const isResultsPhase = currentPhase === "results";
+          const shouldHideResultOverlay = overlayEl && roomData.status === "started" && !roundSafeGameOver && !isEliminationOverlayActive && !isResultsPhase && votingStatus !== "resolved" && !continuationPending;
           if (shouldHideResultOverlay) {
             overlayEl.classList.add("hidden");
             overlayEl.classList.remove("impostor-animation", "innocent-animation");
@@ -3568,7 +3636,6 @@
           }
           const startBtn = document.getElementById("startVotingBtn");
           const waitingEl = document.getElementById("waitingVoteStart");
-          const votingStatus = roomData.voting?.status || "idle";
           const startedBy = roomData.voting?.startedBy || {};
           const alivePlayers = getActivePlayers(roomData.playerRoles, roomData.players).map(p => ({
             ...p,
@@ -3658,9 +3725,9 @@
           const hasElimination = activeVoteResult && !activeVoteResult.tie && (activeVoteResult.voted || activeVoteResult.eliminatedUid);
           const endRoundTriggered = triggerEndRoundIfNeeded(roomData, activeVoteResult);
           const nextRoundBtn = document.getElementById("nextRoundBtn");
-          const shouldShowNextRound = isPlayerAliveForActions && (roomData?.voting?.status === "resolved" || currentPhase === "results");
+          const shouldShowNextRound = isPlayerAliveForActions && (roomData?.voting?.status === "resolved" || currentPhase === "results" || roomData?.voting?.continuationPending);
           nextRoundBtn?.classList.toggle("hidden", !shouldShowNextRound);
-          const shouldShowVoteOutcome = roomData?.voting?.status === "resolved" || currentPhase === "results";
+          const shouldShowVoteOutcome = roomData?.voting?.status === "resolved" || currentPhase === "results" || roomData?.voting?.continuationPending;
           const fallbackOutcomeMessage = resolvedOutcomeContext?.outcome?.message;
           if (activeVoteResult) {
             if (activeVoteResult.tie) {
