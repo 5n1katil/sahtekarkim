@@ -30,6 +30,8 @@ const firebaseCompatScripts = [
 
 let firebaseCompat;
 let firebaseCompatPromise;
+let authInstance;
+let dbInstance;
 
 const waitForWindowFirebase = () =>
   new Promise((resolve) => {
@@ -98,56 +100,58 @@ const loadFirebaseCompat = () => {
     }
 
     const compat = await waitForWindowFirebase();
-    if (!compat) {
-      throw new Error("Firebase SDK failed to load in firebase.js. CDN scripts may be blocked.");
-    }
-
-    firebaseCompat = compat;
-    return firebaseCompat;
-  })();
-
-  return firebaseCompatPromise;
+  console.error("================ firebase.js ================");
+  console.error(message);
+  console.error("=============================================");
+  if (typeof alert === "function") alert(message);
 };
 
-const initializeFirebase = async () => {
-  const compat = await loadFirebaseCompat();
+const firebaseConfig = {
+  apiKey: "AIzaSyBX_Tme2B-2g2Rtj53WBfgmZ5QsE0UN1Bw",
+  authDomain: "detektif-c17bb.firebaseapp.com",
+  databaseURL: "https://detektif-c17bb-default-rtdb.firebaseio.com",
+  projectId: "detektif-c17bb",
+  storageBucket: "detektif-c17bb.appspot.com",
+  messagingSenderId: "422256375848",
+  appId: "1:422256375848:web:873b0a6372c992accf9d1d",
+};
 
-  if (!compat) {
-    throw new Error("Firebase SDK failed to load in firebase.js. CDN scripts may be blocked.");
-  }
+const CDN_VERSION = "10.12.0";
+const firebaseCompatScripts = [
+  `https://www.gstatic.com/firebasejs/${CDN_VERSION}/firebase-app-compat.js`,
+  `https://www.gstatic.com/firebasejs/${CDN_VERSION}/firebase-auth-compat.js`,
+  `https://www.gstatic.com/firebasejs/${CDN_VERSION}/firebase-database-compat.js`,
+];
 
-  if (!compat.apps || !compat.apps.length) {
-    compat.initializeApp(firebaseConfig);
-  }
+let firebaseCompat;
+let firebaseCompatPromise;
+let authInstance;
+let dbInstance;
 
-  const auth = compat.auth();
-  const db = compat.database();
-
-  window.auth = auth;
-  window.db = db;
-  window.firebase = compat;
-
-  // 3.1) Server time offset helper
-  let serverTimeOffset = 0;
-  const offsetRef = db.ref(".info/serverTimeOffset");
-
-  const serverTime = {
-    offset: serverTimeOffset,
-    now: () => Date.now() + serverTimeOffset,
-    getOffset: () => serverTimeOffset,
-  };
-
-  offsetRef.on("value", (snap) => {
-    const offset = snap.val();
-    if (typeof offset === "number") {
-      serverTimeOffset = offset;
-      serverTime.offset = offset;
+const waitForWindowFirebase = () =>
+  new Promise((resolve) => {
+    if (typeof window === "undefined") {
+      resolve(undefined);
+      return;
     }
-  });
 
-  window.serverTime = serverTime;
+    const existing = window.firebase;
+    if (existing) {
+      resolve(existing);
+      return;
+    }
 
-  // Firestore'un modüler addDoc API'sini bekleyen eski önbellekler için uyarı niteliğinde bir koruma ekleyelim.
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts += 1;
+      if (window.firebase) {
+        clearInterval(timer);
+        resolve(window.firebase);
+      } else if (attempts > 50) {
+        clearInterval(timer);
+        resolve(undefined);
+      }
+    }, 50);
   // Böylece tarayıcı, tanımsız referans hatası fırlatmak yerine anlaşılır bir hata verir.
   if (typeof window.addDoc !== "function") {
     window.addDoc = () => {
@@ -182,6 +186,7 @@ const initializeFirebase = async () => {
   window.authReady = authReady;
 
   return { compat, auth, db, authReady };
+  return { compat, auth, db, authReady };
 };
 
 const firebaseInitPromise = initializeFirebase()
@@ -206,8 +211,8 @@ if (typeof window !== "undefined") {
 }
 
 const requireFirebaseReady = () => firebaseInitPromise;
-const getAuth = async () => (await requireFirebaseReady()).auth;
-const getDb = async () => (await requireFirebaseReady()).db;
+const getAuth = () => authInstance;
+const getDb = () => dbInstance;
 
 export default firebaseCompat;
 export { firebaseCompat, firebaseInitPromise, loadFirebaseCompat, getAuth, getDb, requireFirebaseReady };
