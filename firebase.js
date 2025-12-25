@@ -121,10 +121,26 @@ const initializeFirebase = async () => {
   return { compat, auth, db, authReady };
 };
 
-const firebaseInitPromise = initializeFirebase().catch((err) => {
-  logInitFailure(err);
-  throw err;
-});
+const firebaseInitPromise = initializeFirebase()
+  .then((result) => {
+    window.firebaseInitPromise = firebaseInitPromise;
+    return result;
+  })
+  .catch((err) => {
+    window.firebaseInitPromise = Promise.reject(err);
+    logInitFailure(err);
+    window.dispatchEvent(
+      new CustomEvent("firebase-init-failed", {
+        detail: err,
+      })
+    );
+    throw err;
+  });
+
+// Ortak kullanıma aç
+if (typeof window !== "undefined") {
+  window.firebaseInitPromise = firebaseInitPromise;
+}
 
 export default firebaseCompat;
 export { firebaseCompat, firebaseInitPromise, loadFirebaseCompat };
