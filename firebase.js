@@ -1,10 +1,11 @@
 // firebase.js
 // -------------------------
-// Firebase compat setup using dynamic module-friendly imports
+// Firebase compat setup using bundled npm modules
 // -------------------------
 
-const FIREBASE_VERSION = "10.12.0";
-const FIREBASE_CDN_BASE = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/`;
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
+import "firebase/compat/database";
 
 const logInitFailure = (err) => {
   const message = `FIREBASE INIT FAILURE (firebase.js): ${err?.message || err}`;
@@ -14,36 +15,22 @@ const logInitFailure = (err) => {
   if (typeof alert === "function") alert(message);
 };
 
-let firebaseCompat;
+let firebaseCompat = firebase;
 
 const loadFirebaseCompat = async () => {
   if (firebaseCompat) return firebaseCompat;
 
-  let existingCompat =
-    typeof firebase !== "undefined" ? firebase : typeof window !== "undefined" ? window.firebase : undefined;
+  const existingCompat = typeof window !== "undefined" ? window.firebase : undefined;
+
   if (existingCompat) {
     firebaseCompat = existingCompat;
-    return firebaseCompat;
   }
 
-  try {
-    const appModule = await import(`${FIREBASE_CDN_BASE}firebase-app-compat.js`);
-    firebaseCompat = appModule?.default || appModule?.firebase || (typeof window !== "undefined" ? window.firebase : undefined);
-
-    await Promise.all([
-      import(`${FIREBASE_CDN_BASE}firebase-auth-compat.js`),
-      import(`${FIREBASE_CDN_BASE}firebase-database-compat.js`),
-    ]);
-
-    if (!firebaseCompat && typeof window !== "undefined") {
-      firebaseCompat = window.firebase;
-    }
-
-    return firebaseCompat;
-  } catch (err) {
-    logInitFailure(err);
-    throw err;
+  if (!firebaseCompat) {
+    throw new Error("Firebase SDK failed to load in firebase.js. Modules may be missing from the bundle.");
   }
+
+  return firebaseCompat;
 };
 
 const firebaseConfig = {
