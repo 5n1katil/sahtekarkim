@@ -7,9 +7,6 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "rollup -c rollup.config.js"
   },
-  "dependencies": {
-    "firebase": "10.12.0"
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",
