@@ -23,6 +23,16 @@ function getSpyUids(spies) {
   return [];
 }
 
+function getSpyUidsFromRoom(room) {
+  const spies = new Set(getSpyUids(room?.spies));
+  Object.entries(room?.playerRoles || {}).forEach(([uid, role]) => {
+    if (role && (role.isSpy || role.roleType === "spy" || role.isImpostor)) {
+      spies.add(uid);
+    }
+  });
+  return Array.from(spies);
+}
+
 function isVotingStateMachineActive(room) {
   const votingStatus = room?.voting?.status;
   const gamePhase = room?.game?.phase;
@@ -1834,7 +1844,9 @@ finalizeVoting: function (roomCode, reason) {
 
       // Daha güvenli: canlıları direkt players status'ünden say (role sync hatalarından etkilenmez)
       const aliveUids = getAliveUids(nextPlayers);
-      const remainingSpies = getSpyUids(room.spies).filter((id) => aliveUids.includes(id));
+      const remainingSpies = getSpyUidsFromRoom(room).filter((id) =>
+        aliveUids.includes(id)
+      );
 
       const spyAlive = remainingSpies.length;
       const aliveCount = aliveUids.length;
@@ -2195,7 +2207,7 @@ finalizeVoting: function (roomCode, reason) {
 
       const aliveUids = getAlivePlayersFromState(data?.players, data?.playerRoles);
       const aliveCount = aliveUids.length;
-      const spyAlive = getSpyUids(data?.spies).filter((id) => aliveUids.includes(id)).length;
+      const spyAlive = getSpyUidsFromRoom(data).filter((id) => aliveUids.includes(id)).length;
 
       const updates = { guess: null };
       const votingResult = data.voting?.result;
@@ -2285,7 +2297,7 @@ finalizeVoting: function (roomCode, reason) {
       const remainingPlayers = Object.keys(data.playerRoles || {}).filter(
         (uid) => uid !== voted
       );
-      const remainingSpies = getSpyUids(data.spies).filter((id) =>
+      const remainingSpies = getSpyUidsFromRoom(data).filter((id) =>
         remainingPlayers.includes(id)
       );
 
@@ -2386,7 +2398,7 @@ finalizeVoting: function (roomCode, reason) {
             latestData.players
           );
           const activeUids = activePlayers.map((p) => p.uid);
-          const remainingSpies = getSpyUids(latestData.spies).filter((id) =>
+          const remainingSpies = getSpyUidsFromRoom(latestData).filter((id) =>
             activeUids.includes(id)
           );
           if (remainingSpies.length === 0) {
@@ -2440,7 +2452,9 @@ checkSpyWin: function (roomCode, latestData) {
     if (isVotingOrResultsPhase(data)) return true;
     const activePlayers = getActivePlayers(data.playerRoles, data.players);
     const activeUids = activePlayers.map((p) => p.uid);
-    const activeSpies = getSpyUids(data.spies).filter((s) => activeUids.includes(s));
+    const activeSpies = getSpyUidsFromRoom(data).filter((s) =>
+      activeUids.includes(s)
+    );
     const innocentAlive = activePlayers.length - activeSpies.length;
     return innocentAlive > 1; // sadece 1 veya daha az masum kalınca parity kontrolü
   };
@@ -2455,7 +2469,9 @@ checkSpyWin: function (roomCode, latestData) {
 
     const activePlayers = getActivePlayers(data.playerRoles, data.players);
     const activeUids = activePlayers.map((p) => p.uid);
-    const activeSpies = getSpyUids(data.spies).filter((s) => activeUids.includes(s));
+    const activeSpies = getSpyUidsFromRoom(data).filter((s) =>
+      activeUids.includes(s)
+    );
     const spyAlive = activeSpies.length;
     const innocentAlive = activePlayers.length - spyAlive;
 
