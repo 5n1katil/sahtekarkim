@@ -1838,10 +1838,13 @@ function updateRoleDisplay(myData, settings) {
         }
       const leaveBtn = document.getElementById("leaveRoomBtn");
       const exitBtn = document.getElementById("backToHomeBtn");
+        const resolvedPhase = resolveGamePhase(roomData);
+        const resolvedWinner = roomData?.winner;
+
         if (
           roomData &&
-          (roomData.spyParityWin ||
-            (roomData.status === "finished" && roomData.winner === "spy"))
+          resolvedPhase === "ended" &&
+          (resolvedWinner === "spy" || resolvedWinner === "spies")
         ) {
           const resolvedSpyVoteResult = getResolvedVoteResult(roomData);
           const resolvedSpyVoteFallback =
@@ -1883,8 +1886,8 @@ function updateRoleDisplay(myData, settings) {
         }
         if (
           roomData &&
-          roomData.status === "finished" &&
-          roomData.winner === "innocent"
+          resolvedPhase === "ended" &&
+          (resolvedWinner === "innocent" || resolvedWinner === "innocents")
         ) {
           const handledByVote = renderVoteResultOverlay(
             roomData,
