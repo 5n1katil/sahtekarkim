@@ -742,8 +742,10 @@ function updateRoleDisplay(myData, settings) {
     const isEliminatedPlayer =
       currentUid === eliminatedUidFromResult || !isAliveCurrentPlayer;
     const isResultsPhase = currentPhase === "results";
+    const resolvedVotingState = roomData?.voting?.status === "resolved";
     const continuationPending = !!roomData?.voting?.continuationPending;
-    const isContinuationOverlayActive = isResultsPhase || continuationPending;
+    const isContinuationOverlayActive =
+      isResultsPhase || continuationPending || resolvedVotingState;
     const waitingText =
       continuationPending && filteredAliveUids.length > 0
         ? `Devam için onay bekleniyor (${ackCount}/${filteredAliveUids.length})`
@@ -2027,13 +2029,16 @@ function updateRoleDisplay(myData, settings) {
         const overlayEl = document.getElementById("resultOverlay");
         const isEliminationOverlayActive =
           overlayEl?.dataset.overlayType === "elimination";
+        const votingStatus = roomData?.voting?.status;
         const continuationPending = !!roomData?.voting?.continuationPending;
+        const isResultsPhase = currentPhase === "results";
         const shouldHideResultOverlay =
           overlayEl &&
-          currentPhase !== "results" &&
           roomData.status === "started" &&
           !roundSafeGameOver &&
           !isEliminationOverlayActive &&
+          !isResultsPhase &&
+          votingStatus !== "resolved" &&
           !continuationPending;
         if (shouldHideResultOverlay) {
           overlayEl.classList.add("hidden");
