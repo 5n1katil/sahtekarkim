@@ -1,5 +1,11 @@
 import { gameLogic, getServerNow, POOLS } from './gameLogic.js';
 import {
+  firebaseInitPromise,
+  getAuth,
+  getDb,
+  requireFirebaseReady,
+} from './firebase.js';
+import {
   escapeHtml,
   getActivePlayers,
   hasInvalidChars,
@@ -14,6 +20,10 @@ import {
 if (typeof window.cleanupListener !== "function") {
   window.cleanupListener = () => {};
 }
+
+const { compat: firebase, authReady } = await requireFirebaseReady();
+const db = getDb();
+const auth = getAuth();
 
 const MIN_PLAYERS = 3;
 const DEFAULT_PLAYER_COUNT = 20; // Eski güvenlik kurallarıyla uyum için oyuncu sayısını varsayılanla gönder
@@ -111,32 +121,14 @@ let roomMissingTimeoutId = null;
 let roomMissingCounter = 0;
 let lastTieRestartAt = 0;
 function waitForAuthReady() {
-  if (window.authReady) {
-    return Promise.resolve(window.authReady).then((p) => p);
+  if (authReady) {
+    return authReady.catch((err) => {
+      console.warn("authReady beklenirken hata: ", err?.message || err);
+      return Promise.resolve();
+    });
   }
 
-  if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
-    return Promise.resolve();
-  }
-
-  return new Promise((resolve, reject) => {
-    let pollId;
-    const timeoutId = setTimeout(() => {
-      clearInterval(pollId);
-      reject(new Error("authReady not initialized in time"));
-    }, 3000);
-
-    pollId = setInterval(() => {
-      if (window.authReady) {
-        clearTimeout(timeoutId);
-        clearInterval(pollId);
-        Promise.resolve(window.authReady).then(resolve).catch(reject);
-      }
-    }, 50);
-  }).catch((err) => {
-    console.warn("authReady beklenirken hata: ", err?.message || err);
-    return Promise.resolve();
-  });
+  return Promise.resolve();
 }
 
 const authReadyPromise = waitForAuthReady();
@@ -193,14 +185,14 @@ async function handleConfirmedRoomMissing(expectedRoomCode, options = {}) {
   }
 
   if (!options.confirmedByGet && roomCode) {
-    const { exists } = await safeCheckRoomExists(window.db.ref(`rooms/${roomCode}`));
+    const { exists } = await safeCheckRoomExists(db.ref(`rooms/${roomCode}`));
     if (exists) return;
   }
 
   handleRoomGone("confirmed missing");
 }
 
-if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
+if (auth && typeof auth.onAuthStateChanged === "function") {
   showConnectionNotice("Oturum doğrulanıyor...");
 
   authReadyPromise
@@ -212,7 +204,7 @@ if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
       );
     })
     .finally(() => {
-      window.auth.onAuthStateChanged(async (user) => {
+      auth.onAuthStateChanged(async (user) => {
         currentUid = user ? user.uid : null;
 
         if (!user) {
@@ -229,7 +221,7 @@ if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
         isCreator = localStorage.getItem("isCreator") === "true";
 
         if (currentRoomCode && currentPlayerName) {
-          const roomRef = window.db.ref("rooms/" + currentRoomCode);
+          const roomRef = db.ref("rooms/" + currentRoomCode);
           showConnectionNotice("Odaya bağlanılıyor...");
           try {
             const snapshot = await refGet(roomRef);
@@ -268,7 +260,7 @@ if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
                 }
 
                 try {
-                  await window.db.ref().update(updates);
+                  await db.ref().update(updates);
                   resolvedUid = uid;
                 } catch (moveErr) {
                   console.warn("Eski oyuncu kaydı taşınamadı", moveErr);
@@ -307,7 +299,7 @@ if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
               return;
             }
 
-            const playerRef = window.db.ref(
+            const playerRef = db.ref(
               `rooms/${currentRoomCode}/players/${resolvedUid}`
             );
             if (
@@ -909,8 +901,8 @@ function updateRoleDisplay(myData, settings) {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
         delete overlay.dataset.overlayType;
-        if (currentRoomCode && currentUid && window.db) {
-          window.db
+        if (currentRoomCode && currentUid && db) {
+          db
             .ref(`rooms/${currentRoomCode}/ui/${currentUid}`)
             .update({ screen: "playing" })
             .catch((err) =>
@@ -1687,7 +1679,7 @@ function updateRoleDisplay(myData, settings) {
     }
     clearRoomValueListener();
 
-    const roomRef = window.db.ref("rooms/" + roomCode);
+    const roomRef = db.ref("rooms/" + roomCode);
     roomValueRef = roomRef;
     roomMissingCounter = 0;
 
@@ -1819,7 +1811,7 @@ function updateRoleDisplay(myData, settings) {
       ) {
         wasEliminated = false;
         if (currentPlayerName) {
-          window.db
+          db
             .ref(`rooms/${roomCode}/players/${currentUid}`)
             .update({ name: currentPlayerName, isCreator });
         }
@@ -1924,7 +1916,7 @@ function updateRoleDisplay(myData, settings) {
             showSpyWinOverlay(roomData, finalGuess, gameType, actualAnswer);
           }
           if (isCreator) {
-            window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
+            db.ref(`rooms/${roomCode}/spyParityWin`).remove();
           }
           return;
         }
@@ -2556,8 +2548,8 @@ function initUI() {
     toggleActionButtons(true);
   };
 
-  if (window.firebaseInitPromise && typeof window.firebaseInitPromise.then === "function") {
-    window.firebaseInitPromise.catch((err) => handleFirebaseInitError(err));
+  if (firebaseInitPromise && typeof firebaseInitPromise.then === "function") {
+    firebaseInitPromise.catch((err) => handleFirebaseInitError(err));
   }
 
   window.addEventListener("firebase-init-failed", (event) => {
