@@ -1689,8 +1689,7 @@ export const gameLogic = {
           ref.update(updates);
         }
       }
-   };
-},
+   },
 
   castVote: function (roomCode, voterUid, targetUid) {
     if (!roomCode || !voterUid || !targetUid) return;
