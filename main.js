@@ -2526,6 +2526,28 @@ function initUI() {
   const saveSettingsBtn = document.getElementById("saveSettingsBtn");
   const joinRoomBtn = document.getElementById("joinRoomBtn");
 
+  const toggleActionButtons = (disabled) => {
+    [createRoomBtn, saveSettingsBtn, joinRoomBtn].forEach((btn) => {
+      if (btn) btn.disabled = disabled;
+    });
+  };
+
+  const handleFirebaseInitError = (err) => {
+    const message =
+      "Bağlantı kurulurken bir sorun oluştu. Lütfen sayfayı yenileyip daha sonra tekrar deneyin.";
+    showConnectionNotice(message, "warning");
+    console.error("Firebase başlatılamadı:", err);
+    toggleActionButtons(true);
+  };
+
+  if (window.firebaseInitPromise && typeof window.firebaseInitPromise.then === "function") {
+    window.firebaseInitPromise.catch((err) => handleFirebaseInitError(err));
+  }
+
+  window.addEventListener("firebase-init-failed", (event) => {
+    handleFirebaseInitError(event?.detail);
+  });
+
   saveSettingsBtn.addEventListener("click", async () => {
     const settings = await buildSettings();
     try {
