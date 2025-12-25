@@ -1,30 +1,10 @@
 // firebase.js
 // -------------------------
-// Firebase compat setup using explicit CDN module imports
+// Firebase compat setup using dynamic module-friendly imports
 // -------------------------
 
-import firebase from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js";
-import "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js";
-import "https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js";
-
-const firebaseModuleGuard = () => {
-  let firebaseCompat = typeof firebase !== "undefined" ? firebase : undefined;
-
-  if (!firebaseCompat && typeof window !== "undefined" && window.firebase) {
-    firebaseCompat = window.firebase;
-  }
-
-  if (!firebaseCompat) {
-    const message =
-      "Firebase SDK failed to load in firebase.js. CDN scripts may be blocked.";
-    console.error(message);
-    throw new Error(message);
-  }
-
-  return firebaseCompat;
-};
-
-const firebaseCompat = firebaseModuleGuard();
+const FIREBASE_VERSION = "10.12.0";
+const FIREBASE_CDN_BASE = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/`;
 
 const logInitFailure = (err) => {
   const message = `FIREBASE INIT FAILURE (firebase.js): ${err?.message || err}`;
@@ -32,6 +12,38 @@ const logInitFailure = (err) => {
   console.error(message);
   console.error("=============================================");
   if (typeof alert === "function") alert(message);
+};
+
+let firebaseCompat;
+
+const loadFirebaseCompat = async () => {
+  if (firebaseCompat) return firebaseCompat;
+
+  let existingCompat =
+    typeof firebase !== "undefined" ? firebase : typeof window !== "undefined" ? window.firebase : undefined;
+  if (existingCompat) {
+    firebaseCompat = existingCompat;
+    return firebaseCompat;
+  }
+
+  try {
+    const appModule = await import(`${FIREBASE_CDN_BASE}firebase-app-compat.js`);
+    firebaseCompat = appModule?.default || appModule?.firebase || (typeof window !== "undefined" ? window.firebase : undefined);
+
+    await Promise.all([
+      import(`${FIREBASE_CDN_BASE}firebase-auth-compat.js`),
+      import(`${FIREBASE_CDN_BASE}firebase-database-compat.js`),
+    ]);
+
+    if (!firebaseCompat && typeof window !== "undefined") {
+      firebaseCompat = window.firebase;
+    }
+
+    return firebaseCompat;
+  } catch (err) {
+    logInitFailure(err);
+    throw err;
+  }
 };
 
 const firebaseConfig = {
@@ -44,19 +56,23 @@ const firebaseConfig = {
   appId: "1:422256375848:web:873b0a6372c992accf9d1d",
 };
 
-try {
-  // 2) Initialize Firebase (guard against double init)
-  if (!firebaseCompat.apps || !firebaseCompat.apps.length) {
-    firebaseCompat.initializeApp(firebaseConfig);
+const initializeFirebase = async () => {
+  const compat = await loadFirebaseCompat();
+
+  if (!compat) {
+    throw new Error("Firebase SDK failed to load in firebase.js. CDN scripts may be blocked.");
   }
 
-  // 3) Initialize and expose Auth & Database
-  const auth = firebaseCompat.auth();
-  const db = firebaseCompat.database();
+  if (!compat.apps || !compat.apps.length) {
+    compat.initializeApp(firebaseConfig);
+  }
+
+  const auth = compat.auth();
+  const db = compat.database();
 
   window.auth = auth;
   window.db = db;
-  window.firebase = firebaseCompat;
+  window.firebase = compat;
 
   // 3.1) Server time offset helper
   let serverTimeOffset = 0;
@@ -80,7 +96,7 @@ try {
 
   // 4) Sign in anonymously ONCE with persistence
   const authReady = auth
-    .setPersistence(firebaseCompat.auth.Auth.Persistence.LOCAL)
+    .setPersistence(compat.auth.Auth.Persistence.LOCAL)
     .then(() => {
       if (auth.currentUser) return auth.currentUser; // already signed in
       return auth.signInAnonymously().then((cred) => cred.user);
@@ -101,10 +117,14 @@ try {
 
   // 6) Expose auth readiness promise for consumers
   window.authReady = authReady;
-} catch (err) {
+
+  return { compat, auth, db, authReady };
+};
+
+const firebaseInitPromise = initializeFirebase().catch((err) => {
   logInitFailure(err);
   throw err;
-}
+});
 
 export default firebaseCompat;
-export { firebaseCompat };
+export { firebaseCompat, firebaseInitPromise, loadFirebaseCompat };
