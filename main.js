@@ -1,18 +1,13 @@
 import { gameLogic, getServerNow, POOLS } from './gameLogic.js';
 import {
-  firebaseInitPromise,
-  getAuth,
-  getDb,
-  requireFirebaseReady,
-} from './firebase.js';
-import {
   escapeHtml,
   getActivePlayers,
   hasInvalidChars,
   isPlayerAlive,
-  refGet,
   resolveRoleName,
 } from './utils.js';
+
+console.log('main.js yüklendi');
 
 // Rollup edilen çıktılarda global bir temizleyici beklenebiliyor; henüz tanımlı
 // değilse oylama akışının tamamen durmasına yol açan ReferenceError'ları
@@ -20,10 +15,6 @@ import {
 if (typeof window.cleanupListener !== "function") {
   window.cleanupListener = () => {};
 }
-
-const { compat: firebase, authReady } = await requireFirebaseReady();
-const db = getDb();
-const auth = getAuth();
 
 const MIN_PLAYERS = 3;
 const DEFAULT_PLAYER_COUNT = 20; // Eski güvenlik kurallarıyla uyum için oyuncu sayısını varsayılanla gönder
@@ -43,6 +34,28 @@ function resolveVotes(roomData) {
   return roomData?.voting?.votes || roomData?.votes || {};
 }
 
+function getExpectedVoterIds(expectedVotersMap) {
+  if (!expectedVotersMap || typeof expectedVotersMap !== "object") return [];
+  return Object.keys(expectedVotersMap);
+}
+
+function buildExpectedVoterList(expectedVotersMap, snapshot) {
+  const ids = getExpectedVoterIds(expectedVotersMap);
+  if (!ids.length) return [];
+  if (snapshot?.order?.length) {
+    const ordered = snapshot.order.filter((uid) => expectedVotersMap?.[uid]);
+    const remaining = ids.filter((uid) => !ordered.includes(uid));
+    return [...ordered, ...remaining];
+  }
+  return ids;
+}
+
+function getSpyUids(spies) {
+  if (Array.isArray(spies)) return spies;
+  if (spies && typeof spies === "object") return Object.keys(spies);
+  return [];
+}
+
 function clearStoragePreservePromo() {
   const promoDismissedFlag = localStorage.getItem("promoModalDismissed");
   localStorage.removeItem("roomCode");
@@ -60,7 +73,6 @@ function showEliminationOverlay(roomCode) {
   if (!overlay) return;
 
   overlay.innerHTML = "";
-  overlay.dataset.overlayType = "elimination";
   const message = document.createElement("div");
   message.className = "result-message";
   message.textContent = "Elendin! Oyun devam ediyor...";
@@ -69,7 +81,6 @@ function showEliminationOverlay(roomCode) {
   const closeOverlay = () => {
     overlay.classList.add("hidden");
     overlay.classList.remove("impostor-animation", "innocent-animation");
-    delete overlay.dataset.overlayType;
     actions?.classList.add("hidden");
   };
 
@@ -120,18 +131,7 @@ let roomValueUnsubscribe = null;
 let roomMissingTimeoutId = null;
 let roomMissingCounter = 0;
 let lastTieRestartAt = 0;
-function waitForAuthReady() {
-  if (authReady) {
-    return authReady.catch((err) => {
-      console.warn("authReady beklenirken hata: ", err?.message || err);
-      return Promise.resolve();
-    });
-  }
-
-  return Promise.resolve();
-}
-
-const authReadyPromise = waitForAuthReady();
+const authReadyPromise = window.authReady || Promise.resolve();
 let reconnectNotice = null;
 let gameLogicRoomUnsub = null;
 let gameLogicPlayersUnsub = null;
@@ -170,7 +170,7 @@ function clearRoomValueListener() {
 
 async function safeCheckRoomExists(roomRef) {
   try {
-    const snapshot = await refGet(roomRef);
+    const snapshot = await roomRef.get();
     return { exists: snapshot.exists(), snapshot };
   } catch (error) {
     console.error("[ROOM GET FAILED - NON-BLOCKING]", error);
@@ -185,14 +185,14 @@ async function handleConfirmedRoomMissing(expectedRoomCode, options = {}) {
   }
 
   if (!options.confirmedByGet && roomCode) {
-    const { exists } = await safeCheckRoomExists(db.ref(`rooms/${roomCode}`));
+    const { exists } = await safeCheckRoomExists(window.db.ref(`rooms/${roomCode}`));
     if (exists) return;
   }
 
   handleRoomGone("confirmed missing");
 }
 
-if (auth && typeof auth.onAuthStateChanged === "function") {
+if (window.auth && typeof window.auth.onAuthStateChanged === "function") {
   showConnectionNotice("Oturum doğrulanıyor...");
 
   authReadyPromise
@@ -204,7 +204,7 @@ if (auth && typeof auth.onAuthStateChanged === "function") {
       );
     })
     .finally(() => {
-      auth.onAuthStateChanged(async (user) => {
+      window.auth.onAuthStateChanged(async (user) => {
         currentUid = user ? user.uid : null;
 
         if (!user) {
@@ -221,10 +221,10 @@ if (auth && typeof auth.onAuthStateChanged === "function") {
         isCreator = localStorage.getItem("isCreator") === "true";
 
         if (currentRoomCode && currentPlayerName) {
-          const roomRef = db.ref("rooms/" + currentRoomCode);
+          const roomRef = window.db.ref("rooms/" + currentRoomCode);
           showConnectionNotice("Odaya bağlanılıyor...");
           try {
-            const snapshot = await refGet(roomRef);
+            const snapshot = await roomRef.get();
             if (!snapshot.exists()) {
               await handleConfirmedRoomMissing(currentRoomCode);
               return;
@@ -260,7 +260,7 @@ if (auth && typeof auth.onAuthStateChanged === "function") {
                 }
 
                 try {
-                  await db.ref().update(updates);
+                  await window.db.ref().update(updates);
                   resolvedUid = uid;
                 } catch (moveErr) {
                   console.warn("Eski oyuncu kaydı taşınamadı", moveErr);
@@ -299,7 +299,7 @@ if (auth && typeof auth.onAuthStateChanged === "function") {
               return;
             }
 
-            const playerRef = db.ref(
+            const playerRef = window.db.ref(
               `rooms/${currentRoomCode}/players/${resolvedUid}`
             );
             if (
@@ -494,7 +494,6 @@ function updateRoleDisplay(myData, settings) {
     ) {
       return false;
     }
-    if (roomData?.voting?.continuationPending) return false;
     const roundKey = getRoundKey(roomData);
     const alreadyTriggered = endRoundTriggeredForRound === roundKey;
     if (alreadyTriggered) return true;
@@ -521,20 +520,9 @@ function updateRoleDisplay(myData, settings) {
     ).filter(Boolean);
     const impostorWinnersText = formatSpyWinnersText(normalizedSpyNames);
     if (eliminatedIsImpostor) {
-      const impostorsRemaining = Math.max(0, aliveImpostorsCount || 0);
-      const impostorsAfterElimination = impostorsRemaining;
-
-      if (impostorsAfterElimination <= 0) {
-        return {
-          message: `Oylama sonucunda Sahtekar ${safeName} elendi ve oyunu masumlar kazandı!`,
-          gameEnded: true,
-          impostorVictory: false,
-        };
-      }
-
       return {
-        message: `Sahtekar ${safeName} elendi! Fakat henüz oyun bitmiş değil...`,
-        gameEnded: false,
+        message: `Oylama sonucunda Sahtekar ${safeName} elendi ve oyunu masumlar kazandı!`,
+        gameEnded: true,
         impostorVictory: false,
       };
     }
@@ -663,7 +651,6 @@ function updateRoleDisplay(myData, settings) {
     const renderKey = JSON.stringify({
       result: resolvedResultToRender,
       context,
-      continuationPending: !!roomData?.voting?.continuationPending,
       continueAcks: roomData?.voting?.continueAcks || null,
       phase: resolveGamePhase(roomData),
     });
@@ -718,7 +705,6 @@ function updateRoleDisplay(myData, settings) {
       console.error("resultOverlay element not found");
       return;
     }
-    overlay.dataset.overlayType = "result";
     const currentPhase = resolveGamePhase(roomData);
     const normalizedResultForOverlay =
       normalizeVotingResult(resolvedResult) ||
@@ -740,12 +726,8 @@ function updateRoleDisplay(myData, settings) {
     const isEliminatedPlayer =
       currentUid === eliminatedUidFromResult || !isAliveCurrentPlayer;
     const isResultsPhase = currentPhase === "results";
-    const resolvedVotingState = roomData?.voting?.status === "resolved";
-    const continuationPending = !!roomData?.voting?.continuationPending;
-    const isContinuationOverlayActive =
-      isResultsPhase || continuationPending || resolvedVotingState;
     const waitingText =
-      continuationPending && filteredAliveUids.length > 0
+      filteredAliveUids.length > 0
         ? `Devam için onay bekleniyor (${ackCount}/${filteredAliveUids.length})`
         : null;
     const cls = outcome.impostorVictory
@@ -757,22 +739,11 @@ function updateRoleDisplay(myData, settings) {
     const actionsEl = document.getElementById("gameActions");
     const spyInfo = getSpyInfo(roomData);
     const resolvedMessage =
-      isContinuationOverlayActive &&
-      !outcome.gameEnded &&
-      !isAliveCurrentPlayer
+      isResultsPhase && !isAliveCurrentPlayer
         ? "Elendin! Oyun devam ediyor."
         : resolveGameOverMessage(roomData, outcome.message, spyInfo);
     msgDiv.textContent = resolvedMessage;
-    const shouldRevealSpies =
-      outcome.gameEnded ||
-      outcome.impostorVictory ||
-      roomData?.status === "finished" ||
-      resolveGamePhase(roomData) === "ended";
-
-    if (
-      shouldRevealSpies &&
-      !(isContinuationOverlayActive && !isAliveCurrentPlayer)
-    ) {
+    if (!(isResultsPhase && !isAliveCurrentPlayer)) {
       appendSpyNamesLine(msgDiv, roomData, {
         spyInfo,
         primaryMessage: resolvedMessage,
@@ -821,7 +792,6 @@ function updateRoleDisplay(myData, settings) {
       const hideOverlay = () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
-        delete overlay.dataset.overlayType;
       };
 
       if (restartBtn) {
@@ -837,16 +807,17 @@ function updateRoleDisplay(myData, settings) {
             console.error("[gameEnded overlay] leaveRoom failed", error);
           })
           .finally(() => {
-          handleRoomGone("manual exit");
+            handleRoomGone("manual exit");
           });
       });
-    } else if (isContinuationOverlayActive) {
+    } else if (isResultsPhase) {
       if (waitingText) {
         const info = document.createElement("div");
         info.className = "result-subtext";
         info.textContent = waitingText;
         overlay.appendChild(info);
       }
+
       if (isCreator) {
         const restartBtn = document.createElement("button");
         restartBtn.id = "restartBtn";
@@ -858,7 +829,8 @@ function updateRoleDisplay(myData, settings) {
         });
       }
 
-      const shouldShowContinueButton = continuationPending;
+      const shouldShowContinueButton =
+        isAliveCurrentPlayer && eliminatedUidFromResult !== currentUid;
       if (shouldShowContinueButton) {
         const btn = document.createElement("button");
         btn.id = "continueBtn";
@@ -882,7 +854,6 @@ function updateRoleDisplay(myData, settings) {
       exitBtn.addEventListener("click", () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
-        delete overlay.dataset.overlayType;
         Promise.resolve(gameLogic.leaveRoom(currentRoomCode))
           .catch((error) => {
             console.error("[results overlay] leaveRoom failed", error);
@@ -900,9 +871,8 @@ function updateRoleDisplay(myData, settings) {
       btn.addEventListener("click", () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
-        delete overlay.dataset.overlayType;
-        if (currentRoomCode && currentUid && db) {
-          db
+        if (currentRoomCode && currentUid && window.db) {
+          window.db
             .ref(`rooms/${currentRoomCode}/ui/${currentUid}`)
             .update({ screen: "playing" })
             .catch((err) =>
@@ -1571,7 +1541,6 @@ function updateRoleDisplay(myData, settings) {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
       overlay.innerHTML = "";
-      delete overlay.dataset.overlayType;
     }
   }
 
@@ -1679,7 +1648,7 @@ function updateRoleDisplay(myData, settings) {
     }
     clearRoomValueListener();
 
-    const roomRef = db.ref("rooms/" + roomCode);
+    const roomRef = window.db.ref("rooms/" + roomCode);
     roomValueRef = roomRef;
     roomMissingCounter = 0;
 
@@ -1792,10 +1761,7 @@ function updateRoleDisplay(myData, settings) {
       const isPlayerAliveForActions = isCurrentPlayerEligible(roomData);
 
       const shouldShowEliminationOverlay =
-        isEliminatedPlayer &&
-        !isGameFinished &&
-        !voteEndsGame &&
-        !roundSafeGameOver;
+        isEliminatedPlayer && !isGameFinished && !voteEndsGame;
 
       if (shouldShowEliminationOverlay) {
         wasEliminated = true;
@@ -1811,7 +1777,7 @@ function updateRoleDisplay(myData, settings) {
       ) {
         wasEliminated = false;
         if (currentPlayerName) {
-          db
+          window.db
             .ref(`rooms/${roomCode}/players/${currentUid}`)
             .update({ name: currentPlayerName, isCreator });
         }
@@ -1821,7 +1787,6 @@ function updateRoleDisplay(myData, settings) {
           overlay.classList.add("hidden");
           overlay.classList.remove("impostor-animation", "innocent-animation");
           overlay.innerHTML = "";
-          delete overlay.dataset.overlayType;
         }
 
         const roleMessageEl = document.getElementById("roleMessage");
@@ -1854,7 +1819,6 @@ function updateRoleDisplay(myData, settings) {
         if (overlay) {
           overlay.classList.add("hidden");
           overlay.classList.remove("impostor-animation", "innocent-animation");
-          delete overlay.dataset.overlayType;
         }
         gameEnded = false;
         lastVoteResult = null;
@@ -1916,7 +1880,7 @@ function updateRoleDisplay(myData, settings) {
             showSpyWinOverlay(roomData, finalGuess, gameType, actualAnswer);
           }
           if (isCreator) {
-            db.ref(`rooms/${roomCode}/spyParityWin`).remove();
+            window.db.ref(`rooms/${roomCode}/spyParityWin`).remove();
           }
           return;
         }
@@ -2025,19 +1989,11 @@ function updateRoleDisplay(myData, settings) {
         // Oylama durumu
         const currentPhase = resolveGamePhase(roomData);
         const overlayEl = document.getElementById("resultOverlay");
-        const isEliminationOverlayActive =
-          overlayEl?.dataset.overlayType === "elimination";
-        const votingStatus = roomData?.voting?.status || "idle";
-        const continuationPending = !!roomData?.voting?.continuationPending;
-        const isResultsPhase = currentPhase === "results";
         const shouldHideResultOverlay =
           overlayEl &&
+          currentPhase !== "results" &&
           roomData.status === "started" &&
-          !roundSafeGameOver &&
-          !isEliminationOverlayActive &&
-          !isResultsPhase &&
-          votingStatus !== "resolved" &&
-          !continuationPending;
+          !roundSafeGameOver;
         if (shouldHideResultOverlay) {
           overlayEl.classList.add("hidden");
           overlayEl.classList.remove("impostor-animation", "innocent-animation");
@@ -2168,6 +2124,7 @@ function updateRoleDisplay(myData, settings) {
 
         const startBtn = document.getElementById("startVotingBtn");
         const waitingEl = document.getElementById("waitingVoteStart");
+        const votingStatus = roomData.voting?.status || "idle";
         const startedBy = roomData.voting?.startedBy || {};
         const alivePlayers = getActivePlayers(
           roomData.playerRoles,
@@ -2303,14 +2260,12 @@ function updateRoleDisplay(myData, settings) {
         const shouldShowNextRound =
           isPlayerAliveForActions &&
           (roomData?.voting?.status === "resolved" ||
-            currentPhase === "results" ||
-            roomData?.voting?.continuationPending);
+            currentPhase === "results");
         nextRoundBtn?.classList.toggle("hidden", !shouldShowNextRound);
 
         const shouldShowVoteOutcome =
           roomData?.voting?.status === "resolved" ||
-          currentPhase === "results" ||
-          roomData?.voting?.continuationPending;
+          currentPhase === "results";
         const fallbackOutcomeMessage = resolvedOutcomeContext?.outcome?.message;
 
         if (activeVoteResult) {
@@ -2454,18 +2409,6 @@ window.showSetupJoin = showSetupJoin;
  *  EVENT LISTENERS
  * ------------------------ */
 function initUI() {
-  console.log("[initUI] started");
-
-  const on = (id, evt, fn) => {
-    const el = document.getElementById(id);
-    if (!el) {
-      console.warn(`[initUI] missing element #${id}`);
-      return null;
-    }
-    el.addEventListener(evt, fn);
-    return el;
-  };
-
   const gameTypeSelect = document.getElementById("gameType");
   const categoryLabel = document.getElementById("categoryLabel");
   const categorySelect = document.getElementById("categoryName");
@@ -2530,33 +2473,7 @@ function initUI() {
   const saveSettingsBtn = document.getElementById("saveSettingsBtn");
   const joinRoomBtn = document.getElementById("joinRoomBtn");
 
-  if (createRoomBtn) {
-    console.log("[initUI] createRoomBtn found");
-  }
-
-  const toggleActionButtons = (disabled) => {
-    [createRoomBtn, saveSettingsBtn, joinRoomBtn].forEach((btn) => {
-      if (btn) btn.disabled = disabled;
-    });
-  };
-
-  const handleFirebaseInitError = (err) => {
-    const message =
-      "Bağlantı kurulurken bir sorun oluştu. Lütfen sayfayı yenileyip daha sonra tekrar deneyin.";
-    showConnectionNotice(message, "warning");
-    console.error("Firebase başlatılamadı:", err);
-    toggleActionButtons(true);
-  };
-
-  if (firebaseInitPromise && typeof firebaseInitPromise.then === "function") {
-    firebaseInitPromise.catch((err) => handleFirebaseInitError(err));
-  }
-
-  window.addEventListener("firebase-init-failed", (event) => {
-    handleFirebaseInitError(event?.detail);
-  });
-
-  on("saveSettingsBtn", "click", async () => {
+  saveSettingsBtn.addEventListener("click", async () => {
     const settings = await buildSettings();
     try {
       await gameLogic.saveSettings(settings);
@@ -2568,7 +2485,6 @@ function initUI() {
 
   let createRoomRunning = false;
   async function handleCreateRoom() {
-    console.log("[handleCreateRoom] fired");
     if (createRoomRunning) return;
     createRoomRunning = true;
 
@@ -2582,8 +2498,8 @@ function initUI() {
     }
 
     // Buton tepkisiz görünmesin diye yükleme başlamadan önce kapat
-    if (createRoomBtn) createRoomBtn.disabled = true;
-    createRoomLoading?.classList.remove("hidden");
+    createRoomBtn.disabled = true;
+    createRoomLoading.classList.remove("hidden");
 
     try {
       const settings = await buildSettings();
@@ -2618,16 +2534,16 @@ function initUI() {
       }
       gameLogicRoomUnsub = gameLogic.listenRoom(roomCode);
     } catch (err) {
-      console.error("[handleCreateRoom] failed", err);
       alert(err.message || err);
     } finally {
       createRoomRunning = false;
-      if (createRoomBtn) createRoomBtn.disabled = false;
-      createRoomLoading?.classList.add("hidden");
+      createRoomBtn.disabled = false;
+      createRoomLoading.classList.add("hidden");
     }
   }
 
-  on("createRoomBtn", "click", handleCreateRoom);
+  createRoomBtn.addEventListener("click", handleCreateRoom);
+  createRoomBtn.addEventListener("pointerdown", handleCreateRoom);
 
   let joinRoomRunning = false;
   async function handleJoinRoom() {
@@ -2677,10 +2593,10 @@ function initUI() {
     }
   }
 
-  on("joinRoomBtn", "click", handleJoinRoom);
-  on("joinRoomBtn", "pointerdown", handleJoinRoom);
+  joinRoomBtn.addEventListener("click", handleJoinRoom);
+  joinRoomBtn.addEventListener("pointerdown", handleJoinRoom);
 
-  on("leaveRoomBtn", "click", () => {
+  document.getElementById("leaveRoomBtn").addEventListener("click", () => {
     const action = isCreator
       ? gameLogic.deleteRoom(currentRoomCode)
       : gameLogic.leaveRoom(currentRoomCode);
@@ -2695,7 +2611,7 @@ function initUI() {
       });
   });
 
-  on("startGameBtn", "click", async (e) => {
+  document.getElementById("startGameBtn").addEventListener("click", async (e) => {
     if (!currentRoomCode) {
       alert("Oda kodu bulunamadı!");
       return;
@@ -2717,7 +2633,7 @@ function initUI() {
     }
   });
 
-  on("startVotingBtn", "click", (e) => {
+  document.getElementById("startVotingBtn").addEventListener("click", (e) => {
     const btn = e.currentTarget;
     hasRequestedStart = true;
     if (btn) {
@@ -2735,22 +2651,25 @@ function initUI() {
     });
   });
 
-  const voteList = on("voteList", "click", (event) => {
-    const targetBtn = event.target.closest(".vote-option");
-    if (!targetBtn) return;
-    const { uid } = targetBtn.dataset;
-    const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
-    const selected = candidates.find((c) => c.uid === uid);
-    if (selected) {
-      setSelectedVote(selected.uid, selected.name || selected.uid);
-      voteList
-        ?.querySelectorAll(".vote-option")
-        .forEach((btn) => btn.classList.toggle("active", btn.dataset.uid === uid));
-    }
-  });
+  const voteList = document.getElementById("voteList");
+  if (voteList) {
+    voteList.addEventListener("click", (event) => {
+      const targetBtn = event.target.closest(".vote-option");
+      if (!targetBtn) return;
+      const { uid } = targetBtn.dataset;
+      const candidates = voteCandidatesSnapshot || buildVoteCandidates(playerUidMap);
+      const selected = candidates.find((c) => c.uid === uid);
+      if (selected) {
+        setSelectedVote(selected.uid, selected.name || selected.uid);
+        voteList
+          .querySelectorAll(".vote-option")
+          .forEach((btn) => btn.classList.toggle("active", btn.dataset.uid === uid));
+      }
+    });
+  }
 
   // Oy ver
-  on("submitVoteBtn", "click", () => {
+  document.getElementById("submitVoteBtn").addEventListener("click", () => {
     if (!selectedVoteUid) {
       alert("Lütfen oy vereceğin kişiyi seç.");
       return;
@@ -2759,7 +2678,7 @@ function initUI() {
     showVoteConfirmation();
   });
 
-  on("confirmVoteBtn", "click", () => {
+  document.getElementById("confirmVoteBtn").addEventListener("click", () => {
     if (!selectedVoteUid) return;
     const btn = document.getElementById("submitVoteBtn");
     if (btn) btn.disabled = true;
@@ -2772,14 +2691,14 @@ function initUI() {
     gameLogic.submitVote(currentRoomCode, currentUid, selectedVoteUid);
   });
 
-  on("cancelVoteBtn", "click", () => {
+  document.getElementById("cancelVoteBtn").addEventListener("click", () => {
     const confirmArea = document.getElementById("voteConfirmArea");
     confirmArea?.classList.add("hidden");
     const confirmBtn = document.getElementById("confirmVoteBtn");
     if (confirmBtn) confirmBtn.disabled = false;
   });
 
-  on("submitGuessBtn", "click", () => {
+  document.getElementById("submitGuessBtn").addEventListener("click", () => {
     const guessSelect = document.getElementById("guessSelect");
     const guess = guessSelect ? guessSelect.value : "";
     if (guessSelect) {
@@ -2791,7 +2710,7 @@ function initUI() {
   });
 
   // Sonraki tur
-  on("nextRoundBtn", "click", () => {
+  document.getElementById("nextRoundBtn").addEventListener("click", () => {
     const roomData = latestRoomData;
     const currentPhase = resolveGamePhase(roomData);
     const isAliveForNextRound = roomData ? isCurrentPlayerEligible(roomData) : true;
@@ -2805,7 +2724,7 @@ function initUI() {
   });
 
   // Rol bilgisini kopyalama
-  on("copyRoleBtn", "click", () => {
+  document.getElementById("copyRoleBtn").addEventListener("click", () => {
     const text = document.getElementById("roleMessage").innerText;
     navigator.clipboard
       .writeText(text)
@@ -2813,7 +2732,7 @@ function initUI() {
   });
 
   // Oyundan çık (ana ekrana dön)
-  on("backToHomeBtn", "click", () => {
+  document.getElementById("backToHomeBtn").addEventListener("click", () => {
     const roomCode = localStorage.getItem("roomCode");
     const playerName = localStorage.getItem("playerName");
     const isCreator = localStorage.getItem("isCreator") === "true";
@@ -2835,8 +2754,6 @@ function initUI() {
         window.location.replace("./index.html");
       });
   });
-
-  console.log("[initUI] listeners attached");
 }
 
 document.addEventListener("DOMContentLoaded", initUI);
