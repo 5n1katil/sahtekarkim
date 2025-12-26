@@ -571,7 +571,6 @@
 
   function attachCtaTracking(container) {
     if (!container) return;
-    container.querySelectorAll('a[data-link-name]').forEach((link) => {
       link.addEventListener('click', () => {
         const linkName = link.getAttribute('data-link-name');
         const placement = link.getAttribute('data-placement');
