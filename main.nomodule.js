@@ -4053,12 +4053,6 @@
       }
     });
 
-    // Rol bilgisini kopyalama
-    document.getElementById("copyRoleBtn").addEventListener("click", () => {
-      const text = document.getElementById("roleMessage").innerText;
-      navigator.clipboard.writeText(text).then(() => alert("Rolünüz kopyalandı!"));
-    });
-
     // Oyundan çık (ana ekrana dön)
     document.getElementById("backToHomeBtn").addEventListener("click", () => {
       const roomCode = localStorage.getItem("roomCode");
