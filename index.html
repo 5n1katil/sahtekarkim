@@ -19,25 +19,39 @@
   
   <!-- Sayfa Stili -->
   <style>
+    :root {
+      --bg-gradient: radial-gradient(circle at 20% 20%, #4338ca, #111325 45%),
+        radial-gradient(circle at 80% 0%, #14b8a6, #111325 40%),
+        linear-gradient(135deg, #0b1021, #101428);
+      --surface: rgba(43, 43, 72, 0.82);
+      --surface-strong: rgba(57, 57, 90, 0.9);
+      --border: rgba(255, 255, 255, 0.08);
+      --muted: #d8d9ff;
+      --accent: linear-gradient(135deg, #9b7bff, #7ef3e6);
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+
     body {
       font-family: 'Inter', sans-serif;
-      background: linear-gradient(to right, #1f1c2c, #928dab);
+      background: var(--bg-gradient);
       color: #fff;
       display: flex;
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
       margin: 0;
-      padding: 0;
+      padding: 0.5rem;
+      background-attachment: fixed;
     }
     .container {
-      background: #2c2a4a;
-      padding: 1.5rem;
-      margin: 1rem;
-      border-radius: 12px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.3);
-      width: 90%;
-      max-width: 500px;
+      background: var(--surface);
+      padding: clamp(1rem, 3vw, 1.75rem);
+      margin: 0.85rem;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      width: min(680px, 96vw);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(10px) saturate(1.2);
       animation: fadeIn 0.3s ease;
     }
     @keyframes fadeIn {
@@ -47,37 +61,51 @@
     h2 {
       text-align: center;
       margin-bottom: 1rem;
+      letter-spacing: 0.02em;
     }
     label {
       margin-top: 1rem;
       display: block;
       font-weight: 600;
+      color: var(--muted);
     }
     input, select, button {
       width: 100%;
-      padding: 0.6rem;
-      margin-top: 0.3rem;
-      border-radius: 6px;
-      border: none;
+      padding: 0.8rem 0.9rem;
+      margin-top: 0.35rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
       font-size: 1rem;
       box-sizing: border-box;
+      background: rgba(255, 255, 255, 0.04);
+      color: #fff;
+    }
+    input:focus, select:focus {
+      outline: 2px solid rgba(123, 92, 255, 0.5);
+      box-shadow: 0 0 0 4px rgba(123, 92, 255, 0.15);
     }
     input[type="checkbox"] {
       width: auto;
       margin-right: 0.5rem;
-      transform: scale(1.3);
+      transform: scale(1.2);
+      accent-color: #7b5cff;
+      border: none;
+      box-shadow: none;
     }
     button {
-      background-color: #7b5cff;
+      background-image: var(--accent);
       color: white;
-      margin-top: 1.2rem;
-      font-weight: bold;
+      margin-top: 1rem;
+      font-weight: 700;
       cursor: pointer;
-      transition: 0.2s;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      box-shadow: 0 10px 25px rgba(123, 92, 255, 0.25);
+      border: none;
     }
     button:hover {
-      opacity: 0.9;
-      transform: scale(1.02);
+      opacity: 0.96;
+      transform: translateY(-1px);
+      box-shadow: 0 14px 30px rgba(123, 92, 255, 0.3);
     }
     ul {
       list-style-type: disc;
@@ -88,9 +116,11 @@
       pointer-events: none;
     }
     .small-btn {
-      background-color: #444;
+      background: rgba(255, 255, 255, 0.08);
       margin-top: 0.5rem;
-      font-size: 0.9rem;
+      font-size: 0.95rem;
+      border: 1px solid var(--border);
+      box-shadow: none;
     }
 
     .warning-text {
@@ -106,21 +136,21 @@
       padding: 0.75rem 1rem;
       border-radius: 10px;
       text-align: center;
-      background: rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.06);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: 0 0 12px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 0 18px rgba(0, 0, 0, 0.28);
     }
 
     .connection-banner.info {
       color: #dbeafe;
       border-color: rgba(66, 153, 225, 0.45);
-      background: rgba(66, 153, 225, 0.15);
+      background: rgba(66, 153, 225, 0.18);
     }
 
     .connection-banner.warning {
       color: #ffe2b3;
       border-color: rgba(255, 193, 7, 0.5);
-      background: rgba(255, 193, 7, 0.16);
+      background: rgba(255, 193, 7, 0.2);
     }
 
     .vote-list {
@@ -128,7 +158,8 @@
       padding: 0;
       margin: 0.5rem 0 0;
       display: grid;
-      gap: 0.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.6rem;
     }
 
     .vote-option {
@@ -137,10 +168,11 @@
       background: rgba(255, 255, 255, 0.06);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 8px;
-      padding: 0.65rem 0.75rem;
+      padding: 0.8rem 0.9rem;
       color: #fff;
       cursor: pointer;
-      transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+      transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease,
+        box-shadow 0.15s ease;
     }
 
     .vote-option:active,
@@ -149,12 +181,13 @@
       background: rgba(123, 92, 255, 0.2);
       border-color: rgba(123, 92, 255, 0.7);
       transform: translateY(-1px);
+      box-shadow: 0 12px 22px rgba(123, 92, 255, 0.18);
     }
 
     .selection-card {
       margin-top: 0.75rem;
       padding: 0.75rem;
-      background: rgba(123, 92, 255, 0.12);
+      background: rgba(123, 92, 255, 0.14);
       border: 1px solid rgba(123, 92, 255, 0.35);
       border-radius: 10px;
     }
@@ -166,15 +199,16 @@
     .vote-confirm {
       margin-top: 0.75rem;
       padding: 0.75rem;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 10px;
-      background: rgba(255, 255, 255, 0.04);
+      background: rgba(255, 255, 255, 0.06);
     }
 
     .vote-confirm-actions {
       display: flex;
       gap: 0.5rem;
       margin-top: 0.5rem;
+      flex-wrap: wrap;
     }
 
     .impostor-name {
@@ -220,18 +254,18 @@
       min-width: 150px;
     }
     .result-message {
-      background: #2c2a4a;
+      background: var(--surface-strong);
       color: #fff;
       padding: 1rem 1.5rem;
-      border-radius: 8px;
-      max-width: 90%;
+      border-radius: 14px;
+      max-width: 92%;
       width: auto;
       max-height: 80vh;
       overflow-y: auto;
       text-align: center;
       word-wrap: break-word;
       font-size: clamp(1rem, 4vw, 1.5rem);
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 16px 30px rgba(0, 0, 0, 0.45);
     }
     .innocent-animation {
       color: #00e676;
@@ -251,13 +285,13 @@
       position: sticky;
       top: 0;
       width: 100%;
-      background: rgba(17, 17, 26, 0.9);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(135deg, rgba(67, 56, 202, 0.9), rgba(15, 23, 42, 0.92));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 0.5rem;
-      padding: 0.6rem 1rem;
+      padding: 0.75rem 1rem;
       box-sizing: border-box;
       z-index: 900;
       backdrop-filter: blur(6px);
@@ -309,6 +343,28 @@
       }
       .cta-btn {
         flex: 1;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 0.25rem;
+      }
+      .container {
+        width: 95vw;
+        padding: 1rem;
+      }
+      button,
+      input,
+      select {
+        font-size: 1.02rem;
+      }
+      .vote-confirm-actions {
+        flex-direction: column;
+      }
+      .overlay-btn,
+      .cta-btn {
+        width: 100%;
       }
     }
 
