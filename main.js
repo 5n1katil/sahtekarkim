@@ -73,7 +73,6 @@ function showEliminationOverlay(roomCode) {
   if (!overlay) return;
 
   overlay.innerHTML = "";
-  overlay.dataset.overlayType = "elimination";
   const message = document.createElement("div");
   message.className = "result-message";
   message.textContent = "Elendin! Oyun devam ediyor...";
@@ -82,7 +81,6 @@ function showEliminationOverlay(roomCode) {
   const closeOverlay = () => {
     overlay.classList.add("hidden");
     overlay.classList.remove("impostor-animation", "innocent-animation");
-    delete overlay.dataset.overlayType;
     actions?.classList.add("hidden");
   };
 
@@ -653,7 +651,6 @@ function updateRoleDisplay(myData, settings) {
     const renderKey = JSON.stringify({
       result: resolvedResultToRender,
       context,
-      continuationPending: !!roomData?.voting?.continuationPending,
       continueAcks: roomData?.voting?.continueAcks || null,
       phase: resolveGamePhase(roomData),
     });
@@ -708,7 +705,6 @@ function updateRoleDisplay(myData, settings) {
       console.error("resultOverlay element not found");
       return;
     }
-    overlay.dataset.overlayType = "result";
     const currentPhase = resolveGamePhase(roomData);
     const normalizedResultForOverlay =
       normalizeVotingResult(resolvedResult) ||
@@ -730,10 +726,8 @@ function updateRoleDisplay(myData, settings) {
     const isEliminatedPlayer =
       currentUid === eliminatedUidFromResult || !isAliveCurrentPlayer;
     const isResultsPhase = currentPhase === "results";
-    const continuationPending = !!roomData?.voting?.continuationPending;
-    const isContinuationOverlayActive = isResultsPhase || continuationPending;
     const waitingText =
-      continuationPending && filteredAliveUids.length > 0
+      filteredAliveUids.length > 0
         ? `Devam için onay bekleniyor (${ackCount}/${filteredAliveUids.length})`
         : null;
     const cls = outcome.impostorVictory
@@ -745,11 +739,11 @@ function updateRoleDisplay(myData, settings) {
     const actionsEl = document.getElementById("gameActions");
     const spyInfo = getSpyInfo(roomData);
     const resolvedMessage =
-      isContinuationOverlayActive && !isAliveCurrentPlayer
+      isResultsPhase && !isAliveCurrentPlayer
         ? "Elendin! Oyun devam ediyor."
         : resolveGameOverMessage(roomData, outcome.message, spyInfo);
     msgDiv.textContent = resolvedMessage;
-    if (!(isContinuationOverlayActive && !isAliveCurrentPlayer)) {
+    if (!(isResultsPhase && !isAliveCurrentPlayer)) {
       appendSpyNamesLine(msgDiv, roomData, {
         spyInfo,
         primaryMessage: resolvedMessage,
@@ -798,7 +792,6 @@ function updateRoleDisplay(myData, settings) {
       const hideOverlay = () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
-        delete overlay.dataset.overlayType;
       };
 
       if (restartBtn) {
@@ -814,16 +807,17 @@ function updateRoleDisplay(myData, settings) {
             console.error("[gameEnded overlay] leaveRoom failed", error);
           })
           .finally(() => {
-          handleRoomGone("manual exit");
+            handleRoomGone("manual exit");
           });
       });
-    } else if (isContinuationOverlayActive) {
+    } else if (isResultsPhase) {
       if (waitingText) {
         const info = document.createElement("div");
         info.className = "result-subtext";
         info.textContent = waitingText;
         overlay.appendChild(info);
       }
+
       if (isCreator) {
         const restartBtn = document.createElement("button");
         restartBtn.id = "restartBtn";
@@ -835,7 +829,8 @@ function updateRoleDisplay(myData, settings) {
         });
       }
 
-      const shouldShowContinueButton = continuationPending;
+      const shouldShowContinueButton =
+        isAliveCurrentPlayer && eliminatedUidFromResult !== currentUid;
       if (shouldShowContinueButton) {
         const btn = document.createElement("button");
         btn.id = "continueBtn";
@@ -859,7 +854,6 @@ function updateRoleDisplay(myData, settings) {
       exitBtn.addEventListener("click", () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
-        delete overlay.dataset.overlayType;
         Promise.resolve(gameLogic.leaveRoom(currentRoomCode))
           .catch((error) => {
             console.error("[results overlay] leaveRoom failed", error);
@@ -877,7 +871,6 @@ function updateRoleDisplay(myData, settings) {
       btn.addEventListener("click", () => {
         overlay.classList.add("hidden");
         overlay.classList.remove("impostor-animation", "innocent-animation");
-        delete overlay.dataset.overlayType;
         if (currentRoomCode && currentUid && window.db) {
           window.db
             .ref(`rooms/${currentRoomCode}/ui/${currentUid}`)
@@ -1548,7 +1541,6 @@ function updateRoleDisplay(myData, settings) {
       overlay.classList.add("hidden");
       overlay.classList.remove("impostor-animation", "innocent-animation");
       overlay.innerHTML = "";
-      delete overlay.dataset.overlayType;
     }
   }
 
@@ -1795,7 +1787,6 @@ function updateRoleDisplay(myData, settings) {
           overlay.classList.add("hidden");
           overlay.classList.remove("impostor-animation", "innocent-animation");
           overlay.innerHTML = "";
-          delete overlay.dataset.overlayType;
         }
 
         const roleMessageEl = document.getElementById("roleMessage");
@@ -1828,7 +1819,6 @@ function updateRoleDisplay(myData, settings) {
         if (overlay) {
           overlay.classList.add("hidden");
           overlay.classList.remove("impostor-animation", "innocent-animation");
-          delete overlay.dataset.overlayType;
         }
         gameEnded = false;
         lastVoteResult = null;
@@ -1848,13 +1838,10 @@ function updateRoleDisplay(myData, settings) {
         }
       const leaveBtn = document.getElementById("leaveRoomBtn");
       const exitBtn = document.getElementById("backToHomeBtn");
-        const resolvedPhase = resolveGamePhase(roomData);
-        const resolvedWinner = roomData?.winner;
-
         if (
           roomData &&
-          resolvedPhase === "ended" &&
-          (resolvedWinner === "spy" || resolvedWinner === "spies")
+          (roomData.spyParityWin ||
+            (roomData.status === "finished" && roomData.winner === "spy"))
         ) {
           const resolvedSpyVoteResult = getResolvedVoteResult(roomData);
           const resolvedSpyVoteFallback =
@@ -1896,8 +1883,8 @@ function updateRoleDisplay(myData, settings) {
         }
         if (
           roomData &&
-          resolvedPhase === "ended" &&
-          (resolvedWinner === "innocent" || resolvedWinner === "innocents")
+          roomData.status === "finished" &&
+          roomData.winner === "innocent"
         ) {
           const handledByVote = renderVoteResultOverlay(
             roomData,
@@ -1999,16 +1986,11 @@ function updateRoleDisplay(myData, settings) {
         // Oylama durumu
         const currentPhase = resolveGamePhase(roomData);
         const overlayEl = document.getElementById("resultOverlay");
-        const isEliminationOverlayActive =
-          overlayEl?.dataset.overlayType === "elimination";
-        const continuationPending = !!roomData?.voting?.continuationPending;
         const shouldHideResultOverlay =
           overlayEl &&
           currentPhase !== "results" &&
           roomData.status === "started" &&
-          !roundSafeGameOver &&
-          !isEliminationOverlayActive &&
-          !continuationPending;
+          !roundSafeGameOver;
         if (shouldHideResultOverlay) {
           overlayEl.classList.add("hidden");
           overlayEl.classList.remove("impostor-animation", "innocent-animation");
@@ -2275,14 +2257,12 @@ function updateRoleDisplay(myData, settings) {
         const shouldShowNextRound =
           isPlayerAliveForActions &&
           (roomData?.voting?.status === "resolved" ||
-            currentPhase === "results" ||
-            roomData?.voting?.continuationPending);
+            currentPhase === "results");
         nextRoundBtn?.classList.toggle("hidden", !shouldShowNextRound);
 
         const shouldShowVoteOutcome =
           roomData?.voting?.status === "resolved" ||
-          currentPhase === "results" ||
-          roomData?.voting?.continuationPending;
+          currentPhase === "results";
         const fallbackOutcomeMessage = resolvedOutcomeContext?.outcome?.message;
 
         if (activeVoteResult) {
