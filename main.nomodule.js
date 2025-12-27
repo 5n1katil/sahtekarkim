@@ -2603,13 +2603,15 @@
     msgDiv.className = "result-message";
     overlay.innerHTML = "";
     const actionsEl = document.getElementById("gameActions");
+    const canRevealImpostors = canRevealImpostorNames(roomData);
     const spyInfo = getSpyInfo(roomData);
     const resolvedMessage = isResultsPhase && !isAliveCurrentPlayer ? "Elendin! Oyun devam ediyor." : resolveGameOverMessage(roomData, outcome.message, spyInfo);
     msgDiv.textContent = resolvedMessage;
     if (!(isResultsPhase && !isAliveCurrentPlayer)) {
       appendSpyNamesLine(msgDiv, roomData, {
         spyInfo,
-        primaryMessage: resolvedMessage
+        primaryMessage: resolvedMessage,
+        canRevealImpostors
       });
     }
     if (outcome.gameEnded) {
@@ -2888,6 +2890,8 @@
   }
   function appendSpyNamesLine(msgDiv, roomData) {
     let options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    const canRevealImpostors = options.canRevealImpostors ?? canRevealImpostorNames(roomData);
+    if (!canRevealImpostors) return;
     const spyInfo = options.spyInfo || getSpyInfo(roomData);
     const primaryMessage = options.primaryMessage || msgDiv?.textContent || "";
     const hasSnapshot = !!roomData?.spiesSnapshot && isCurrentRoundPayload(roomData, roomData.spiesSnapshot);
@@ -2905,6 +2909,7 @@
       console.error("resultOverlay element not found");
       return;
     }
+    const canRevealImpostors = canRevealImpostorNames(roomData);
     const spyInfo = getSpyInfo(roomData);
     gameEnded = true;
     overlay.innerHTML = "";
@@ -2917,7 +2922,8 @@
     msgDiv.textContent = resolveGameOverMessage(roomData, fallbackMessage, spyInfo);
     appendSpyNamesLine(msgDiv, roomData, {
       spyInfo,
-      primaryMessage: msgDiv.textContent
+      primaryMessage: msgDiv.textContent,
+      canRevealImpostors
     });
     const resolvedActualAnswer = actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation;
     const detailLines = buildGuessDetails(finalGuess, resolvedActualAnswer || actualAnswer, gameType);
@@ -2962,6 +2968,7 @@
       console.error("resultOverlay element not found");
       return;
     }
+    const canRevealImpostors = canRevealImpostorNames(roomData);
     const spyInfo = getSpyInfo(roomData);
     gameEnded = true;
     overlay.innerHTML = "";
@@ -2977,7 +2984,8 @@
     msgDiv.textContent = resolveGameOverMessage(roomData, fallbackMessage, spyInfo);
     appendSpyNamesLine(msgDiv, roomData, {
       spyInfo,
-      primaryMessage: msgDiv.textContent
+      primaryMessage: msgDiv.textContent,
+      canRevealImpostors
     });
     const detailLines = buildGuessDetails(finalGuess, resolvedActualAnswer, gameType);
     appendGuessDetails(msgDiv, detailLines);
