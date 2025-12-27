@@ -542,17 +542,21 @@
     </div>
   </div>
 
-<!-- Modern tarayıcılar: ESM giriş noktası ve bağımlılıklarını import eder -->
-<!-- Üretim sunucusu bu dosyaları Content-Type: text/javascript ile servis etmelidir. -->
-<script type="module" src="firebase.js"></script>
-<script type="module" src="main.js"></script>
+<!-- Firebase CDN (compat) - klasik scriptler -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
-<!-- Eski tarayıcılar: yalnızca klasik bundle ve Firebase compat CDN'leri -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" nomodule></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js" nomodule></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js" nomodule></script>
-<script src="firebase.nomodule.js" nomodule></script>
+<!-- Yerel dosyalar modül olarak (import/export destekler) -->
+<script type="module" src="firebase.js"></script>
+<script type="module" src="gameLogic.js"></script>
+<script type="module" src="utils.js"></script>
+
+<!-- Eski tarayıcılar -->
 <script nomodule defer src="main.nomodule.js"></script>
+
+<!-- Modern tarayıcılar -->
+<script type="module" src="main.js"></script>
 
 <script>
   function sendOutboundEvent(linkName, linkUrl, placement) {
