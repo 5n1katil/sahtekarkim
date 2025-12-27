@@ -1895,6 +1895,9 @@ finalizeVoting: function (roomCode, reason) {
         "Any state with 0 spies -> innocents should win"
       );
 
+      const canRevealImpostors =
+        nextStatus === "finished" || typeof nextWinner === "string";
+
       const resultPayload = {
         ...(votingState.result || {}),
         round: votingRound,
@@ -1907,11 +1910,14 @@ finalizeVoting: function (roomCode, reason) {
         roundId: room.roundId || null,
       };
 
+      resultPayload.revealSpies = false;
+      resultPayload.publicMessage = null;
+
       // Public message: oyun bitmediyse rol ifşası yok
       if (!isTie && eliminatedUid) {
         const publicName = eliminatedName || eliminatedUid;
 
-        if (nextStatus === "finished") {
+        if (canRevealImpostors) {
           const normalizedWinner = normalizeWinnerValue(nextWinner);
           if (normalizedWinner === "innocents") {
             resultPayload.publicMessage = `Sahtekar ${publicName} elendi! Oyunu masumlar kazandı!`;
@@ -1921,8 +1927,7 @@ finalizeVoting: function (roomCode, reason) {
             resultPayload.revealSpies = true;
           }
         } else {
-          resultPayload.publicMessage = `${publicName} elendi! Fakat oyun henüz bitmiş değil...`;
-          resultPayload.revealSpies = false;
+          resultPayload.publicMessage = "Bir oyuncu elendi! Fakat oyun henüz bitmiş değil...";
         }
       }
 
