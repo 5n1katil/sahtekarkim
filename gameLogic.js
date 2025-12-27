@@ -1992,7 +1992,6 @@ finalizeVoting: function (roomCode, reason) {
           startedBy: null,
           votes: null,
           expectedVoters: normalizedExpectedVotersMap,
-          continuationPending: true,
           continueAcks: {},
           result: resultPayload,
         },
@@ -2149,14 +2148,18 @@ finalizeVoting: function (roomCode, reason) {
 
       const roles = room.playerRoles || {};
       const players = room.players || {};
+      const playerStatus =
+        typeof players[userUid]?.status === "string"
+          ? players[userUid].status
+          : "alive";
+      if (playerStatus !== "alive") return room;
       const alivePlayers = getActivePlayers(roles, players);
       const aliveUids = alivePlayers.map((p) => p.uid);
 
+      if (!aliveUids.includes(userUid)) return room;
+
       const continueAcks = { ...(room.voting?.continueAcks || {}) };
       continueAcks[userUid] = true;
-
-      const continuationPending =
-        room.voting?.continuationPending !== false || !!continueAcks[userUid];
 
       const allAcked =
         aliveUids.length > 0 && aliveUids.every((id) => continueAcks[id]);
@@ -2166,7 +2169,6 @@ finalizeVoting: function (roomCode, reason) {
         voting: {
           ...(room.voting || {}),
           status: room.voting?.status || "resolved",
-          continuationPending,
           continueAcks,
         },
       };
@@ -2179,7 +2181,6 @@ finalizeVoting: function (roomCode, reason) {
           expectedVoters: null,
           votes: null,
           result: null,
-          continuationPending: false,
           continueAcks: null,
         };
         if (!blockLegacyVotingUpdates) {
@@ -2214,12 +2215,7 @@ finalizeVoting: function (roomCode, reason) {
         nextRoom.votingStarted = false;
         nextRoom.voteResult = null;
       }
-      nextRoom.voting = {
-        status: "idle",
-        startedBy: {},
-        continuationPending: false,
-        continueAcks: null,
-      };
+      nextRoom.voting = { status: "idle", startedBy: {} };
       nextRoom.phase = "clue";
       nextRoom.game = { ...(room.game || {}), phase: "playing" };
       return nextRoom;
