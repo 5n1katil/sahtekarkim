@@ -67,6 +67,18 @@ function clearStoragePreservePromo() {
   }
 }
 
+function removeRoleCopyElements() {
+  const copySelectors = [
+    "#copyRoleButton",
+    ".copy-role-btn",
+    "[data-role-copy]",
+  ];
+
+  copySelectors.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((el) => el.remove());
+  });
+}
+
 function showEliminationOverlay(roomCode) {
   const overlay = document.getElementById("resultOverlay");
   const actions = document.getElementById("gameActions");
@@ -384,6 +396,7 @@ function updateRoleDisplay(myData, settings) {
   const poolListEl = document.getElementById("poolList");
   const roleHintBlock = document.getElementById("roleHintBlock");
   const roleHintText = document.getElementById("roleHintText");
+  removeRoleCopyElements();
   const isCategory = settings?.gameType === "category";
   const poolLabel = isCategory
     ? "Sahtekarın gördüğü roller"
