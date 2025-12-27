@@ -39,10 +39,6 @@ export function detectActivePlayerKey(playersObj) {
   return null;
 }
 
-export function refGet(ref) {
-  return ref.once("value");
-}
-
 export function isPlayerActive(playerEntry, activeKey) {
   if (!playerEntry || typeof playerEntry !== "object") return true;
   const key = activeKey || ACTIVE_PLAYER_KEYS.find((k) => k in playerEntry);
