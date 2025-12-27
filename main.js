@@ -775,6 +775,7 @@ function updateRoleDisplay(myData, settings) {
       appendSpyNamesLine(msgDiv, roomData, {
         spyInfo,
         primaryMessage: resolvedMessage,
+        canRevealImpostors,
       });
     }
     if (outcome.gameEnded) {
@@ -1138,6 +1139,10 @@ function updateRoleDisplay(myData, settings) {
     };
   }
   function appendSpyNamesLine(msgDiv, roomData, options = {}) {
+    const canRevealImpostors =
+      options.canRevealImpostors ?? canRevealImpostorNames(roomData);
+    if (!canRevealImpostors) return;
+
     const spyInfo = options.spyInfo || getSpyInfo(roomData);
     const primaryMessage = options.primaryMessage || msgDiv?.textContent || "";
     const hasSnapshot =
@@ -1160,6 +1165,7 @@ function updateRoleDisplay(myData, settings) {
       console.error("resultOverlay element not found");
       return;
     }
+    const canRevealImpostors = canRevealImpostorNames(roomData);
     const spyInfo = getSpyInfo(roomData);
     gameEnded = true;
     overlay.innerHTML = "";
@@ -1185,6 +1191,7 @@ function updateRoleDisplay(myData, settings) {
     appendSpyNamesLine(msgDiv, roomData, {
       spyInfo,
       primaryMessage: msgDiv.textContent,
+      canRevealImpostors,
     });
     const resolvedActualAnswer =
       actualAnswer || finalGuess?.actualRole || finalGuess?.actualLocation;
@@ -1244,6 +1251,7 @@ function updateRoleDisplay(myData, settings) {
       return;
     }
 
+    const canRevealImpostors = canRevealImpostorNames(roomData);
     const spyInfo = getSpyInfo(roomData);
     gameEnded = true;
     overlay.innerHTML = "";
@@ -1279,6 +1287,7 @@ function updateRoleDisplay(myData, settings) {
     appendSpyNamesLine(msgDiv, roomData, {
       spyInfo,
       primaryMessage: msgDiv.textContent,
+      canRevealImpostors,
     });
 
     const detailLines = buildGuessDetails(
