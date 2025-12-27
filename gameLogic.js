@@ -1713,13 +1713,14 @@ export const gameLogic = {
     this.castVote(roomCode, voter, target);
   },
 
-finalizeVoting: function (roomCode, reason) {
-  console.log("[finalizeVoting] called", { reason, roomId: roomCode });
-  const ref = window.db.ref("rooms/" + roomCode);
+  finalizeVoting: async function (roomCode, reason) {
+    console.log("[finalizeVoting] called", { reason, roomId: roomCode });
+    const roomRef = window.db.ref(`rooms/${roomCode}`);
 
-  return ref
-    .transaction((room) => {
-      if (!room) return room;
+    try {
+      const snapshot = await roomRef.once("value");
+      const room = snapshot.val();
+      if (!room) return;
 
       const votingState = room.voting || {};
 
@@ -1745,7 +1746,7 @@ finalizeVoting: function (roomCode, reason) {
         typeof votingState.endsAt === "number" ? votingState.endsAt : null;
 
       const votesMap = votingState.votes || {};
-
+@@ -1749,54 +1750,54 @@ finalizeVoting: function (roomCode, reason) {
       const validVotes = Object.entries(votesMap).reduce((acc, [voter, target]) => {
         if (derivedExpectedSet.has(voter) && derivedExpectedSet.has(target)) {
           acc[voter] = target;
@@ -1771,10 +1772,10 @@ finalizeVoting: function (roomCode, reason) {
         expectedCount: expectedVoterCount,
       });
 
-      if (votingState.status !== "in_progress") return room;
+      if (votingState.status !== "in_progress") return;
 
-      if (reason === "all_voted" && votesCount !== expectedVoterCount) return room;
-      if (!canFinalizeByCount && !canFinalizeByTime) return room;
+      if (reason === "all_voted" && votesCount !== expectedVoterCount) return;
+      if (!canFinalizeByCount && !canFinalizeByTime) return;
 
       const counts = {};
       Object.values(validVotes).forEach((target) => {
@@ -1935,20 +1936,22 @@ finalizeVoting: function (roomCode, reason) {
         resultPayload.lastSpy = remainingSpies.length === 0;
       }
 
-      const nextRoom = {
+      const nextVoting = {
+        ...votingState,
+        status: "resolved",
+        startedBy: null,
+        votes: null,
+        expectedVoters: normalizedExpectedVotersMap,
+        continueAcks: {},
+        result: resultPayload,
+      };
+
+      const nextRoomState = {
         ...room,
         ...finalUpdates,
         players: nextPlayers,
         eliminated: nextEliminated,
-        voting: {
-          ...votingState,
-          status: "resolved",
-          startedBy: null,
-          votes: null,
-          expectedVoters: normalizedExpectedVotersMap,
-          continueAcks: {},
-          result: resultPayload,
-        },
+        voting: nextVoting,
         votingStarted: false,
         voteResult: null,
         votes: null,
@@ -1959,7 +1962,7 @@ finalizeVoting: function (roomCode, reason) {
         guess: null,
       };
 
-      if (nextStatus !== undefined) nextRoom.status = nextStatus;
+      if (nextStatus !== undefined) nextRoomState.status = nextStatus;
 
       const resolvedWinner =
         typeof nextWinner === "string"
@@ -1968,28 +1971,45 @@ finalizeVoting: function (roomCode, reason) {
             ? room.winner
             : null;
 
-      if (resolvedWinner) nextRoom.winner = resolvedWinner;
-      else delete nextRoom.winner;
+      if (resolvedWinner) nextRoomState.winner = resolvedWinner;
+      else delete nextRoomState.winner;
 
-      return nextRoom;
-    })
-    .then((result) => {
-      if (!result?.committed) return;
+      const updates = {
+        [`rooms/${roomCode}/players`]: nextRoomState.players,
+        [`rooms/${roomCode}/eliminated`]: nextRoomState.eliminated,
+        [`rooms/${roomCode}/voting`]: nextRoomState.voting,
+        [`rooms/${roomCode}/votingStarted`]: false,
+        [`rooms/${roomCode}/voteResult`]: null,
+        [`rooms/${roomCode}/votes`]: null,
+        [`rooms/${roomCode}/voteRequests`]: null,
+        [`rooms/${roomCode}/voteStartRequests`]: null,
+        [`rooms/${roomCode}/game/phase`]: nextGamePhase,
+        [`rooms/${roomCode}/phase`]: nextGamePhase,
+        [`rooms/${roomCode}/guess`]: null,
+      };
 
-      const roomData = result.snapshot?.val();
-      if (!roomData) return;
+      if (nextRoomState.status !== undefined) {
+        updates[`rooms/${roomCode}/status`] = nextRoomState.status;
+      }
 
-      const votingResult = roomData?.voting?.result;
-      const votingStatus = roomData?.voting?.status;
+      updates[`rooms/${roomCode}/winner`] = resolvedWinner || null;
+
+      Object.keys(finalUpdates).forEach((key) => {
+        updates[`rooms/${roomCode}/${key}`] = finalUpdates[key];
+      });
+
+      await window.db.ref().update(updates);
+
+      const votingResult = nextRoomState?.voting?.result;
+      const votingStatus = nextRoomState?.voting?.status;
       const finalizedAt = votingResult?.finalizedAt;
-      const phase = roomData?.phase;
-      const gamePhase = roomData?.game?.phase;
+      const phase = nextRoomState?.phase;
+      const gamePhase = nextRoomState?.game?.phase;
 
       const isEnded =
-        roomData?.status === "finished" || phase === "ended" || gamePhase === "ended";
+        nextRoomState?.status === "finished" || phase === "ended" || gamePhase === "ended";
 
-      console.log("[finalizeVoting] transaction result", {
-        committed: result.committed,
+      console.log("[finalizeVoting] update result", {
         roomId: roomCode,
         votingStatus: votingStatus ?? null,
         finalizedAtPresent: !!finalizedAt,
@@ -2010,20 +2030,20 @@ finalizeVoting: function (roomCode, reason) {
       }
 
       // ✅ Sadece oyun bittiyse ve elimizde elimine edilen varsa gameOver'u finalize et
-      if (roomData?.status !== "finished") return;
+      if (nextRoomState?.status !== "finished") return;
       if (!votingResult?.eliminatedUid) return;
 
       const eliminatedName = votingResult.eliminatedName || votingResult.eliminatedUid;
 
       const winner = normalizeWinnerValue(
-        roomData.winner === "innocent"
+        nextRoomState.winner === "innocent"
           ? "innocents"
-          : roomData.winner === "spy"
+          : nextRoomState.winner === "spy"
             ? "spies"
-            : roomData.winner
+            : nextRoomState.winner
       );
 
-      return getSpyNamesForMessage(roomCode, roomData).then(({ spyNames }) => {
+      return getSpyNamesForMessage(roomCode, nextRoomState).then(({ spyNames }) => {
         const spyIntro = formatSpyIntro(spyNames);
 
         const message =
@@ -2031,7 +2051,7 @@ finalizeVoting: function (roomCode, reason) {
             ? `Sahtekar ${eliminatedName} elendi! Oyunu masumlar kazandı!`
             : `${spyIntro} sayıca üstünlük sağladı ve oyunu kazandı!`;
 
-        return finalizeGameOver(roomCode, roomData, {
+        return finalizeGameOver(roomCode, nextRoomState, {
           winner,
           reason: "vote",
           eliminatedUid: votingResult.eliminatedUid,
@@ -2039,11 +2059,10 @@ finalizeVoting: function (roomCode, reason) {
           message,
         });
       });
-    })
-    .catch((err) => {
+    } catch (err) {
       console.error("[finalizeVoting] error", err);
-    });
-},
+    }
+  },
 
   restartVotingAfterTie: function (roomCode) {
     if (!roomCode) return Promise.resolve(null);
