@@ -1746,7 +1746,7 @@ export const gameLogic = {
         typeof votingState.endsAt === "number" ? votingState.endsAt : null;
 
       const votesMap = votingState.votes || {};
-@@ -1749,54 +1750,54 @@ finalizeVoting: function (roomCode, reason) {
+      
       const validVotes = Object.entries(votesMap).reduce((acc, [voter, target]) => {
         if (derivedExpectedSet.has(voter) && derivedExpectedSet.has(target)) {
           acc[voter] = target;
@@ -1998,36 +1998,36 @@ export const gameLogic = {
         updates[`rooms/${roomCode}/${key}`] = finalUpdates[key];
       });
 
-      await window.db.ref().update(updates);
+        await window.db.ref().update(updates);
 
-      const votingResult = nextRoomState?.voting?.result;
-      const votingStatus = nextRoomState?.voting?.status;
-      const finalizedAt = votingResult?.finalizedAt;
-      const phase = nextRoomState?.phase;
-      const gamePhase = nextRoomState?.game?.phase;
+        const votingResult = nextRoomState?.voting?.result;
+        const votingStatus = nextRoomState?.voting?.status;
+        const votingFinalizedAt = votingResult?.finalizedAt;
+        const phase = nextRoomState?.phase;
+        const gamePhase = nextRoomState?.game?.phase;
 
-      const isEnded =
-        nextRoomState?.status === "finished" || phase === "ended" || gamePhase === "ended";
+        const isEnded =
+          nextRoomState?.status === "finished" || phase === "ended" || gamePhase === "ended";
 
-      console.log("[finalizeVoting] update result", {
-        roomId: roomCode,
-        votingStatus: votingStatus ?? null,
-        finalizedAtPresent: !!finalizedAt,
-        phase: phase ?? null,
-        gamePhase: gamePhase ?? null,
-      });
+        console.log("[finalizeVoting] update result", {
+          roomId: roomCode,
+          votingStatus: votingStatus ?? null,
+          finalizedAtPresent: !!votingFinalizedAt,
+          phase: phase ?? null,
+          gamePhase: gamePhase ?? null,
+        });
 
-      const warnings = [];
-      if (!votingStatus) warnings.push("Missing rooms/{room}/voting/status");
-      if (finalizedAt === undefined || finalizedAt === null) {
-        warnings.push("Missing voting.result.finalizedAt");
-      }
-      if (!isEnded && !phase && !gamePhase) {
-        warnings.push("Missing phase and game.phase");
-      }
-      if (warnings.length) {
-        console.warn("[finalizeVoting] transaction diagnostics", { roomId: roomCode, warnings });
-      }
+        const warnings = [];
+        if (!votingStatus) warnings.push("Missing rooms/{room}/voting/status");
+        if (votingFinalizedAt === undefined || votingFinalizedAt === null) {
+          warnings.push("Missing voting.result.finalizedAt");
+        }
+        if (!isEnded && !phase && !gamePhase) {
+          warnings.push("Missing phase and game.phase");
+        }
+        if (warnings.length) {
+          console.warn("[finalizeVoting] transaction diagnostics", { roomId: roomCode, warnings });
+        }
 
       // ✅ Sadece oyun bittiyse ve elimizde elimine edilen varsa gameOver'u finalize et
       if (nextRoomState?.status !== "finished") return;
