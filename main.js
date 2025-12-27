@@ -1920,26 +1920,35 @@ function updateRoleDisplay(myData, settings) {
         exitBtn?.classList.remove("hidden");
 
         if (roomData.playerRoles && roomData.playerRoles[currentUid]) {
-        const myData = roomData.playerRoles[currentUid];
+          const myData = roomData.playerRoles[currentUid];
 
-        document.getElementById("roomInfo").classList.add("hidden");
-        document.getElementById("playerRoleInfo").classList.remove("hidden");
-        document.getElementById("gameActions").classList.remove("hidden");
+          document.getElementById("roomInfo").classList.add("hidden");
+          document.getElementById("playerRoleInfo").classList.remove("hidden");
+          document.getElementById("gameActions").classList.remove("hidden");
 
-        if (roomData.status === "started" && prevStatus !== "started") {
-          setTimeout(() => window.scrollTo(0, 0), 0);
-        }
+          if (roomData.status === "started" && prevStatus !== "started") {
+            setTimeout(() => window.scrollTo(0, 0), 0);
+          }
 
-        updateRoleDisplay(myData, roomData.settings);
-        if (myData && myData.role) {
+          updateRoleDisplay(myData, roomData.settings);
+          if (myData && myData.role) {
           const guessesLeft = myData.guessesLeft ?? 0;
           const roleDisplay = myData.role?.name ?? myData.role;
           const isSpy =
             roleDisplay &&
             typeof roleDisplay === "string" &&
             roleDisplay.includes("Sahtekar");
-          if (isSpy && guessesLeft > 0) {
-            const guessSection = document.getElementById("guessSection");
+          const lastGuessIsMine = currentLastGuess?.spy === currentUid;
+          const shouldShowGuessSection =
+            isSpy &&
+            roomData.status === "started" &&
+            (guessesLeft > 0 || lastGuessIsMine);
+
+          const guessSection = document.getElementById("guessSection");
+          const guessSummaryEl = document.getElementById("guessSummary");
+          const guessSummaryText = document.getElementById("guessSummaryText");
+
+          if (shouldShowGuessSection) {
             guessSection.classList.remove("hidden");
             const guessSelect = document.getElementById("guessSelect");
             const locations = myData.allLocations || [];
@@ -1968,14 +1977,64 @@ function updateRoleDisplay(myData, settings) {
             if (!guessSelect.value && guessSelect.options.length > 0) {
               guessSelect.value = guessSelect.options[0].value;
             }
+
+            if (guessSelect) {
+              guessSelect.disabled = guessesLeft <= 0;
+            }
+            const submitGuessBtn = document.getElementById("submitGuessBtn");
+            if (submitGuessBtn) {
+              submitGuessBtn.disabled = guessesLeft <= 0;
+            }
+
+            const gameType = roomData.settings?.gameType;
+            const guessWord = gameType === "category" ? "rolü" : "konumu";
+            const actualWord = gameType === "category" ? "rol" : "konum";
+            const actualAnswer =
+              gameType === "category"
+                ? currentLastGuess?.finalGuess?.actualRole
+                : currentLastGuess?.finalGuess?.actualLocation;
+
+            if (guessSummaryEl && guessSummaryText) {
+              if (lastGuessIsMine && currentLastGuess) {
+                const remainingGuesses =
+                  typeof currentLastGuess.guessesLeft === "number"
+                    ? currentLastGuess.guessesLeft
+                    : guessesLeft;
+                const baseMessage = currentLastGuess.correct
+                  ? `Tebrikler! ${guessWord} ${currentLastGuess.guess} tahminin doğru.`
+                  : `Tahminin hatalı: ${guessWord} ${currentLastGuess.guess}.`;
+                const remainingMessage =
+                  remainingGuesses > 0
+                    ? ` Kalan tahmin hakkı: ${remainingGuesses}.`
+                    : " Tahmin hakkın kalmadı.";
+                const actualMessage =
+                  !currentLastGuess.correct && actualAnswer
+                    ? ` Doğru ${actualWord} ${actualAnswer}.`
+                    : "";
+                guessSummaryText.textContent =
+                  baseMessage + remainingMessage + actualMessage;
+                guessSummaryText.classList.remove("hidden");
+                guessSummaryEl.classList.remove("hidden");
+              } else {
+                guessSummaryText.textContent = "";
+                guessSummaryEl.classList.add("hidden");
+              }
+            }
+
             lastGuessSelection = guessSelect.value || null;
           } else {
             document.getElementById("guessSection").classList.add("hidden");
+            guessSummaryEl?.classList.add("hidden");
+            if (guessSummaryText) {
+              guessSummaryText.textContent = "";
+            }
             lastGuessOptionsKey = null;
             lastGuessSelection = null;
           }
         } else {
           document.getElementById("guessSection").classList.add("hidden");
+          document.getElementById("guessSummary")?.classList.add("hidden");
+          document.getElementById("guessSummaryText")?.textContent = "";
           lastGuessOptionsKey = null;
           lastGuessSelection = null;
         }
