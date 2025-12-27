@@ -507,22 +507,44 @@ function updateRoleDisplay(myData, settings) {
     return true;
   }
 
+  function canRevealImpostorNames(roomData) {
+    const phase = resolveGamePhase(roomData);
+    if (phase === "ended") return true;
+    if (roomData?.status === "finished") return true;
+    if (roomData?.winner) return true;
+    if (getGameOverInfo(roomData)) return true;
+    return false;
+  }
+
   function buildVotingOutcomeMessage({
     eliminatedName,
     eliminatedIsImpostor,
     alivePlayersCount,
     aliveImpostorsCount,
     spyNames = [],
+    canRevealImpostors = true,
+    gameEndedFromState = false,
   }) {
     const safeName = escapeHtml(eliminatedName || "");
     const normalizedSpyNames = uniqueNames(
       (spyNames || []).map((name) => sanitizeName(name))
     ).filter(Boolean);
     const impostorWinnersText = formatSpyWinnersText(normalizedSpyNames);
+    const resolvedGameEnded = !!gameEndedFromState;
+    const impostorGameEnded = resolvedGameEnded || canRevealImpostors;
     if (eliminatedIsImpostor) {
+      if (!canRevealImpostors) {
+        return {
+          message:
+            "Oylama sonucunda biri elendi. Elenen kişi sahtekardı — oyun devam ediyor.",
+          gameEnded: resolvedGameEnded,
+          impostorVictory: false,
+        };
+      }
+
       return {
         message: `Oylama sonucunda Sahtekar ${safeName} elendi ve oyunu masumlar kazandı!`,
-        gameEnded: true,
+        gameEnded: impostorGameEnded,
         impostorVictory: false,
       };
     }
@@ -605,6 +627,7 @@ function updateRoleDisplay(myData, settings) {
     );
     const alivePlayersCount = remaining.length;
     const aliveImpostorsCount = activeSpies.length;
+    const canRevealImpostors = canRevealImpostorNames(roomData);
 
     const outcome = buildVotingOutcomeMessage({
       eliminatedName: votedName,
@@ -612,6 +635,8 @@ function updateRoleDisplay(myData, settings) {
       alivePlayersCount,
       aliveImpostorsCount,
       spyNames: getSpyNames(roomData, roomData?.players),
+      canRevealImpostors,
+      gameEndedFromState: canRevealImpostors,
     });
 
     return {
@@ -691,6 +716,7 @@ function updateRoleDisplay(myData, settings) {
       votedUid,
       eliminatedName
     );
+    const canRevealImpostors = canRevealImpostorNames(roomData);
     const outcome =
       precomputedOutcome ||
       buildVotingOutcomeMessage({
@@ -699,6 +725,8 @@ function updateRoleDisplay(myData, settings) {
         alivePlayersCount,
         aliveImpostorsCount,
         spyNames: getSpyNames(roomData, roomData?.players),
+        canRevealImpostors,
+        gameEndedFromState: canRevealImpostors,
       });
     const overlay = document.getElementById("resultOverlay");
     if (!overlay) {
