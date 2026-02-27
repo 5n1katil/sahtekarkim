@@ -33,6 +33,28 @@ function getSpyUidsFromRoom(room) {
   return Array.from(spies);
 }
 
+/** Canonical correct answer for guesses: from game.correctAnswer, or fallback from first innocent (legacy). */
+function getCanonicalCorrectAnswer(room) {
+  const game = room?.game;
+  if (game && game.correctAnswer != null && String(game.correctAnswer).trim() !== "") {
+    return String(game.correctAnswer).trim();
+  }
+  const roles = room?.playerRoles || {};
+  const gameType = room?.settings?.gameType;
+  for (const uid in roles) {
+    const r = roles[uid];
+    if (r && !r.isSpy) {
+      if (gameType === "category") {
+        return resolveRoleName(r?.role);
+      }
+      const loc = r?.location;
+      if (loc === undefined || loc === null) return null;
+      return typeof loc === "string" ? loc : String(loc);
+    }
+  }
+  return null;
+}
+
 function isVotingStateMachineActive(room) {
   const votingStatus = room?.voting?.status;
   const gamePhase = room?.game?.phase;
@@ -435,7 +457,15 @@ function buildRoleAssignments(roomCode, settings, players, roundId) {
     spies: spiesArr,
   };
 
-  return { updates, spiesSnapshotPayload };
+  // Canonical correct answer for guesses (single source of truth; do not derive from first innocent)
+  let correctAnswer = null;
+  if (isLocationGame) {
+    correctAnswer = chosenLocation;
+  } else if (isCategoryGame) {
+    correctAnswer = chosenRoleName;
+  }
+
+  return { updates, spiesSnapshotPayload, correctAnswer };
 }
 
 // Konumlar ve kategoriler için veri havuzları
@@ -1070,7 +1100,7 @@ export const gameLogic = {
       ])
     );
 
-    const { updates, spiesSnapshotPayload } = buildRoleAssignments(
+    const { updates, spiesSnapshotPayload, correctAnswer } = buildRoleAssignments(
       roomCode,
       settings,
       revivedPlayers,
@@ -1087,6 +1117,7 @@ export const gameLogic = {
       [`${roomBasePath}/phase`]: "clue",
       [`${roomBasePath}/game`]: {
         phase: "playing",
+        ...(correctAnswer != null ? { correctAnswer } : {}),
       },
       [`${roomBasePath}/votes`]: null,
       [`${roomBasePath}/voteResult`]: null,
@@ -1145,7 +1176,7 @@ export const gameLogic = {
       throw new Error("Oyunu başlatmak için en az 3 oyuncu gerekli.");
     }
 
-    const { updates, spiesSnapshotPayload } = buildRoleAssignments(
+    const { updates, spiesSnapshotPayload, correctAnswer } = buildRoleAssignments(
       roomCode,
       settings,
       revivedPlayers,
@@ -1162,6 +1193,7 @@ export const gameLogic = {
       [`${roomBasePath}/phase`]: "clue",
       [`${roomBasePath}/game`]: {
         phase: "playing",
+        ...(correctAnswer != null ? { correctAnswer } : {}),
       },
       [`${roomBasePath}/votes`]: null,
       [`${roomBasePath}/voteResult`]: null,
@@ -1489,154 +1521,123 @@ export const gameLogic = {
 
   guessLocation: function (roomCode, spyUid, guess) {
     const ref = window.db.ref("rooms/" + roomCode);
-    ref.get().then((snap) => {
-      if (!snap.exists()) return;
-      const data = snap.val();
-      const roles = data.playerRoles || {};
-      const spyRole = roles[spyUid];
-      if (!spyRole) return;
-      const blockLegacyVotingUpdates = !!data?.voting?.status;
-      let guessesLeft = spyRole.guessesLeft || 0;
-      if (guessesLeft <= 0) return;
-      let correctAnswer = null;
-      const gameType = data.settings?.gameType;
-      const guessValue = typeof guess === "string" ? guess : String(guess);
-      for (const uid in roles) {
-        const r = roles[uid];
-        if (r && !r.isSpy) {
-          if (gameType === "category") {
-            correctAnswer = resolveRoleName(r?.role);
-          } else {
-            const locationValue = r?.location;
-            correctAnswer =
-              locationValue === undefined || locationValue === null
-                ? null
-                : typeof locationValue === "string"
-                  ? locationValue
-                  : String(locationValue);
-          }
-          break;
-        }
-      }
-      if (!correctAnswer) return;
-      const finalGuess =
-        gameType === "category"
-          ? { guessedRole: guessValue, isCorrect: guessValue === correctAnswer }
-          : { guessedLocation: guessValue, isCorrect: guessValue === correctAnswer };
-      if (gameType === "category") {
-        finalGuess.actualRole = correctAnswer;
-      } else {
-        finalGuess.actualLocation = correctAnswer;
-      }
+    const guessValue = typeof guess === "string" ? guess : String(guess).trim();
+    if (!roomCode || !spyUid || guessValue === "") return;
 
-      const preserveVotingStarted = data.votingStarted;
-      const preserveVotes = data.voting?.votes;
-      if (guessValue === correctAnswer) {
-        const guessWord = gameType === "category" ? "rolü" : "konumu";
-        getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
-          const spyIntro = formatSpyIntro(spyNames);
-          const message = `${spyIntro} ${guessWord} ${guessValue} olarak doğru tahmin etti ve oyunu kazandı!`;
-          const winUpdate = {
-            status: "finished",
-            winner: "spy",
-            lastGuess: {
-              spy: spyUid,
+    return ref
+      .transaction((room) => {
+        if (!room) return room;
+        if (room.status === "finished") return room;
+
+        const phase = room?.game?.phase || room?.phase;
+        const isVoting = phase === "voting";
+        if (!isVoting) return room;
+
+        const roles = room.playerRoles || {};
+        const spyRole = roles[spyUid];
+        if (!spyRole || !spyRole.isSpy) return room;
+
+        let guessesLeft = typeof spyRole.guessesLeft === "number" ? spyRole.guessesLeft : 0;
+        if (guessesLeft <= 0) return room;
+
+        const correctAnswer = getCanonicalCorrectAnswer(room);
+        if (correctAnswer == null || correctAnswer === "") return room;
+
+        const gameType = room.settings?.gameType;
+        const isCorrect = guessValue === correctAnswer;
+        const finalGuess =
+          gameType === "category"
+            ? { guessedRole: guessValue, isCorrect, actualRole: correctAnswer }
+            : { guessedLocation: guessValue, isCorrect, actualLocation: correctAnswer };
+
+        const blockLegacyVotingUpdates = !!room?.voting?.status;
+        const roundId = room.roundId || null;
+
+        if (isCorrect) {
+          const nextRoom = { ...room };
+          nextRoom.status = "finished";
+          nextRoom.winner = "spy";
+          nextRoom.lastGuess = {
+            spy: spyUid,
             guess: guessValue,
             correct: true,
             finalGuess,
-            roundId: data.roundId || null,
-          },
-            guess: null,
+            roundId,
           };
-          if (data.voting) {
-            winUpdate.voting = {
-              ...(data.voting || {}),
-              votes: null,
-            };
+          nextRoom.guess = null;
+          if (room.voting) {
+            nextRoom.voting = { ...room.voting, votes: null };
           }
           if (!blockLegacyVotingUpdates) {
-            winUpdate.votingStarted = false;
-            winUpdate.votes = null;
-            winUpdate.voteResult = null;
-            winUpdate.voteRequests = null;
+            nextRoom.votingStarted = false;
+            nextRoom.votes = null;
+            nextRoom.voteResult = null;
+            nextRoom.voteRequests = null;
           }
-          appendFinalSpyInfo(winUpdate, data);
-          ref
-            .update(winUpdate)
-            .then(() =>
-              finalizeGameOver(roomCode, data, {
-                winner: "spies",
-                reason: "guess",
-                message,
-                finalGuess,
-              })
-            );
-        });
-      } else {
+          appendFinalSpyInfo(nextRoom, room);
+          return nextRoom;
+        }
+
         guessesLeft -= 1;
-        const updates = {};
-        updates[`playerRoles/${spyUid}/guessesLeft`] = guessesLeft;
+        const nextRoom = { ...room };
+        nextRoom.playerRoles = { ...room.playerRoles };
+        nextRoom.playerRoles[spyUid] = { ...spyRole, guessesLeft };
+        nextRoom.lastGuess = {
+          spy: spyUid,
+          guess: guessValue,
+          correct: false,
+          guessesLeft,
+          finalGuess,
+          roundId,
+        };
+        nextRoom.guess = null;
+
         if (guessesLeft <= 0) {
-          updates.status = "finished";
-          updates.winner = "innocent";
-          updates.lastGuess = {
-            spy: spyUid,
-            guess: guessValue,
-            correct: false,
-            guessesLeft: 0,
-            finalGuess,
-            roundId: data.roundId || null,
-          };
-          updates["voting/votes"] = null;
-          updates.guess = null;
+          nextRoom.status = "finished";
+          nextRoom.winner = "innocent";
+          if (nextRoom.voting) nextRoom.voting = { ...nextRoom.voting, votes: null };
           if (!blockLegacyVotingUpdates) {
-            updates.votingStarted = false;
-            updates.votes = null;
-            updates.voteResult = null;
-            updates.voteRequests = null;
+            nextRoom.votingStarted = false;
+            nextRoom.votes = null;
+            nextRoom.voteResult = null;
+            nextRoom.voteRequests = null;
           }
+          appendFinalSpyInfo(nextRoom, room);
         } else {
-          updates.lastGuess = {
-            spy: spyUid,
-            guess: guessValue,
-            correct: false,
-            guessesLeft,
-            finalGuess,
-            roundId: data.roundId || null,
-          };
-          if (!blockLegacyVotingUpdates && typeof preserveVotingStarted !== "undefined") {
-            updates.votingStarted = preserveVotingStarted;
+          if (!blockLegacyVotingUpdates && room.votingStarted !== undefined) {
+            nextRoom.votingStarted = room.votingStarted;
           }
-          if (typeof preserveVotes !== "undefined") {
-            updates["voting/votes"] = preserveVotes;
+          if (room.voting?.votes !== undefined) {
+            nextRoom.voting = { ...(nextRoom.voting || {}), votes: room.voting.votes };
           }
         }
-        if (!updates.guess) {
-          updates.guess = null;
-        }
-        if (updates.status === "finished") {
-          const guessWord = gameType === "category" ? "rolü" : "konumu";
-          const actualWord = gameType === "category" ? "rol" : "konum";
-          appendFinalSpyInfo(updates, data);
-          getSpyNamesForMessage(roomCode, data).then(({ spyNames }) => {
-            const spyIntro = formatSpyIntro(spyNames);
-            const message = `${spyIntro} ${guessWord} ${guessValue} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
-            ref
-              .update(updates)
-              .then(() =>
-                finalizeGameOver(roomCode, data, {
-                  winner: "innocents",
-                  reason: "guess",
-                  message,
-                  finalGuess,
-                })
-              );
+        return nextRoom;
+      })
+      .then((result) => {
+        if (!result?.committed || !result.snapshot) return;
+        const roomData = result.snapshot.val();
+        if (!roomData || roomData.status !== "finished" || !roomData.lastGuess) return;
+
+        const lastGuess = roomData.lastGuess;
+        const gameType = roomData.settings?.gameType;
+        const guessWord = gameType === "category" ? "rolü" : "konumu";
+        const actualWord = gameType === "category" ? "rol" : "konum";
+        const correctAnswer = roomData.lastGuess.finalGuess?.actualRole ?? roomData.lastGuess.finalGuess?.actualLocation;
+
+        getSpyNamesForMessage(roomCode, roomData).then(({ spyNames }) => {
+          const spyIntro = formatSpyIntro(spyNames);
+          const message =
+            roomData.winner === "spy"
+              ? `${spyIntro} ${guessWord} ${lastGuess.guess} olarak doğru tahmin etti ve oyunu kazandı!`
+              : `${spyIntro} ${guessWord} ${lastGuess.guess} olarak yanlış tahmin etti. Doğru ${actualWord} ${correctAnswer} idi ve oyunu masumlar kazandı!`;
+          finalizeGameOver(roomCode, roomData, {
+            winner: roomData.winner === "spy" ? "spies" : "innocents",
+            reason: "guess",
+            message,
+            finalGuess: lastGuess.finalGuess,
           });
-        } else {
-          ref.update(updates);
-        }
-      }
-    });
+        });
+      });
   },
 
   castVote: function (roomCode, voterUid, targetUid) {
@@ -1730,6 +1731,7 @@ finalizeVoting: function (roomCode, reason) {
   return ref
     .transaction((room) => {
       if (!room) return room;
+      if (room.status === "finished") return room;
 
       const votingState = room.voting || {};
 
@@ -1857,13 +1859,13 @@ finalizeVoting: function (roomCode, reason) {
       let nextGamePhase = "results";
       const finalUpdates = {};
 
-      // 🎯 KAZANMA KOŞULLARI (DOĞRU HALİ)
+      // 🎯 KAZANMA KOŞULLARI: parity rule — spies win iff spyAlive >= innocentAlive
       if (spyAlive === 0) {
         nextStatus = "finished";
         nextWinner = "innocent";
         appendFinalSpyInfo(finalUpdates, room);
         nextGamePhase = "ended";
-      } else if (innocentAlive <= 1) {
+      } else if (spyAlive >= innocentAlive) {
         nextStatus = "finished";
         nextWinner = "spy";
         finalUpdates.spyParityWin = true;
@@ -1913,7 +1915,7 @@ finalizeVoting: function (roomCode, reason) {
       resultPayload.revealSpies = false;
       resultPayload.publicMessage = null;
 
-      // Public message: oyun bitmediyse rol ifşası yok
+      // Public message: oyun bitmediyse rol ifşası yok; never reveal spy list mid-game
       if (!isTie && eliminatedUid) {
         const publicName = eliminatedName || eliminatedUid;
 
@@ -1936,20 +1938,20 @@ finalizeVoting: function (roomCode, reason) {
       if (!isTie && eliminatedUid) {
         resultPayload.eliminatedUid = eliminatedUid;
         resultPayload.eliminatedName = eliminatedName;
-        resultPayload.eliminatedRole = eliminatedRole;
-        resultPayload.isSpy = !!(eliminatedRole && eliminatedRole.isSpy);
         resultPayload.eliminatedAt = finalizedAt;
         resultPayload.roundId = room.roundId || null;
-
-        if (eliminatedRole && eliminatedRole.role !== undefined) {
-          resultPayload.role = eliminatedRole.role;
+        if (canRevealImpostors) {
+          resultPayload.eliminatedRole = eliminatedRole;
+          resultPayload.isSpy = !!(eliminatedRole && eliminatedRole.isSpy);
+          if (eliminatedRole && eliminatedRole.role !== undefined) {
+            resultPayload.role = eliminatedRole.role;
+          }
+          if (eliminatedRole && eliminatedRole.location !== undefined) {
+            resultPayload.location = eliminatedRole.location;
+          }
+          resultPayload.remainingSpies = remainingSpies;
+          resultPayload.lastSpy = remainingSpies.length === 0;
         }
-        if (eliminatedRole && eliminatedRole.location !== undefined) {
-          resultPayload.location = eliminatedRole.location;
-        }
-
-        resultPayload.remainingSpies = remainingSpies;
-        resultPayload.lastSpy = remainingSpies.length === 0;
       }
 
       const nextRoom = {
@@ -2262,6 +2264,7 @@ finalizeVoting: function (roomCode, reason) {
       }
 
       if (isVotingStateMachineActive(data)) return;
+      if (data?.voting?.status === "in_progress" || data?.voting?.status === "resolved") return;
       if (data.voting?.status !== "in_progress") return;
       const alivePlayers = getActivePlayers(data.playerRoles, data.players);
       const players = alivePlayers.map((p) => p.uid);
@@ -2460,8 +2463,9 @@ checkSpyWin: function (roomCode, latestData) {
     const activeSpies = getSpyUidsFromRoom(data).filter((s) =>
       activeUids.includes(s)
     );
-    const innocentAlive = activePlayers.length - activeSpies.length;
-    return innocentAlive > 1; // sadece 1 veya daha az masum kalınca parity kontrolü
+    const spyAlive = activeSpies.length;
+    const innocentAlive = activePlayers.length - spyAlive;
+    return innocentAlive > spyAlive; // parity: only consider spy win when spyAlive >= innocentAlive
   };
 
   const ref = window.db.ref("rooms/" + roomCode);
@@ -2498,7 +2502,7 @@ checkSpyWin: function (roomCode, latestData) {
         .then(() => true);
     }
 
-    if (innocentAlive <= 1 && spyAlive > 0) {
+    if (spyAlive >= innocentAlive && spyAlive > 0) {
       const updates = appendFinalSpyInfo(
         { status: "finished", winner: "spy", spyParityWin: true },
         data
