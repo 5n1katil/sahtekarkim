@@ -1,0 +1,94 @@
+[1mdiff --git a/gameLogic.js b/gameLogic.js[m
+[1mindex f04dfd6..7c71e7f 100644[m
+[1m--- a/gameLogic.js[m
+[1m+++ b/gameLogic.js[m
+[36m@@ -373,9 +373,18 @@[m [mfunction buildRoleAssignments(roomCode, settings, players, roundId) {[m
+   const isLocationGame = gameType === "location";[m
+   const isCategoryGame = gameType === "category";[m
+ [m
+[32m+[m[32m  // Canonical correct answer for guesses (single source of truth; do not derive from first innocent)[m
+[32m+[m[32m  let correctAnswer = null;[m
+[32m+[m
+   if (isLocationGame) {[m
+     const pool = samplePool([...POOLS.locations], settings.poolSize);[m
+     const chosenLocation = randomFrom(pool);[m
+[32m+[m[32m    // For location games, the correct answer is the chosen location[m
+[32m+[m[32m    if (chosenLocation != null) {[m
+[32m+[m[32m      correctAnswer = typeof chosenLocation === "string"[m
+[32m+[m[32m        ? chosenLocation[m
+[32m+[m[32m        : String(chosenLocation);[m
+[32m+[m[32m    }[m
+     uids.forEach((uid) => {[m
+       const isSpy = spyUids.includes(uid);[m
+       updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy[m
+[36m@@ -417,6 +426,15 @@[m [mfunction buildRoleAssignments(roomCode, settings, players, roundId) {[m
+     const chosenRoleFameTier = chosenRoleIsObject[m
+       ? chosenRole.fameTier ?? chosenRole.tier ?? null[m
+       : null;[m
+[32m+[m
+[32m+[m[32m    // For category games, the correct answer is the chosen role's display name[m
+[32m+[m[32m    if (chosenRoleName != null && chosenRoleName !== "") {[m
+[32m+[m[32m      correctAnswer =[m
+[32m+[m[32m        typeof chosenRoleName === "string"[m
+[32m+[m[32m          ? chosenRoleName[m
+[32m+[m[32m          : String(chosenRoleName);[m
+[32m+[m[32m    }[m
+[32m+[m
+     uids.forEach((uid) => {[m
+       const isSpy = spyUids.includes(uid);[m
+       updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy[m
+[36m@@ -457,14 +475,6 @@[m [mfunction buildRoleAssignments(roomCode, settings, players, roundId) {[m
+     spies: spiesArr,[m
+   };[m
+ [m
+[31m-  // Canonical correct answer for guesses (single source of truth; do not derive from first innocent)[m
+[31m-  let correctAnswer = null;[m
+[31m-  if (isLocationGame) {[m
+[31m-    correctAnswer = chosenLocation;[m
+[31m-  } else if (isCategoryGame) {[m
+[31m-    correctAnswer = chosenRoleName;[m
+[31m-  }[m
+[31m-[m
+   return { updates, spiesSnapshotPayload, correctAnswer };[m
+ }[m
+ [m
+[36m@@ -1107,6 +1117,10 @@[m [mexport const gameLogic = {[m
+       roundId[m
+     );[m
+ [m
+[32m+[m[32m    if (correctAnswer == null || correctAnswer === "") {[m
+[32m+[m[32m      throw new Error("Oyun başlatılamadı: geçerli konum/rol seçilemedi.");[m
+[32m+[m[32m    }[m
+[32m+[m
+     const roomBasePath = `rooms/${roomCode}`;[m
+     const updatePayload = {[m
+       ...updates,[m
+[36m@@ -1117,7 +1131,7 @@[m [mexport const gameLogic = {[m
+       [`${roomBasePath}/phase`]: "clue",[m
+       [`${roomBasePath}/game`]: {[m
+         phase: "playing",[m
+[31m-        ...(correctAnswer != null ? { correctAnswer } : {}),[m
+[32m+[m[32m        correctAnswer,[m
+       },[m
+       [`${roomBasePath}/votes`]: null,[m
+       [`${roomBasePath}/voteResult`]: null,[m
+[36m@@ -1183,6 +1197,10 @@[m [mexport const gameLogic = {[m
+       roundId[m
+     );[m
+ [m
+[32m+[m[32m    if (correctAnswer == null || correctAnswer === "") {[m
+[32m+[m[32m      throw new Error("Oyun tekrar başlatılamadı: geçerli konum/rol seçilemedi.");[m
+[32m+[m[32m    }[m
+[32m+[m
+     const roomBasePath = `rooms/${roomCode}`;[m
+     const updatePayload = {[m
+       ...updates,[m
+[36m@@ -1193,7 +1211,7 @@[m [mexport const gameLogic = {[m
+       [`${roomBasePath}/phase`]: "clue",[m
+       [`${roomBasePath}/game`]: {[m
+         phase: "playing",[m
+[31m-        ...(correctAnswer != null ? { correctAnswer } : {}),[m
+[32m+[m[32m        correctAnswer,[m
+       },[m
+       [`${roomBasePath}/votes`]: null,[m
+       [`${roomBasePath}/voteResult`]: null,[m

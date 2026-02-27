@@ -1547,10 +1547,7 @@ export const gameLogic = {
         if (!room) return room;
         if (room.status === "finished") return room;
 
-        const phase = room?.game?.phase || room?.phase;
-        const isVoting = phase === "voting";
-        if (!isVoting) return room;
-
+        // Sahtekarlar tahminlerini istedikleri zaman yapabilir; sadece oyun devam ederken ve tahmin hakkı varken.
         const roles = room.playerRoles || {};
         const spyRole = roles[spyUid];
         if (!spyRole || !spyRole.isSpy) return room;

@@ -1979,13 +1979,6 @@ function updateRoleDisplay(myData, settings) {
 
         updateRoleDisplay(myData, roomData.settings);
 
-        // Mevcut oyun fazını ve oylama durumunu tek yerden çöz.
-        const currentPhase = resolveGamePhase(roomData);
-        const isVotingPhase =
-          currentPhase === "voting" ||
-          roomData.votingStarted === true ||
-          roomData.voting?.status === "in_progress";
-
         if (myData && myData.role) {
           const guessesLeft = myData.guessesLeft ?? 0;
           const roleDisplay = myData.role?.name ?? myData.role;
@@ -1993,8 +1986,8 @@ function updateRoleDisplay(myData, settings) {
             roleDisplay &&
             typeof roleDisplay === "string" &&
             roleDisplay.includes("Sahtekar");
-          // Tahmin butonu sadece sahtekar, tahmin hakkı > 0 ve oylama fazında iken gösterilsin
-          if (isSpy && guessesLeft > 0 && isVotingPhase) {
+          // Sahtekarlar tahminlerini istedikleri zaman yapabilir; tahmin bölümü her zaman görünür (tahmin hakkı varken).
+          if (isSpy && guessesLeft > 0) {
             const guessSection = document.getElementById("guessSection");
             guessSection.classList.remove("hidden");
             const guessSelect = document.getElementById("guessSelect");
@@ -2043,6 +2036,11 @@ function updateRoleDisplay(myData, settings) {
         }
 
         // Oylama durumu
+        const currentPhase = resolveGamePhase(roomData);
+        const isVotingPhase =
+          currentPhase === "voting" ||
+          roomData.votingStarted === true ||
+          roomData.voting?.status === "in_progress";
         const overlayEl = document.getElementById("resultOverlay");
         const shouldHideResultOverlay =
           overlayEl &&
