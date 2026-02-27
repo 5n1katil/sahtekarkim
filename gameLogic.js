@@ -373,9 +373,18 @@ function buildRoleAssignments(roomCode, settings, players, roundId) {
   const isLocationGame = gameType === "location";
   const isCategoryGame = gameType === "category";
 
+  // Canonical correct answer for guesses (single source of truth; do not derive from first innocent)
+  let correctAnswer = null;
+
   if (isLocationGame) {
     const pool = samplePool([...POOLS.locations], settings.poolSize);
     const chosenLocation = randomFrom(pool);
+    // For location games, the correct answer is the chosen location
+    if (chosenLocation != null) {
+      correctAnswer = typeof chosenLocation === "string"
+        ? chosenLocation
+        : String(chosenLocation);
+    }
     uids.forEach((uid) => {
       const isSpy = spyUids.includes(uid);
       updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
@@ -417,6 +426,15 @@ function buildRoleAssignments(roomCode, settings, players, roundId) {
     const chosenRoleFameTier = chosenRoleIsObject
       ? chosenRole.fameTier ?? chosenRole.tier ?? null
       : null;
+
+    // For category games, the correct answer is the chosen role's display name
+    if (chosenRoleName != null && chosenRoleName !== "") {
+      correctAnswer =
+        typeof chosenRoleName === "string"
+          ? chosenRoleName
+          : String(chosenRoleName);
+    }
+
     uids.forEach((uid) => {
       const isSpy = spyUids.includes(uid);
       updates[`rooms/${roomCode}/playerRoles/${uid}`] = isSpy
@@ -456,14 +474,6 @@ function buildRoleAssignments(roomCode, settings, players, roundId) {
     roundId: roundId || null,
     spies: spiesArr,
   };
-
-  // Canonical correct answer for guesses (single source of truth; do not derive from first innocent)
-  let correctAnswer = null;
-  if (isLocationGame) {
-    correctAnswer = chosenLocation;
-  } else if (isCategoryGame) {
-    correctAnswer = chosenRoleName;
-  }
 
   return { updates, spiesSnapshotPayload, correctAnswer };
 }
@@ -1107,6 +1117,10 @@ export const gameLogic = {
       roundId
     );
 
+    if (correctAnswer == null || correctAnswer === "") {
+      throw new Error("Oyun başlatılamadı: geçerli konum/rol seçilemedi.");
+    }
+
     const roomBasePath = `rooms/${roomCode}`;
     const updatePayload = {
       ...updates,
@@ -1117,7 +1131,7 @@ export const gameLogic = {
       [`${roomBasePath}/phase`]: "clue",
       [`${roomBasePath}/game`]: {
         phase: "playing",
-        ...(correctAnswer != null ? { correctAnswer } : {}),
+        correctAnswer,
       },
       [`${roomBasePath}/votes`]: null,
       [`${roomBasePath}/voteResult`]: null,
@@ -1183,6 +1197,10 @@ export const gameLogic = {
       roundId
     );
 
+    if (correctAnswer == null || correctAnswer === "") {
+      throw new Error("Oyun tekrar başlatılamadı: geçerli konum/rol seçilemedi.");
+    }
+
     const roomBasePath = `rooms/${roomCode}`;
     const updatePayload = {
       ...updates,
@@ -1193,7 +1211,7 @@ export const gameLogic = {
       [`${roomBasePath}/phase`]: "clue",
       [`${roomBasePath}/game`]: {
         phase: "playing",
-        ...(correctAnswer != null ? { correctAnswer } : {}),
+        correctAnswer,
       },
       [`${roomBasePath}/votes`]: null,
       [`${roomBasePath}/voteResult`]: null,
